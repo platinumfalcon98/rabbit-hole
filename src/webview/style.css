@@ -1,0 +1,94 @@
+body {
+  background: var(--vscode-editor-background);
+  color: var(--vscode-editor-foreground);
+  font-family: var(--vscode-font-family);
+  font-size: var(--vscode-font-size);
+  padding: 16px;
+  margin: 0;
+}
+
+#header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+#header h1 {
+  margin: 0;
+  font-size: 1.4em;
+  font-weight: 600;
+}
+
+#streak {
+  font-size: 1em;
+  color: var(--vscode-descriptionForeground);
+}
+
+#range {
+  background: var(--vscode-dropdown-background);
+  color: var(--vscode-dropdown-foreground);
+  border: 1px solid var(--vscode-dropdown-border);
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-family: var(--vscode-font-family);
+  font-size: var(--vscode-font-size);
+  margin-left: auto;
+}
+
+#stat-cards {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+
+.stat-card {
+  background: var(--vscode-editorWidget-background);
+  border: 1px solid var(--vscode-editorWidget-border);
+  border-radius: 6px;
+  padding: 12px 20px;
+  min-width: 120px;
+  flex: 1;
+}
+
+.stat-label {
+  font-size: 0.8em;
+  color: var(--vscode-descriptionForeground);
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.stat-value {
+  font-size: 1.6em;
+  font-weight: 600;
+}
+
+#heatmap {
+  margin-bottom: 28px;
+  overflow-x: auto;
+}
+
+#heatmap svg {
+  display: block;
+}
+
+.chart-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.chart-box {
+  background: var(--vscode-editorWidget-background);
+  border: 1px solid var(--vscode-editorWidget-border);
+  border-radius: 6px;
+  padding: 16px;
+  min-height: 240px;
+}
+
+.chart-wide {
+  grid-column: 1 / -1;
+}
