@@ -122,6 +122,11 @@ export class DashboardPanel {
     <div id="sessions-list"></div>
   </div>
 
+  <div id="files-panel">
+    <h2 class="section-title">Files</h2>
+    <div id="files-list"></div>
+  </div>
+
   <script src="${scriptUri}"></script>
 </body>
 </html>`

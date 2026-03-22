@@ -24,6 +24,48 @@ function formatTime(ts: number): string {
   return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
 }
 
+function shortenPath(fullPath: string, segments = 3): string {
+  const parts = fullPath.split(/[/\\]/).filter(Boolean)
+  return parts.slice(-segments).join("/")
+}
+
+function aggregateFiles(logs: DailyLog[]) {
+  const map = new Map<string, { path: string; language: string; linesAdded: number; linesDeleted: number }>()
+  for (const log of logs) {
+    for (const file of log.files) {
+      const existing = map.get(file.path)
+      if (existing) {
+        existing.linesAdded += file.linesAdded
+        existing.linesDeleted += file.linesDeleted
+      } else {
+        map.set(file.path, { path: file.path, language: file.language, linesAdded: file.linesAdded, linesDeleted: file.linesDeleted })
+      }
+    }
+  }
+  return [...map.values()]
+    .sort((a, b) => (b.linesAdded + b.linesDeleted) - (a.linesAdded + a.linesDeleted))
+    .slice(0, 30)
+}
+
+function renderFiles(logs: DailyLog[]): void {
+  const container = document.getElementById("files-list")
+  if (!container) return
+
+  const files = aggregateFiles(logs)
+  if (files.length === 0) {
+    container.innerHTML = `<span class="empty-state">No file activity yet</span>`
+    return
+  }
+
+  container.innerHTML = files.map(f => `
+    <div class="file-row">
+      <span class="file-path" title="${f.path}">${shortenPath(f.path)}</span>
+      <span class="file-lang">${f.language}</span>
+      <span class="file-add">+${f.linesAdded}</span>
+      <span class="file-del">-${f.linesDeleted}</span>
+    </div>`).join("")
+}
+
 function renderSessions(logs: DailyLog[]): void {
   const container = document.getElementById("sessions-list")
   if (!container) return
@@ -96,6 +138,7 @@ window.addEventListener("message", (event: MessageEvent) => {
       charts.renderAll(currentLogs)
       updateStatCards(currentLogs[currentLogs.length - 1])
       renderSessions(currentLogs)
+      renderFiles(currentLogs)
       break
     case "update": {
       // Replace today's entry in currentLogs, keep the rest
@@ -104,6 +147,7 @@ window.addEventListener("message", (event: MessageEvent) => {
       charts.updateToday(msg.data)
       updateStatCards(msg.data)
       renderSessions(currentLogs)
+      renderFiles(currentLogs)
       break
     }
     case "settings":

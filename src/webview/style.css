@@ -222,3 +222,53 @@ body {
   color: var(--vscode-descriptionForeground);
   font-variant-numeric: tabular-nums;
 }
+
+#files-panel {
+  margin-top: 32px;
+}
+
+.file-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto auto;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--vscode-editorWidget-border, rgba(128,128,128,0.15));
+  font-size: 0.9em;
+}
+
+.file-row:last-child {
+  border-bottom: none;
+}
+
+.file-path {
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: 0.85em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.file-lang {
+  color: var(--vscode-descriptionForeground);
+  font-size: 0.8em;
+  white-space: nowrap;
+}
+
+.file-add {
+  color: rgba(46, 204, 113, 0.9);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.file-del {
+  color: rgba(231, 76, 60, 0.9);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.empty-state {
+  color: var(--vscode-descriptionForeground);
+  font-size: 0.85em;
+}

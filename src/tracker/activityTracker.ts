@@ -27,7 +27,6 @@ export class ActivityTracker {
   private languageIntervalStart = 0
 
   private lastLanguage = ""
-  private fileLineCounts = new Map<string, number>()
   private fileLastChange = new Map<string, number>()
 
   private readonly subscriptions: vscode.Disposable[] = []
@@ -106,7 +105,6 @@ export class ActivityTracker {
     this.lastLanguage = language
 
     const now = Date.now()
-    const prevLineCount = this.fileLineCounts.get(filePath) ?? doc.lineCount
     const prevChangeTime = this.fileLastChange.get(filePath) ?? now
 
     let linesAdded = 0
@@ -132,7 +130,6 @@ export class ActivityTracker {
     const isSyntaxComplete = this.checkSyntaxComplete(addedText)
     const changeRatio = doc.lineCount > 0 ? (linesAdded + linesDeleted) / doc.lineCount : 0
 
-    this.fileLineCounts.set(filePath, doc.lineCount)
     this.fileLastChange.set(filePath, now)
 
     const profile = {
