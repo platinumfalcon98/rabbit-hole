@@ -100,7 +100,20 @@ export class DashboardPanel {
 
   <div class="chart-grid">
     <div class="chart-box"><canvas id="lines-chart"></canvas></div>
-    <div class="chart-box"><canvas id="lang-chart"></canvas></div>
+    <div class="chart-box lang-chart-box">
+      <div class="chart-panel-header">
+        <div class="toggle-group" id="lang-chart-type">
+          <button class="toggle-btn active" data-val="bar">Bar</button>
+          <button class="toggle-btn" data-val="donut">Donut</button>
+        </div>
+        <div class="toggle-group" id="lang-metric">
+          <button class="toggle-btn active" data-val="time">Time</button>
+          <button class="toggle-btn" data-val="lines">Lines</button>
+        </div>
+      </div>
+      <canvas id="lang-chart"></canvas>
+      <div id="lang-legend"></div>
+    </div>
     <div class="chart-box chart-wide"><canvas id="agent-chart"></canvas></div>
   </div>
 

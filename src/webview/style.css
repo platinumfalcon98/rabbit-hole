@@ -93,6 +93,84 @@ body {
   grid-column: 1 / -1;
 }
 
+.lang-chart-box {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.chart-panel-header {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.toggle-group {
+  display: flex;
+  border: 1px solid var(--vscode-dropdown-border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.toggle-btn {
+  background: var(--vscode-dropdown-background);
+  color: var(--vscode-dropdown-foreground);
+  border: none;
+  padding: 3px 10px;
+  font-family: var(--vscode-font-family);
+  font-size: 0.8em;
+  cursor: pointer;
+  border-right: 1px solid var(--vscode-dropdown-border);
+}
+
+.toggle-btn:last-child {
+  border-right: none;
+}
+
+.toggle-btn.active {
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+}
+
+.lang-legend-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82em;
+  margin-top: 4px;
+}
+
+.lang-legend-table th {
+  text-align: left;
+  color: var(--vscode-descriptionForeground);
+  font-weight: 500;
+  padding: 3px 6px 3px 0;
+  border-bottom: 1px solid var(--vscode-editorWidget-border);
+}
+
+.lang-legend-table td {
+  padding: 3px 6px 3px 0;
+  border-bottom: 1px solid var(--vscode-editorWidget-border, rgba(128,128,128,0.1));
+}
+
+.color-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.legend-name {
+  font-weight: 500;
+}
+
+.legend-val {
+  font-variant-numeric: tabular-nums;
+  color: var(--vscode-descriptionForeground);
+}
+
+.legend-add { color: rgba(46, 204, 113, 0.9); }
+.legend-del { color: rgba(231, 76, 60, 0.9); }
+
 #sessions-panel {
   margin-top: 32px;
 }

@@ -22,6 +22,10 @@ export class ActivityTracker {
   private activeIntervalStart = 0    // start of current active interval
   private isPaused = false           // true when idle/blur has paused the session
 
+  // Language time tracking
+  private languageCurrent = ""
+  private languageIntervalStart = 0
+
   private lastLanguage = ""
   private fileLineCounts = new Map<string, number>()
   private fileLastChange = new Map<string, number>()
@@ -82,9 +86,11 @@ export class ActivityTracker {
       return
     }
     if (this.isPaused) {
-      // Resume from pause — clear expiry, restart active interval
+      // Resume from pause — clear expiry, restart active + language intervals
       this.clearExpiryTimer()
-      this.activeIntervalStart = Date.now()
+      const now = Date.now()
+      this.activeIntervalStart = now
+      this.languageIntervalStart = now
       this.isPaused = false
     }
     this.resetIdleTimer()
@@ -155,7 +161,12 @@ export class ActivityTracker {
 
   private onEditorChange(editor: vscode.TextEditor | undefined): void {
     if (editor) {
-      this.lastLanguage = editor.document.languageId
+      const newLanguage = editor.document.languageId
+      if (newLanguage !== this.languageCurrent && this.currentSession && !this.isPaused) {
+        this.flushLanguageTime(Date.now())
+        this.languageCurrent = newLanguage
+      }
+      this.lastLanguage = newLanguage
       this.onActivity()
     }
   }
@@ -166,6 +177,8 @@ export class ActivityTracker {
     this.activeIntervalStart = now
     this.activeTimeAccumulated = 0
     this.isPaused = false
+    this.languageCurrent = this.lastLanguage
+    this.languageIntervalStart = now
     this.currentSession = {
       id: uuidSimple(),
       startTime: now,
@@ -182,6 +195,7 @@ export class ActivityTracker {
     this.clearIdleTimer()
     if (!this.currentSession || this.isPaused) return
     const now = Date.now()
+    this.flushLanguageTime(now)
     this.activeTimeAccumulated += now - this.activeIntervalStart
     this.isPaused = true
     // Persist snapshot so storage stays consistent
@@ -216,6 +230,7 @@ export class ActivityTracker {
     session.endTime = now
     session.duration = now - session.startTime
     if (!this.isPaused) {
+      this.flushLanguageTime(now)
       this.activeTimeAccumulated += now - this.activeIntervalStart
     }
     session.activeTime = this.activeTimeAccumulated
@@ -225,12 +240,21 @@ export class ActivityTracker {
     this.activeTimeAccumulated = 0
   }
 
-  // Write live activeTime to storage so the status bar / dashboard sees fresh data.
+  // Write live activeTime + language time to storage so status bar / dashboard stays fresh.
   private saveCheckpoint(): void {
     if (!this.currentSession || this.isPaused) return
     const now = Date.now()
+    this.flushLanguageTime(now)
     this.currentSession.activeTime = this.activeTimeAccumulated + (now - this.activeIntervalStart)
     this.storage.appendSession(this.currentSession)
+  }
+
+  // Credit elapsed time to the current language and advance the interval start.
+  private flushLanguageTime(now: number): void {
+    if (!this.languageCurrent || this.languageIntervalStart === 0) return
+    const elapsed = now - this.languageIntervalStart
+    if (elapsed > 0) this.storage.updateLanguageTime(this.languageCurrent, elapsed)
+    this.languageIntervalStart = now
   }
 
   private resetIdleTimer(): void {
