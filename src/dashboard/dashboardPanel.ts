@@ -83,18 +83,30 @@ export class DashboardPanel {
 
     <nav id="sidebar">
       <button id="sidebar-toggle" title="Toggle navigation">&#x2630;</button>
+      <div class="sidebar-wordmark">Rabbit Hole</div>
       <div id="nav-items">
-        <button class="nav-item active" data-tab="overview">Overview</button>
-        <button class="nav-item" data-tab="activity">Activity</button>
-        <button class="nav-item" data-tab="code">Code</button>
-        <button class="nav-item" data-tab="projects">Projects</button>
-        <button class="nav-item nav-item-settings" data-tab="settings">Settings</button>
+        <button class="nav-item active" data-tab="overview">
+          <span class="nav-icon">&#x25C8;</span>
+          <span class="nav-label">Overview</span>
+        </button>
+        <button class="nav-item" data-tab="activity">
+          <span class="nav-icon">&#x2248;</span>
+          <span class="nav-label">Activity</span>
+        </button>
+        <button class="nav-item" data-tab="code">
+          <span class="nav-icon">&lt;/&gt;</span>
+          <span class="nav-label">Code</span>
+        </button>
+        <button class="nav-item" data-tab="projects">
+          <span class="nav-icon">&#x229E;</span>
+          <span class="nav-label">Projects</span>
+        </button>
+        <div class="nav-spacer"></div>
+        <button class="nav-item" data-tab="settings">
+          <span class="nav-icon">&#x2699;</span>
+          <span class="nav-label">Settings</span>
+        </button>
       </div>
-      <div class="sidebar-divider"></div>
-      <div class="sidebar-filter-header">Projects</div>
-      <ul id="project-list">
-        <li class="project-item" data-id="all">All Projects</li>
-      </ul>
     </nav>
 
     <main id="content">
@@ -188,8 +200,9 @@ export class DashboardPanel {
         </div>
       </div>
 
-      <!-- Projects: per-project summary cards -->
+      <!-- Projects: filter chips + summary cards -->
       <div class="tab-panel" id="tab-projects">
+        <div id="project-filter"></div>
         <div id="project-cards"></div>
       </div>
 

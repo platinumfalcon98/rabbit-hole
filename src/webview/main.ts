@@ -72,26 +72,26 @@ document.addEventListener("DOMContentLoaded", () => {
 // ── Sidebar ────────────────────────────────────────────────────────────────
 
 function renderSidebar(ps: ProjectMeta[], activeId: string): void {
-  const list = document.getElementById("project-list")
-  if (!list) return
+  const filter = document.getElementById("project-filter")
+  if (!filter) return
 
-  list.innerHTML = `<li class="project-item${activeId === "all" ? " active" : ""}" data-id="all">All Projects</li>`
-
-  for (const p of ps) {
-    const li = document.createElement("li")
-    li.className = "project-item" + (activeId === p.id ? " active" : "")
-    li.dataset.id = p.id
-    li.title = p.path
-    li.textContent = p.name
-    list.appendChild(li)
+  if (ps.length === 0) {
+    filter.innerHTML = ""
+    return
   }
+
+  const allBtn = `<button class="project-chip${activeId === "all" ? " active" : ""}" data-id="all">All Projects</button>`
+  const chips = ps.map(p =>
+    `<button class="project-chip${activeId === p.id ? " active" : ""}" data-id="${p.id}" title="${p.path}">${p.name}</button>`
+  ).join("")
+  filter.innerHTML = allBtn + chips
 }
 
 document.addEventListener("click", e => {
-  // Project item click
-  const projectItem = (e.target as HTMLElement).closest(".project-item") as HTMLElement | null
-  if (projectItem) {
-    vscode.postMessage({ type: "selectProject", projectId: projectItem.dataset.id ?? "" })
+  // Project filter chip click
+  const chip = (e.target as HTMLElement).closest(".project-chip") as HTMLElement | null
+  if (chip) {
+    vscode.postMessage({ type: "selectProject", projectId: chip.dataset.id ?? "" })
     return
   }
   // Sidebar toggle
@@ -274,6 +274,7 @@ function computeProjectSummaries(): ProjectSummary[] {
 }
 
 function renderProjectsTab(): void {
+  renderSidebar(projects, currentProjectId)
   const container = document.getElementById("project-cards")
   if (!container) return
 
