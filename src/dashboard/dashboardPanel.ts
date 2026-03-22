@@ -86,11 +86,22 @@ export class DashboardPanel {
       <div class="sidebar-wordmark">Rabbit Hole</div>
       <div id="nav-items">
         <button class="nav-item active" data-tab="overview">
-          <span class="nav-icon">&#x2302;</span>
+          <span class="nav-icon">
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="6.5" cy="6.5" r="5" stroke="currentColor" stroke-width="1.5"/>
+              <circle cx="6.5" cy="6.5" r="2" fill="currentColor"/>
+              <line x1="10.5" y1="10.5" x2="14.5" y2="14.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </span>
           <span class="nav-label">Overview</span>
         </button>
         <button class="nav-item" data-tab="activity">
-          <span class="nav-icon">&#x2197;</span>
+          <span class="nav-icon">
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <polyline points="1,13 5,8 9,10 13,4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              <polyline points="10,3 13,3 13,6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </span>
           <span class="nav-label">Activity</span>
         </button>
         <button class="nav-item" data-tab="code">
