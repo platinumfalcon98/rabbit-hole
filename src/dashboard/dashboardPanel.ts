@@ -86,11 +86,11 @@ export class DashboardPanel {
       <div class="sidebar-wordmark">Rabbit Hole</div>
       <div id="nav-items">
         <button class="nav-item active" data-tab="overview">
-          <span class="nav-icon">&#x25C8;</span>
+          <span class="nav-icon">&#x2302;</span>
           <span class="nav-label">Overview</span>
         </button>
         <button class="nav-item" data-tab="activity">
-          <span class="nav-icon">&#x2248;</span>
+          <span class="nav-icon">&#x2197;</span>
           <span class="nav-label">Activity</span>
         </button>
         <button class="nav-item" data-tab="code">
