@@ -3,6 +3,7 @@ import { StorageService } from "./tracker/storageService"
 import { AgentDetector } from "./tracker/agentDetector"
 import { ActivityTracker } from "./tracker/activityTracker"
 import { DashboardPanel } from "./dashboard/dashboardPanel"
+import { MiniPanel } from "./dashboard/miniPanel"
 import { handleMessage } from "./dashboard/messageHandler"
 import { WebviewMessage } from "./shared/types"
 
@@ -23,6 +24,12 @@ export function activate(context: vscode.ExtensionContext): void {
 
   // Update streak on activation
   storage.updateStreak()
+
+  // Mini panel (Activity Bar sidebar)
+  const miniPanel = new MiniPanel(context.extensionUri)
+  context.subscriptions.push(
+    vscode.window.registerWebviewViewProvider(MiniPanel.viewId, miniPanel)
+  )
 
   // First-run: prompt the user to set a daily target (fires once per install)
   const hasPrompted = context.globalState.get<boolean>("rabbithole:targetPrompted")
@@ -58,12 +65,27 @@ export function activate(context: vscode.ExtensionContext): void {
   statusBar.command = "rabbithole.openDashboard"
   statusBar.tooltip = "Rabbit Hole — click to open dashboard"
 
-  const refreshStatusBar = () => {
+  const refreshMiniPanel = () => {
+    const global = storage.getGlobalToday()
     const today = storage.getToday()
+    const aiCount = Object.entries(today.agents)
+      .filter(([k]) => k !== "manual")
+      .reduce((s, [, v]) => s + v.length, 0)
+    miniPanel.update({
+      activeTime: global.activeTime,
+      streak: global.streak,
+      linesAdded: today.files.reduce((s, f) => s + f.linesAdded, 0),
+      linesDeleted: today.files.reduce((s, f) => s + f.linesDeleted, 0),
+      aiCount,
+    })
+  }
+
+  const refreshStatusBar = () => {
+    const global = storage.getGlobalToday()
     const targetMins = vscode.workspace
       .getConfiguration("rabbithole")
       .get<number>("dailyTargetMinutes") ?? 0
-    const activeText = formatDuration(today.activeTime)
+    const activeText = formatDuration(global.activeTime)
     statusBar.text = targetMins > 0
       ? `$(clock) ${activeText} / ${formatDuration(targetMins * 60_000)}`
       : `$(clock) ${activeText}`
@@ -73,14 +95,16 @@ export function activate(context: vscode.ExtensionContext): void {
   statusBar.show()
   context.subscriptions.push(statusBar)
 
-  // Live update interval — update streak, push to dashboard, refresh status bar
+  // Live update interval — update streak, push to dashboard, refresh status bar & mini panel
   const interval = setInterval(() => {
     storage.updateStreak()
     refreshStatusBar()
+    refreshMiniPanel()
     if (DashboardPanel.currentPanel) {
       DashboardPanel.currentPanel.postMessage({
         type: "update",
         data: storage.getToday(),
+        projectId: storage.getCurrentProjectId(),
       })
     }
   }, 30_000)

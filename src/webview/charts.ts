@@ -99,6 +99,12 @@ export function renderAll(logs: DailyLog[]): void {
   renderAgentChart(logs)
 }
 
+export function resizeAll(): void {
+  linesChart?.resize()
+  langChart?.resize()
+  agentChart?.resize()
+}
+
 export function updateToday(log: DailyLog): void {
   if (!linesChart || !agentChart) return
   updateLinesChartToday(log)

@@ -3,6 +3,10 @@ import { WebviewMessage } from "../shared/types"
 import { StorageService } from "../tracker/storageService"
 import { DashboardPanel } from "./dashboardPanel"
 
+// Module-level view state — persists for the lifetime of the panel
+let currentProjectView = ""   // "" = tracker's current project, "all" = aggregate, or a project ID
+let currentDays: 7 | 30 | 90 = 30
+
 export function handleMessage(
   msg: WebviewMessage,
   storage: StorageService,
@@ -10,7 +14,9 @@ export function handleMessage(
 ): void {
   switch (msg.type) {
     case "ready": {
-      panel.postMessage({ type: "init", data: storage.getRange(30) })
+      currentDays = 30
+      currentProjectView = ""
+      sendInit(storage, panel)
       const cfg = vscode.workspace.getConfiguration("rabbithole")
       panel.postMessage({
         type: "settings",
@@ -21,7 +27,13 @@ export function handleMessage(
     }
 
     case "requestRange":
-      panel.postMessage({ type: "init", data: storage.getRange(msg.days) })
+      currentDays = msg.days
+      sendInit(storage, panel)
+      break
+
+    case "selectProject":
+      currentProjectView = msg.projectId
+      sendInit(storage, panel)
       break
 
     case "export": {
@@ -33,6 +45,23 @@ export function handleMessage(
       break
     }
   }
+}
+
+function sendInit(storage: StorageService, panel: DashboardPanel): void {
+  const data = currentProjectView === "all"
+    ? storage.getAggregateRange(currentDays)
+    : storage.getRange(currentDays, currentProjectView || undefined)
+
+  const resolvedProjectId = currentProjectView === ""
+    ? storage.getCurrentProjectId()
+    : currentProjectView
+
+  panel.postMessage({
+    type: "init",
+    data,
+    projects: storage.getProjects(),
+    currentProjectId: resolvedProjectId,
+  })
 }
 
 async function writeExport(content: string, ext: string): Promise<void> {

@@ -9,6 +9,24 @@
   "activationEvents": ["onStartupFinished"],
   "main": "./out/extension.js",
   "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "rabbithole",
+          "title": "Rabbit Hole",
+          "icon": "resources/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "rabbithole": [
+        {
+          "type": "webview",
+          "id": "rabbithole.miniView",
+          "name": "Today"
+        }
+      ]
+    },
     "commands": [
       {
         "command": "rabbithole.openDashboard",

@@ -79,52 +79,94 @@ export class DashboardPanel {
   <title>Rabbit Hole</title>
 </head>
 <body>
-  <div id="header">
-    <h1>Rabbit Hole</h1>
-    <div id="streak">&#x1F525; <span id="streak-count">0</span> day streak<span id="streak-target"></span></div>
-    <select id="range">
-      <option value="7">Last 7 days</option>
-      <option value="30" selected>Last 30 days</option>
-      <option value="90">Last 90 days</option>
-    </select>
-  </div>
+  <div id="app">
 
-  <div id="stat-cards">
-    <div class="stat-card"><div class="stat-label">Active Time</div><div class="stat-value" id="stat-time">&#x2014;</div></div>
-    <div class="stat-card"><div class="stat-label">Lines Added</div><div class="stat-value" id="stat-added">&#x2014;</div></div>
-    <div class="stat-card"><div class="stat-label">Lines Deleted</div><div class="stat-value" id="stat-deleted">&#x2014;</div></div>
-    <div class="stat-card"><div class="stat-label">AI Assisted</div><div class="stat-value" id="stat-ai">&#x2014;</div></div>
-  </div>
+    <nav id="sidebar">
+      <div class="sidebar-header">Projects</div>
+      <ul id="project-list">
+        <li class="project-item" data-id="all">All Projects</li>
+      </ul>
+    </nav>
 
-  <div id="heatmap"></div>
+    <main id="content">
+      <div id="header">
+        <button id="sidebar-toggle" title="Toggle projects panel">&#x2630;</button>
+        <h1>Rabbit Hole</h1>
+        <div id="streak">&#x1F525; <span id="streak-count">0</span> day streak<span id="streak-target"></span></div>
+        <select id="range">
+          <option value="7">Last 7 days</option>
+          <option value="30" selected>Last 30 days</option>
+          <option value="90">Last 90 days</option>
+        </select>
+      </div>
 
-  <div class="chart-grid">
-    <div class="chart-box"><canvas id="lines-chart"></canvas></div>
-    <div class="chart-box lang-chart-box">
-      <div class="chart-panel-header">
-        <div class="toggle-group" id="lang-chart-type">
-          <button class="toggle-btn active" data-val="bar">Bar</button>
-          <button class="toggle-btn" data-val="donut">Donut</button>
+      <nav id="tabs">
+        <button class="tab-btn active" data-tab="overview">Overview</button>
+        <button class="tab-btn" data-tab="activity">Activity</button>
+        <button class="tab-btn" data-tab="code">Code</button>
+        <button class="tab-btn" data-tab="ai">AI</button>
+        <button class="tab-btn" data-tab="projects">Projects</button>
+      </nav>
+
+      <!-- Overview: stat cards + heatmap -->
+      <div class="tab-panel active" id="tab-overview">
+        <div id="stat-cards">
+          <div class="stat-card"><div class="stat-label">Active Time</div><div class="stat-value" id="stat-time">&#x2014;</div></div>
+          <div class="stat-card"><div class="stat-label">Lines Added</div><div class="stat-value" id="stat-added">&#x2014;</div></div>
+          <div class="stat-card"><div class="stat-label">Lines Deleted</div><div class="stat-value" id="stat-deleted">&#x2014;</div></div>
+          <div class="stat-card"><div class="stat-label">AI Assisted</div><div class="stat-value" id="stat-ai">&#x2014;</div></div>
         </div>
-        <div class="toggle-group" id="lang-metric">
-          <button class="toggle-btn active" data-val="time">Time</button>
-          <button class="toggle-btn" data-val="lines">Lines</button>
+        <div id="heatmap"></div>
+      </div>
+
+      <!-- Activity: lines chart + sessions -->
+      <div class="tab-panel" id="tab-activity">
+        <div class="chart-grid">
+          <div class="chart-box chart-wide"><canvas id="lines-chart"></canvas></div>
+        </div>
+        <div id="sessions-panel">
+          <h2 class="section-title">Sessions</h2>
+          <div id="sessions-list"></div>
         </div>
       </div>
-      <canvas id="lang-chart"></canvas>
-      <div id="lang-legend"></div>
-    </div>
-    <div class="chart-box chart-wide"><canvas id="agent-chart"></canvas></div>
-  </div>
 
-  <div id="sessions-panel">
-    <h2 class="section-title">Sessions</h2>
-    <div id="sessions-list"></div>
-  </div>
+      <!-- Code: language panel + files -->
+      <div class="tab-panel" id="tab-code">
+        <div class="chart-grid">
+          <div class="chart-box chart-wide lang-chart-box">
+            <div class="chart-panel-header">
+              <div class="toggle-group" id="lang-chart-type">
+                <button class="toggle-btn active" data-val="bar">Bar</button>
+                <button class="toggle-btn" data-val="donut">Donut</button>
+              </div>
+              <div class="toggle-group" id="lang-metric">
+                <button class="toggle-btn active" data-val="time">Time</button>
+                <button class="toggle-btn" data-val="lines">Lines</button>
+              </div>
+            </div>
+            <canvas id="lang-chart"></canvas>
+            <div id="lang-legend"></div>
+          </div>
+        </div>
+        <div id="files-panel">
+          <h2 class="section-title">Files</h2>
+          <div id="files-list"></div>
+        </div>
+      </div>
 
-  <div id="files-panel">
-    <h2 class="section-title">Files</h2>
-    <div id="files-list"></div>
+      <!-- AI: agent chart -->
+      <div class="tab-panel" id="tab-ai">
+        <div class="chart-grid">
+          <div class="chart-box chart-wide"><canvas id="agent-chart"></canvas></div>
+        </div>
+      </div>
+
+      <!-- Projects: per-project summary cards -->
+      <div class="tab-panel" id="tab-projects">
+        <div id="project-cards"></div>
+      </div>
+
+    </main>
   </div>
 
   <script src="${scriptUri}"></script>

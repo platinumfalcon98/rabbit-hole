@@ -2,6 +2,7 @@ import * as vscode from "vscode"
 import { ActivitySession, FileActivity } from "../shared/types"
 import { StorageService } from "./storageService"
 import { AgentDetector } from "./agentDetector"
+import { detectProject, clearDetectionCache } from "./projectDetector"
 
 function uuidSimple(): string {
   return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, c => {
@@ -29,6 +30,10 @@ export class ActivityTracker {
   private lastLanguage = ""
   private fileLastChange = new Map<string, number>()
 
+  // Project tracking
+  private currentProjectId = ""
+  private folderProjects = new Map<string, string>() // folder URI → projectId
+
   private readonly subscriptions: vscode.Disposable[] = []
 
   constructor(
@@ -38,17 +43,21 @@ export class ActivityTracker {
   ) {}
 
   start(): void {
+    this.initProjects()
+
     this.subscriptions.push(
       vscode.workspace.onDidChangeTextDocument(e => this.onTextChange(e)),
       vscode.window.onDidChangeWindowState(s => this.onWindowState(s)),
       vscode.window.onDidChangeActiveTextEditor(e => this.onEditorChange(e)),
       vscode.window.onDidChangeActiveTerminal(() => this.onActivity()),
       vscode.window.onDidChangeTextEditorVisibleRanges(() => this.onActivity()),
+      vscode.workspace.onDidChangeWorkspaceFolders(e => this.onWorkspaceFoldersChange(e)),
     )
     this.context.subscriptions.push(
       ...this.subscriptions,
       { dispose: () => this.stop() }
     )
+
     // Checkpoint every 30s so storage stays fresh for status bar / dashboard
     this.checkpointInterval = setInterval(() => this.saveCheckpoint(), 30_000)
 
@@ -64,6 +73,59 @@ export class ActivityTracker {
     }
     this.endSession()
     for (const d of this.subscriptions) d.dispose()
+  }
+
+  private initProjects(): void {
+    const folders = vscode.workspace.workspaceFolders ?? []
+    for (const folder of folders) {
+      const meta = detectProject(folder)
+      this.storage.registerProject(meta)
+      this.folderProjects.set(folder.uri.toString(), meta.id)
+    }
+    // Primary project is the first folder (or stays empty if no folders)
+    const primary = folders[0]
+    if (primary) {
+      const meta = detectProject(primary)
+      this.currentProjectId = meta.id
+      this.storage.setCurrentProject(meta.id)
+    }
+  }
+
+  private resolveProjectForUri(uri: vscode.Uri): string {
+    const folder = vscode.workspace.getWorkspaceFolder(uri)
+    if (folder) {
+      const key = folder.uri.toString()
+      if (this.folderProjects.has(key)) return this.folderProjects.get(key)!
+      // New folder not yet registered (edge case)
+      const meta = detectProject(folder)
+      this.storage.registerProject(meta)
+      this.folderProjects.set(key, meta.id)
+      return meta.id
+    }
+    // File outside any workspace folder — fall back to current project
+    return this.currentProjectId
+  }
+
+  private onWorkspaceFoldersChange(e: vscode.WorkspaceFoldersChangeEvent): void {
+    for (const folder of e.added) {
+      const meta = detectProject(folder)
+      this.storage.registerProject(meta)
+      this.folderProjects.set(folder.uri.toString(), meta.id)
+    }
+    // Removed folders: keep historical data, just clean the in-memory map
+    for (const folder of e.removed) {
+      this.folderProjects.delete(folder.uri.toString())
+    }
+    // Update primary project if the active editor's project is no longer valid
+    const activeEditor = vscode.window.activeTextEditor
+    if (activeEditor) {
+      const pid = this.resolveProjectForUri(activeEditor.document.uri)
+      if (pid !== this.currentProjectId) {
+        this.endSession()
+        this.currentProjectId = pid
+        this.storage.setCurrentProject(pid)
+      }
+    }
   }
 
   private getIdleThresholdMs(): number {
@@ -159,10 +221,18 @@ export class ActivityTracker {
   private onEditorChange(editor: vscode.TextEditor | undefined): void {
     if (editor) {
       const newLanguage = editor.document.languageId
-      if (newLanguage !== this.languageCurrent && this.currentSession && !this.isPaused) {
+      const newProjectId = this.resolveProjectForUri(editor.document.uri)
+
+      if (newProjectId !== this.currentProjectId && this.currentProjectId !== "") {
+        // Project changed — close current session, switch project, start fresh
+        this.endSession()
+        this.currentProjectId = newProjectId
+        this.storage.setCurrentProject(newProjectId)
+      } else if (newLanguage !== this.languageCurrent && this.currentSession && !this.isPaused) {
         this.flushLanguageTime(Date.now())
         this.languageCurrent = newLanguage
       }
+
       this.lastLanguage = newLanguage
       this.onActivity()
     }
@@ -170,6 +240,7 @@ export class ActivityTracker {
 
   private startSession(): void {
     if (this.currentSession) return
+    if (!this.currentProjectId) return
     const now = Date.now()
     this.activeIntervalStart = now
     this.activeTimeAccumulated = 0
@@ -218,7 +289,7 @@ export class ActivityTracker {
     this.activeTimeAccumulated = 0
   }
 
-  // End: explicitly close an active or paused session (extension deactivate).
+  // End: explicitly close an active or paused session (extension deactivate or project switch).
   private endSession(): void {
     this.clearIdleTimer()
     this.clearExpiryTimer()
@@ -250,8 +321,7 @@ export class ActivityTracker {
   }
 
   // If the current session started on a previous calendar day, close it at midnight
-  // and open a fresh session for today. Handles language time and active time correctly
-  // for both active and paused states.
+  // and open a fresh session for today.
   private splitAtMidnight(): void {
     if (!this.currentSession) return
 
@@ -260,17 +330,13 @@ export class ActivityTracker {
     todayStart.setHours(0, 0, 0, 0)
     const midnight = todayStart.getTime()
 
-    // Session is already on today — nothing to do
     const sessionDay = new Date(this.currentSession.startTime)
     sessionDay.setHours(0, 0, 0, 0)
     if (sessionDay.getTime() >= midnight) return
 
-    // Date string for the day the session started (yesterday or earlier)
     const sd = new Date(this.currentSession.startTime)
     const sessionDateStr = `${sd.getFullYear()}-${String(sd.getMonth() + 1).padStart(2, "0")}-${String(sd.getDate()).padStart(2, "0")}`
 
-    // Language time: flush the pre-midnight portion to yesterday's log.
-    // Skip if paused — language time was already flushed at the time of pause.
     if (!this.isPaused && this.languageCurrent && this.languageIntervalStart < midnight) {
       const langMs = midnight - this.languageIntervalStart
       if (langMs > 0) {
@@ -279,16 +345,12 @@ export class ActivityTracker {
       this.languageIntervalStart = midnight
     }
 
-    // Active time for yesterday:
-    // - If paused: accumulated time is already complete (flushed when pause happened)
-    // - If active: add the portion of the current interval that falls before midnight
     const activeBeforeMidnight = this.isPaused
       ? this.activeTimeAccumulated
       : this.activeTimeAccumulated + (this.activeIntervalStart < midnight
           ? midnight - this.activeIntervalStart
           : 0)
 
-    // Write the closed yesterday session
     this.storage.appendSessionToDate(
       {
         ...this.currentSession,
@@ -299,7 +361,6 @@ export class ActivityTracker {
       sessionDateStr
     )
 
-    // Open a fresh session for today starting at midnight
     this.currentSession = {
       id: uuidSimple(),
       startTime: midnight,
@@ -308,7 +369,6 @@ export class ActivityTracker {
       activeTime: 0,
     }
     this.activeTimeAccumulated = 0
-    // Advance interval starts to midnight so post-split flushes only cover today
     this.activeIntervalStart = Math.max(this.activeIntervalStart, midnight)
     if (!this.isPaused) {
       this.languageIntervalStart = Math.max(this.languageIntervalStart, midnight)

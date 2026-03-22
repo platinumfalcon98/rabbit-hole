@@ -4,6 +4,7 @@ export interface ActivitySession {
   endTime: number | null   // null if session still active
   duration: number         // total elapsed ms (endTime - startTime), 0 if open
   activeTime: number       // ms of actual active time (idle gaps excluded)
+  projectId?: string       // populated only in aggregate responses
 }
 
 export interface FileActivity {
@@ -12,6 +13,14 @@ export interface FileActivity {
   linesAdded: number
   linesDeleted: number
   lastModified: number     // unix ms
+  projectId?: string       // populated only in aggregate responses
+}
+
+export interface ProjectMeta {
+  id: string
+  name: string
+  path: string
+  detectionMethod: "git-remote" | "folder-hash" | "user-defined"
 }
 
 export type AgentName =
@@ -43,7 +52,7 @@ export interface DailyLog {
   date: string                              // "YYYY-MM-DD"
   totalTime: number                         // ms including idle
   activeTime: number                        // ms excluding idle
-  streak: number                            // consecutive coding days
+  streak: number                            // consecutive coding days (global)
   languages: Record<string, LanguageStat>
   agents: Record<AgentName, AgentEvent[]>
   files: FileActivity[]
@@ -53,11 +62,12 @@ export interface DailyLog {
 // ── Message Protocol ──────────────────────────────────────────────────────
 
 export type ExtensionMessage =
-  | { type: "init";     data: DailyLog[] }
-  | { type: "update";   data: DailyLog }
+  | { type: "init"; data: DailyLog[]; projects: ProjectMeta[]; currentProjectId: string }
+  | { type: "update"; data: DailyLog; projectId: string }
   | { type: "settings"; agentsEnabled: boolean; dailyTargetMs: number }
 
 export type WebviewMessage =
   | { type: "ready" }
   | { type: "requestRange"; days: 7 | 30 | 90 }
+  | { type: "selectProject"; projectId: string }
   | { type: "export"; format: "csv" | "json" }
