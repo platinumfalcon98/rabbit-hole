@@ -82,6 +82,7 @@ export class DashboardPanel {
   <div id="app">
 
     <nav id="sidebar">
+      <button id="sidebar-toggle" title="Toggle navigation">&#x2630;</button>
       <div id="nav-items">
         <button class="nav-item active" data-tab="overview">Overview</button>
         <button class="nav-item" data-tab="activity">Activity</button>
@@ -98,7 +99,6 @@ export class DashboardPanel {
 
     <main id="content">
       <div id="header">
-        <button id="sidebar-toggle" title="Toggle navigation">&#x2630;</button>
         <div id="streak-pill">&#x1F525; <span id="streak-count">0</span> <span class="streak-label">day streak</span><span id="streak-target"></span></div>
         <div class="toggle-group" id="range-toggle">
           <button class="toggle-btn" data-val="7">7d</button>
