@@ -10,7 +10,7 @@ import {
   PieController,
   ArcElement,
 } from "chart.js"
-import { AgentName, DailyLog, LanguageStat } from "../shared/types"
+import { DailyLog, LanguageStat } from "../shared/types"
 
 Chart.register(
   BarController,
@@ -24,18 +24,8 @@ Chart.register(
   ArcElement
 )
 
-const AGENT_COLORS: Record<AgentName, string> = {
-  "claude-code": "#9b59b6",
-  "copilot":     "#3498db",
-  "cursor":      "#1abc9c",
-  "continue":    "#2ecc71",
-  "unknown-ai":  "#e67e22",
-  "manual":      "#95a5a6",
-}
-
 let linesChart: Chart | null = null
 let langChart: Chart | null = null
-let agentChart: Chart | null = null
 
 // Lang panel state — persists across range changes and 30s updates
 let langChartType: "bar" | "donut" = "bar"
@@ -85,10 +75,8 @@ const labelColor = () =>
 function destroyAll(): void {
   linesChart?.destroy()
   langChart?.destroy()
-  agentChart?.destroy()
   linesChart = null
   langChart = null
-  agentChart = null
 }
 
 export function renderAll(logs: DailyLog[]): void {
@@ -96,20 +84,16 @@ export function renderAll(logs: DailyLog[]): void {
   destroyAll()
   renderLinesChart(logs)
   renderLangPanel(logs)
-  renderAgentChart(logs)
 }
 
 export function resizeAll(): void {
   linesChart?.resize()
   langChart?.resize()
-  agentChart?.resize()
 }
 
 export function updateToday(log: DailyLog): void {
-  if (!linesChart || !agentChart) return
+  if (!linesChart) return
   updateLinesChartToday(log)
-  updateAgentChartToday(log)
-  // Re-render lang panel with updated today entry
   const idx = storedLogs.findIndex(l => l.date === log.date)
   if (idx >= 0) storedLogs[idx] = log
   renderLangPanel(storedLogs)
@@ -314,64 +298,3 @@ function renderLangPanel(logs: DailyLog[]): void {
   }
 }
 
-// ── Agent Stacked Bar ──────────────────────────────────────────────────────
-
-const AGENT_NAMES: AgentName[] = [
-  "claude-code",
-  "copilot",
-  "cursor",
-  "continue",
-  "unknown-ai",
-  "manual",
-]
-
-function renderAgentChart(logs: DailyLog[]): void {
-  const canvas = document.getElementById("agent-chart") as HTMLCanvasElement | null
-  if (!canvas) return
-
-  const labels = logs.map(l => l.date.slice(5))
-
-  const datasets = AGENT_NAMES.map(agent => ({
-    label: agent,
-    data: logs.map(log => log.agents[agent]?.length ?? 0),
-    backgroundColor: AGENT_COLORS[agent],
-    stack: "agents",
-  }))
-
-  agentChart = new Chart(canvas, {
-    type: "bar",
-    data: { labels, datasets },
-    options: {
-      responsive: true,
-      plugins: {
-        legend: { labels: { color: labelColor() } },
-        tooltip: { mode: "index" },
-      },
-      scales: {
-        x: {
-          stacked: true,
-          ticks: { color: labelColor(), maxRotation: 45 },
-          grid: { color: gridColor() },
-        },
-        y: {
-          stacked: true,
-          ticks: { color: labelColor() },
-          grid: { color: gridColor() },
-        },
-      },
-    },
-  })
-}
-
-function updateAgentChartToday(log: DailyLog): void {
-  if (!agentChart) return
-  const lastIdx = (agentChart.data.labels?.length ?? 1) - 1
-  for (let i = 0; i < AGENT_NAMES.length; i++) {
-    const agent = AGENT_NAMES[i]
-    const ds = agentChart.data.datasets[i]
-    if (ds) {
-      ds.data[lastIdx] = log.agents[agent]?.length ?? 0
-    }
-  }
-  agentChart.update()
-}

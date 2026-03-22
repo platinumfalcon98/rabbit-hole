@@ -20,7 +20,6 @@ export interface MiniUpdateData {
   streak: number
   linesAdded: number
   linesDeleted: number
-  aiCount: number
 }
 
 export class MiniPanel implements vscode.WebviewViewProvider {
@@ -68,7 +67,6 @@ export class MiniPanel implements vscode.WebviewViewProvider {
       streak: data.streak,
       linesAdded: data.linesAdded,
       linesDeleted: data.linesDeleted,
-      aiCount: data.aiCount,
     })
   }
 
@@ -157,10 +155,6 @@ export class MiniPanel implements vscode.WebviewViewProvider {
       <span class="del" id="deleted"></span>
     </div>
   </div>
-  <div class="stat">
-    <div class="stat-label">AI Events</div>
-    <div class="stat-value" id="ai">—</div>
-  </div>
   <button class="open-btn" id="open-btn">Open Dashboard &#x2197;</button>
   <script nonce="${n}">
     const vscode = acquireVsCodeApi();
@@ -174,7 +168,6 @@ export class MiniPanel implements vscode.WebviewViewProvider {
       document.getElementById('streak').textContent = d.streak;
       document.getElementById('added').textContent = '+' + d.linesAdded;
       document.getElementById('deleted').textContent = '-' + d.linesDeleted;
-      document.getElementById('ai').textContent = d.aiCount;
     });
     // Signal ready so the extension can send initial data immediately
     window.addEventListener('DOMContentLoaded', () => {

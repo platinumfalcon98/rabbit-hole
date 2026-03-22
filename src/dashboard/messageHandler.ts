@@ -17,12 +17,7 @@ export function handleMessage(
       currentDays = 30
       currentProjectView = ""
       sendInit(storage, panel)
-      const cfg = vscode.workspace.getConfiguration("rabbithole")
-      panel.postMessage({
-        type: "settings",
-        agentsEnabled: cfg.get<boolean>("detectAgents") ?? true,
-        dailyTargetMs: (cfg.get<number>("dailyTargetMinutes") ?? 0) * 60_000,
-      })
+      sendSettings(panel)
       break
     }
 
@@ -44,7 +39,39 @@ export function handleMessage(
       writeExport(content, ext)
       break
     }
+
+    case "exportPdfRequest": {
+      const logs = currentProjectView === "all"
+        ? storage.getAggregateRange(msg.days)
+        : storage.getRange(msg.days, currentProjectView || undefined)
+      panel.postMessage({ type: "pdfData", logs })
+      break
+    }
+
+    case "writePdf":
+      writePdfExport(msg.base64)
+      break
+
+    case "updateSetting": {
+      const cfg = vscode.workspace.getConfiguration("rabbithole")
+      cfg.update(msg.key, msg.value === null ? undefined : msg.value, vscode.ConfigurationTarget.Global)
+      break
+    }
   }
+}
+
+function sendSettings(panel: DashboardPanel): void {
+  const cfg = vscode.workspace.getConfiguration("rabbithole")
+  const dailyTargetMinutes = cfg.get<number>("dailyTargetMinutes") ?? 0
+  panel.postMessage({
+    type: "settings",
+    agentsEnabled: cfg.get<boolean>("detectAgents") ?? true,
+    dailyTargetMs: dailyTargetMinutes * 60_000,
+    dailyTargetMinutes,
+    idleThresholdMinutes: cfg.get<number>("idleThresholdMinutes") ?? 5,
+    sessionExpiryMinutes: cfg.get<number>("sessionExpiryMinutes") ?? 60,
+    agentToggles: cfg.get<Record<string, boolean>>("agents") ?? {},
+  })
 }
 
 function sendInit(storage: StorageService, panel: DashboardPanel): void {
@@ -62,6 +89,26 @@ function sendInit(storage: StorageService, panel: DashboardPanel): void {
     projects: storage.getProjects(),
     currentProjectId: resolvedProjectId,
   })
+}
+
+async function writePdfExport(base64: string): Promise<void> {
+  const defaultUri = vscode.workspace.workspaceFolders?.[0]?.uri
+    ? vscode.Uri.joinPath(
+        vscode.workspace.workspaceFolders[0].uri,
+        "rabbit-hole-card.pdf"
+      )
+    : undefined
+
+  const uri = await vscode.window.showSaveDialog({
+    defaultUri,
+    filters: { "PDF Files": ["pdf"] },
+  })
+
+  if (!uri) return
+
+  const bytes = Buffer.from(base64, "base64")
+  await vscode.workspace.fs.writeFile(uri, bytes)
+  vscode.window.showInformationMessage(`Rabbit Hole: Card exported to ${uri.fsPath}`)
 }
 
 async function writeExport(content: string, ext: string): Promise<void> {

@@ -530,6 +530,250 @@ body {
 .pstat-val.add { color: rgba(46, 204, 113, 0.9); }
 .pstat-val.del { color: rgba(231, 76, 60, 0.9); }
 
+/* ── Settings tab ────────────────────────────────────────────────────────── */
+
+.settings-section {
+  margin-bottom: 32px;
+}
+
+.settings-section-title {
+  font-size: 0.78em;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--vscode-descriptionForeground);
+  margin: 0 0 16px 0;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--vscode-editorWidget-border);
+}
+
+.setting-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--vscode-editorWidget-border, rgba(128,128,128,0.1));
+}
+
+.setting-row:last-child {
+  border-bottom: none;
+}
+
+.setting-meta {
+  flex: 1;
+  min-width: 0;
+}
+
+.setting-label {
+  font-size: 0.9em;
+  font-weight: 500;
+  display: block;
+  margin-bottom: 2px;
+}
+
+.setting-desc {
+  font-size: 0.78em;
+  color: var(--vscode-descriptionForeground);
+  line-height: 1.4;
+}
+
+.setting-control {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.setting-input {
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  border: 1px solid var(--vscode-input-border, var(--vscode-dropdown-border));
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-family: var(--vscode-font-family);
+  font-size: var(--vscode-font-size);
+  width: 72px;
+  text-align: right;
+}
+
+.setting-input:focus {
+  outline: 1px solid var(--vscode-focusBorder);
+  border-color: var(--vscode-focusBorder);
+}
+
+.setting-unit {
+  font-size: 0.82em;
+  color: var(--vscode-descriptionForeground);
+}
+
+.setting-checkbox {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--vscode-button-background);
+  cursor: pointer;
+}
+
+.agent-toggles {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.agent-toggle {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.88em;
+  cursor: pointer;
+  user-select: none;
+}
+
+.agent-toggle input {
+  accent-color: var(--vscode-button-background);
+  width: 14px;
+  height: 14px;
+}
+
+#pref-agents-row {
+  transition: opacity 0.15s;
+}
+
+#pref-agents-row.disabled {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+/* ── Export Card button ──────────────────────────────────────────────────── */
+
+#overview-actions {
+  margin-top: 16px;
+}
+
+.export-pdf-btn {
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+  border: none;
+  border-radius: 4px;
+  padding: 6px 14px;
+  font-family: var(--vscode-font-family);
+  font-size: 0.85em;
+  cursor: pointer;
+  opacity: 0.85;
+  transition: opacity 0.1s;
+}
+
+.export-pdf-btn:hover {
+  opacity: 1;
+}
+
+/* ── Modal ───────────────────────────────────────────────────────────────── */
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.modal-overlay.hidden {
+  display: none;
+}
+
+.modal {
+  background: var(--vscode-editorWidget-background);
+  border: 1px solid var(--vscode-editorWidget-border);
+  border-radius: 8px;
+  padding: 24px;
+  width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.modal-title {
+  margin: 0;
+  font-size: 1em;
+  font-weight: 600;
+}
+
+.modal-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.modal-label {
+  font-size: 0.78em;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--vscode-descriptionForeground);
+  font-weight: 600;
+}
+
+.modal-checks {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 16px;
+}
+
+.modal-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.88em;
+  cursor: pointer;
+  user-select: none;
+}
+
+.modal-check input[type="checkbox"] {
+  accent-color: var(--vscode-button-background);
+}
+
+.modal-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.modal-btn-secondary {
+  background: none;
+  border: 1px solid var(--vscode-dropdown-border);
+  color: var(--vscode-foreground);
+  border-radius: 4px;
+  padding: 6px 14px;
+  font-family: var(--vscode-font-family);
+  font-size: 0.85em;
+  cursor: pointer;
+}
+
+.modal-btn-secondary:hover {
+  background: var(--vscode-toolbar-hoverBackground);
+}
+
+.modal-btn-primary {
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+  border: none;
+  border-radius: 4px;
+  padding: 6px 14px;
+  font-family: var(--vscode-font-family);
+  font-size: 0.85em;
+  cursor: pointer;
+}
+
+.modal-btn-primary:hover {
+  opacity: 0.9;
+}
+
+.modal-btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* ── Misc ────────────────────────────────────────────────────────────────── */
 
 .empty-state {

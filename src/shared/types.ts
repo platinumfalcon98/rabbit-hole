@@ -64,10 +64,14 @@ export interface DailyLog {
 export type ExtensionMessage =
   | { type: "init"; data: DailyLog[]; projects: ProjectMeta[]; currentProjectId: string }
   | { type: "update"; data: DailyLog; projectId: string }
-  | { type: "settings"; agentsEnabled: boolean; dailyTargetMs: number }
+  | { type: "settings"; agentsEnabled: boolean; dailyTargetMs: number; dailyTargetMinutes: number; idleThresholdMinutes: number; sessionExpiryMinutes: number; agentToggles: Record<string, boolean> }
+  | { type: "pdfData"; logs: DailyLog[] }
 
 export type WebviewMessage =
   | { type: "ready" }
   | { type: "requestRange"; days: 7 | 30 | 90 }
   | { type: "selectProject"; projectId: string }
   | { type: "export"; format: "csv" | "json" }
+  | { type: "exportPdfRequest"; days: 7 | 30 | 90 }
+  | { type: "writePdf"; base64: string }
+  | { type: "updateSetting"; key: string; value: number | boolean | null | Record<string, boolean> }

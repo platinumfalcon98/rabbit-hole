@@ -1,7 +1,6 @@
 import * as vscode from "vscode"
 import { ActivitySession, FileActivity } from "../shared/types"
 import { StorageService } from "./storageService"
-import { AgentDetector } from "./agentDetector"
 import { detectProject, clearDetectionCache } from "./projectDetector"
 
 function uuidSimple(): string {
@@ -38,8 +37,7 @@ export class ActivityTracker {
 
   constructor(
     private context: vscode.ExtensionContext,
-    private storage: StorageService,
-    private detector: AgentDetector
+    private storage: StorageService
   ) {}
 
   start(): void {
@@ -198,9 +196,6 @@ export class ActivityTracker {
       linesAdded, linesDeleted, fileCount: 1, totalCharsChanged, timeMs,
       changeRatio, isMultiSite, isAtomic, isSyntaxComplete, language, filePath,
     }
-
-    const agentEvent = this.detector.detect(profile)
-    if (agentEvent) this.storage.appendAgentEvent(agentEvent)
 
     if (linesAdded > 0 || linesDeleted > 0) {
       const fileActivity: FileActivity = {

@@ -104,8 +104,8 @@ export class DashboardPanel {
         <button class="tab-btn active" data-tab="overview">Overview</button>
         <button class="tab-btn" data-tab="activity">Activity</button>
         <button class="tab-btn" data-tab="code">Code</button>
-        <button class="tab-btn" data-tab="ai">AI</button>
         <button class="tab-btn" data-tab="projects">Projects</button>
+        <button class="tab-btn" data-tab="settings">Settings</button>
       </nav>
 
       <!-- Overview: stat cards + heatmap -->
@@ -114,9 +114,45 @@ export class DashboardPanel {
           <div class="stat-card"><div class="stat-label">Active Time</div><div class="stat-value" id="stat-time">&#x2014;</div></div>
           <div class="stat-card"><div class="stat-label">Lines Added</div><div class="stat-value" id="stat-added">&#x2014;</div></div>
           <div class="stat-card"><div class="stat-label">Lines Deleted</div><div class="stat-value" id="stat-deleted">&#x2014;</div></div>
-          <div class="stat-card"><div class="stat-label">AI Assisted</div><div class="stat-value" id="stat-ai">&#x2014;</div></div>
         </div>
         <div id="heatmap"></div>
+        <div id="overview-actions">
+          <button id="export-pdf-btn" class="export-pdf-btn">Export Card</button>
+        </div>
+      </div>
+
+      <!-- PDF export modal -->
+      <div id="pdf-modal-overlay" class="modal-overlay hidden">
+        <div class="modal">
+          <h2 class="modal-title">Export Card</h2>
+
+          <div class="modal-section">
+            <div class="modal-label">Date Range</div>
+            <div class="toggle-group" id="pdf-range">
+              <button class="toggle-btn" data-val="7">7 days</button>
+              <button class="toggle-btn active" data-val="30">30 days</button>
+              <button class="toggle-btn" data-val="90">90 days</button>
+            </div>
+          </div>
+
+          <div class="modal-section">
+            <div class="modal-label">Include</div>
+            <div class="modal-checks">
+              <label class="modal-check"><input type="checkbox" id="pdf-streak" checked> Streak</label>
+              <label class="modal-check"><input type="checkbox" id="pdf-active-time" checked> Active Time</label>
+              <label class="modal-check"><input type="checkbox" id="pdf-lines-added" checked> Lines Added</label>
+              <label class="modal-check"><input type="checkbox" id="pdf-lines-deleted" checked> Lines Deleted</label>
+              <label class="modal-check"><input type="checkbox" id="pdf-top-lang" checked> Top Language</label>
+              <label class="modal-check"><input type="checkbox" id="pdf-ai-events" checked> AI Assists</label>
+              <label class="modal-check"><input type="checkbox" id="pdf-heatmap" checked> Activity Heatmap</label>
+            </div>
+          </div>
+
+          <div class="modal-actions">
+            <button id="pdf-cancel" class="modal-btn-secondary">Cancel</button>
+            <button id="pdf-generate" class="modal-btn-primary">Generate PDF</button>
+          </div>
+        </div>
       </div>
 
       <!-- Activity: lines chart + sessions -->
@@ -154,16 +190,47 @@ export class DashboardPanel {
         </div>
       </div>
 
-      <!-- AI: agent chart -->
-      <div class="tab-panel" id="tab-ai">
-        <div class="chart-grid">
-          <div class="chart-box chart-wide"><canvas id="agent-chart"></canvas></div>
-        </div>
-      </div>
-
       <!-- Projects: per-project summary cards -->
       <div class="tab-panel" id="tab-projects">
         <div id="project-cards"></div>
+      </div>
+
+      <!-- Settings: user preferences -->
+      <div class="tab-panel" id="tab-settings">
+        <div class="settings-section">
+          <h3 class="settings-section-title">Tracking</h3>
+          <div class="setting-row">
+            <div class="setting-meta">
+              <label class="setting-label" for="pref-daily-target">Daily target</label>
+              <div class="setting-desc">Streak only increments on days meeting this target. Leave empty for any activity.</div>
+            </div>
+            <div class="setting-control">
+              <input type="number" id="pref-daily-target" class="setting-input" min="0" max="1440" placeholder="unset">
+              <span class="setting-unit">min</span>
+            </div>
+          </div>
+          <div class="setting-row">
+            <div class="setting-meta">
+              <label class="setting-label" for="pref-idle-threshold">Idle threshold</label>
+              <div class="setting-desc">Minutes of inactivity before the active timer pauses.</div>
+            </div>
+            <div class="setting-control">
+              <input type="number" id="pref-idle-threshold" class="setting-input" min="1" max="60">
+              <span class="setting-unit">min</span>
+            </div>
+          </div>
+          <div class="setting-row">
+            <div class="setting-meta">
+              <label class="setting-label" for="pref-session-expiry">Session expiry</label>
+              <div class="setting-desc">Minutes away before a paused session closes and a new one starts on return.</div>
+            </div>
+            <div class="setting-control">
+              <input type="number" id="pref-session-expiry" class="setting-input" min="1" max="480">
+              <span class="setting-unit">min</span>
+            </div>
+          </div>
+        </div>
+
       </div>
 
     </main>

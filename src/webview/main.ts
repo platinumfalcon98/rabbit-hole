@@ -1,6 +1,7 @@
 import { DailyLog, ExtensionMessage, ProjectMeta } from "../shared/types"
 import * as heatmap from "./heatmap"
 import * as charts from "./charts"
+import { generatePdf, PdfOptions } from "./pdfExport"
 
 declare function acquireVsCodeApi(): {
   postMessage(msg: unknown): void
@@ -52,7 +53,7 @@ function switchTab(tab: string): void {
     panel.classList.toggle("active", panel.id === `tab-${tab}`)
   })
   // Charts need a resize call when their panel becomes visible
-  if (tab === "activity" || tab === "code" || tab === "ai") {
+  if (tab === "activity" || tab === "code") {
     requestAnimationFrame(() => charts.resizeAll())
   }
   if (tab === "projects") {
@@ -107,7 +108,6 @@ function updateStatCards(log: DailyLog | undefined): void {
   const timeEl = document.getElementById("stat-time")
   const addedEl = document.getElementById("stat-added")
   const deletedEl = document.getElementById("stat-deleted")
-  const aiEl = document.getElementById("stat-ai")
   const streakEl = document.getElementById("streak-count")
   const streakTargetEl = document.getElementById("streak-target")
 
@@ -119,12 +119,6 @@ function updateStatCards(log: DailyLog | undefined): void {
   if (deletedEl) {
     const total = log.files.reduce((s, f) => s + f.linesDeleted, 0)
     deletedEl.textContent = String(total)
-  }
-  if (aiEl) {
-    const aiEvents = Object.entries(log.agents)
-      .filter(([k]) => k !== "manual")
-      .flatMap(([, v]) => v)
-    aiEl.textContent = String(aiEvents.length)
   }
   if (streakEl) streakEl.textContent = String(log.streak)
   if (streakTargetEl) {
@@ -342,7 +336,28 @@ window.addEventListener("message", (event: MessageEvent) => {
       if (currentLogs.length > 0) {
         updateStatCards(currentLogs[currentLogs.length - 1])
       }
+      populateSettings(msg)
       break
+
+    case "pdfData": {
+      const options: PdfOptions = {
+        streak:       (document.getElementById("pdf-streak")       as HTMLInputElement).checked,
+        activeTime:   (document.getElementById("pdf-active-time")  as HTMLInputElement).checked,
+        linesAdded:   (document.getElementById("pdf-lines-added")  as HTMLInputElement).checked,
+        linesDeleted: (document.getElementById("pdf-lines-deleted") as HTMLInputElement).checked,
+        topLanguage:  (document.getElementById("pdf-top-lang")     as HTMLInputElement).checked,
+        aiEvents:     (document.getElementById("pdf-ai-events")    as HTMLInputElement).checked,
+        heatmap:      (document.getElementById("pdf-heatmap")      as HTMLInputElement).checked,
+        days: pdfRangeDays,
+      }
+      const buffer = generatePdf(msg.logs, options)
+      const bytes = new Uint8Array(buffer)
+      let binary = ""
+      for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i])
+      vscode.postMessage({ type: "writePdf", base64: btoa(binary) })
+      closePdfModal()
+      break
+    }
   }
 })
 
@@ -350,4 +365,69 @@ window.addEventListener("message", (event: MessageEvent) => {
 document.getElementById("range")?.addEventListener("change", (e: Event) => {
   const days = parseInt((e.target as HTMLSelectElement).value) as 7 | 30 | 90
   vscode.postMessage({ type: "requestRange", days })
+})
+
+// ── Settings tab ────────────────────────────────────────────────────────────
+
+type SettingsMsg = Extract<ExtensionMessage, { type: "settings" }>
+
+function populateSettings(msg: SettingsMsg): void {
+  const dailyTarget  = document.getElementById("pref-daily-target")  as HTMLInputElement
+  const idleThresh   = document.getElementById("pref-idle-threshold") as HTMLInputElement
+  const sessionExp   = document.getElementById("pref-session-expiry") as HTMLInputElement
+
+  if (dailyTarget)  dailyTarget.value  = msg.dailyTargetMinutes > 0 ? String(msg.dailyTargetMinutes) : ""
+  if (idleThresh)   idleThresh.value   = String(msg.idleThresholdMinutes)
+  if (sessionExp)   sessionExp.value   = String(msg.sessionExpiryMinutes)
+}
+
+document.getElementById("pref-daily-target")?.addEventListener("change", (e: Event) => {
+  const raw = (e.target as HTMLInputElement).value.trim()
+  vscode.postMessage({ type: "updateSetting", key: "dailyTargetMinutes", value: raw === "" ? null : parseInt(raw) })
+})
+
+document.getElementById("pref-idle-threshold")?.addEventListener("change", (e: Event) => {
+  const val = parseInt((e.target as HTMLInputElement).value)
+  if (!isNaN(val) && val > 0) vscode.postMessage({ type: "updateSetting", key: "idleThresholdMinutes", value: val })
+})
+
+document.getElementById("pref-session-expiry")?.addEventListener("change", (e: Event) => {
+  const val = parseInt((e.target as HTMLInputElement).value)
+  if (!isNaN(val) && val > 0) vscode.postMessage({ type: "updateSetting", key: "sessionExpiryMinutes", value: val })
+})
+
+// ── PDF export modal ────────────────────────────────────────────────────────
+
+let pdfRangeDays: 7 | 30 | 90 = 30
+
+function closePdfModal(): void {
+  document.getElementById("pdf-modal-overlay")?.classList.add("hidden")
+  const btn = document.getElementById("pdf-generate") as HTMLButtonElement | null
+  if (btn) { btn.disabled = false; btn.textContent = "Generate PDF" }
+}
+
+document.getElementById("export-pdf-btn")?.addEventListener("click", () => {
+  document.getElementById("pdf-modal-overlay")?.classList.remove("hidden")
+})
+
+document.getElementById("pdf-cancel")?.addEventListener("click", closePdfModal)
+
+document.getElementById("pdf-modal-overlay")?.addEventListener("click", (e: Event) => {
+  if (e.target === document.getElementById("pdf-modal-overlay")) closePdfModal()
+})
+
+document.getElementById("pdf-range")?.addEventListener("click", (e: Event) => {
+  const btn = (e.target as HTMLElement).closest(".toggle-btn") as HTMLElement | null
+  if (!btn?.dataset.val) return
+  pdfRangeDays = parseInt(btn.dataset.val) as 7 | 30 | 90
+  document.querySelectorAll("#pdf-range .toggle-btn").forEach(b => {
+    b.classList.toggle("active", (b as HTMLElement).dataset.val === btn.dataset.val)
+  })
+})
+
+document.getElementById("pdf-generate")?.addEventListener("click", () => {
+  const btn = document.getElementById("pdf-generate") as HTMLButtonElement
+  btn.disabled = true
+  btn.textContent = "Generating…"
+  vscode.postMessage({ type: "exportPdfRequest", days: pdfRangeDays })
 })
