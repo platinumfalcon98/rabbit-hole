@@ -11,6 +11,7 @@ declare function acquireVsCodeApi(): {
 const vscode = acquireVsCodeApi()
 
 let currentLogs: DailyLog[] = []
+let dailyTargetMs = 0
 
 function formatDuration(ms: number): string {
   const totalMinutes = Math.floor(ms / 60_000)
@@ -102,6 +103,7 @@ function updateStatCards(log: DailyLog | undefined): void {
   const deletedEl = document.getElementById("stat-deleted")
   const aiEl = document.getElementById("stat-ai")
   const streakEl = document.getElementById("streak-count")
+  const streakTargetEl = document.getElementById("streak-target")
 
   if (timeEl) timeEl.textContent = formatDuration(log.activeTime)
   if (addedEl) {
@@ -118,8 +120,17 @@ function updateStatCards(log: DailyLog | undefined): void {
       .flatMap(([, v]) => v)
     aiEl.textContent = String(aiEvents.length)
   }
-  if (streakEl) {
-    streakEl.textContent = String(log.streak)
+  if (streakEl) streakEl.textContent = String(log.streak)
+  if (streakTargetEl) {
+    if (dailyTargetMs > 0) {
+      const met = log.activeTime >= dailyTargetMs
+      streakTargetEl.textContent = met
+        ? " · ✓"
+        : ` · ${formatDuration(log.activeTime)} / ${formatDuration(dailyTargetMs)}`
+      streakTargetEl.className = met ? "streak-target-met" : "streak-target-pending"
+    } else {
+      streakTargetEl.textContent = ""
+    }
   }
 }
 
@@ -151,7 +162,11 @@ window.addEventListener("message", (event: MessageEvent) => {
       break
     }
     case "settings":
-      // Could toggle UI state based on settings
+      dailyTargetMs = msg.dailyTargetMs
+      // Re-render streak display with the target now known
+      if (currentLogs.length > 0) {
+        updateStatCards(currentLogs[currentLogs.length - 1])
+      }
       break
   }
 })

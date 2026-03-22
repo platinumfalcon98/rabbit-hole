@@ -26,6 +26,16 @@ body {
   color: var(--vscode-descriptionForeground);
 }
 
+.streak-target-pending {
+  font-size: 0.85em;
+  color: var(--vscode-descriptionForeground);
+}
+
+.streak-target-met {
+  font-size: 0.85em;
+  color: rgba(46, 204, 113, 0.9);
+}
+
 #range {
   background: var(--vscode-dropdown-background);
   color: var(--vscode-dropdown-foreground);

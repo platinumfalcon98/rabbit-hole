@@ -118,18 +118,39 @@ export class StorageService {
   }
 
   updateStreak(): void {
+    const targetMinutes = vscode.workspace
+      .getConfiguration("rabbithole")
+      .get<number>("dailyTargetMinutes") ?? 0
+    const targetMs = targetMinutes * 60 * 1000
+
     const today = this.getToday()
-    const yesterday = new Date()
-    yesterday.setDate(yesterday.getDate() - 1)
+    const todayMet = targetMs > 0
+      ? today.activeTime >= targetMs
+      : today.activeTime > 0
+
+    // Once today's streak is awarded don't overwrite it —
+    // handles multiple VS Code restarts in the same day.
+    if (today.streak > 0 && todayMet) return
+
+    const yd = new Date()
+    yd.setDate(yd.getDate() - 1)
     const yesterdayLog = this.context.globalState.get<DailyLog>(
-      storageKey(dateKey(yesterday))
+      storageKey(dateKey(yd))
     )
-    if (yesterdayLog && yesterdayLog.activeTime > 0) {
-      today.streak = (yesterdayLog.streak || 0) + 1
-    } else {
-      today.streak = 1
+    const yesterdayMet = yesterdayLog
+      ? (targetMs > 0 ? yesterdayLog.activeTime >= targetMs : yesterdayLog.activeTime > 0)
+      : false
+    // How many consecutive days have been completed up to and including yesterday
+    const chainSoFar = yesterdayMet ? (yesterdayLog!.streak || 0) : 0
+
+    const newStreak = todayMet
+      ? chainSoFar + 1   // today met: award the next number
+      : chainSoFar       // today not met yet: show yesterday's count ("at risk")
+
+    if (today.streak !== newStreak) {
+      today.streak = newStreak
+      this.saveLog(today)
     }
-    this.saveLog(today)
   }
 
   exportJSON(): string {

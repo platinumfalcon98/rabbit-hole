@@ -55,7 +55,7 @@ export interface DailyLog {
 export type ExtensionMessage =
   | { type: "init";     data: DailyLog[] }
   | { type: "update";   data: DailyLog }
-  | { type: "settings"; agentsEnabled: boolean }
+  | { type: "settings"; agentsEnabled: boolean; dailyTargetMs: number }
 
 export type WebviewMessage =
   | { type: "ready" }

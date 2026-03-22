@@ -81,7 +81,7 @@ export class DashboardPanel {
 <body>
   <div id="header">
     <h1>Rabbit Hole</h1>
-    <div id="streak">&#x1F525; <span id="streak-count">0</span> day streak</div>
+    <div id="streak">&#x1F525; <span id="streak-count">0</span> day streak<span id="streak-target"></span></div>
     <select id="range">
       <option value="7">Last 7 days</option>
       <option value="30" selected>Last 30 days</option>

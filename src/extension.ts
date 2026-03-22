@@ -24,6 +24,32 @@ export function activate(context: vscode.ExtensionContext): void {
   // Update streak on activation
   storage.updateStreak()
 
+  // First-run: prompt the user to set a daily target (fires once per install)
+  const hasPrompted = context.globalState.get<boolean>("rabbithole:targetPrompted")
+  if (!hasPrompted) {
+    context.globalState.update("rabbithole:targetPrompted", true)
+    setTimeout(() => {
+      vscode.window.showInputBox({
+        title: "Rabbit Hole — Daily Coding Target",
+        prompt: "Set a daily active-coding target to power your streak. Leave blank to count any activity.",
+        placeHolder: "Minutes per day (e.g. 60)",
+        validateInput: v => {
+          if (!v.trim()) return null
+          const n = parseInt(v)
+          return isNaN(n) || n <= 0 ? "Enter a positive number of minutes" : null
+        },
+      }).then(value => {
+        if (!value?.trim()) return
+        const mins = parseInt(value)
+        if (!isNaN(mins) && mins > 0) {
+          vscode.workspace
+            .getConfiguration("rabbithole")
+            .update("dailyTargetMinutes", mins, vscode.ConfigurationTarget.Global)
+        }
+      })
+    }, 2000)
+  }
+
   // Status bar item
   const statusBar = vscode.window.createStatusBarItem(
     vscode.StatusBarAlignment.Left,
@@ -31,16 +57,25 @@ export function activate(context: vscode.ExtensionContext): void {
   )
   statusBar.command = "rabbithole.openDashboard"
   statusBar.tooltip = "Rabbit Hole — click to open dashboard"
+
   const refreshStatusBar = () => {
     const today = storage.getToday()
-    statusBar.text = `$(clock) ${formatDuration(today.activeTime)}`
+    const targetMins = vscode.workspace
+      .getConfiguration("rabbithole")
+      .get<number>("dailyTargetMinutes") ?? 0
+    const activeText = formatDuration(today.activeTime)
+    statusBar.text = targetMins > 0
+      ? `$(clock) ${activeText} / ${formatDuration(targetMins * 60_000)}`
+      : `$(clock) ${activeText}`
   }
+
   refreshStatusBar()
   statusBar.show()
   context.subscriptions.push(statusBar)
 
-  // Live update interval — push to dashboard every 30s if visible, refresh status bar
+  // Live update interval — update streak, push to dashboard, refresh status bar
   const interval = setInterval(() => {
+    storage.updateStreak()
     refreshStatusBar()
     if (DashboardPanel.currentPanel) {
       DashboardPanel.currentPanel.postMessage({
@@ -53,7 +88,6 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     vscode.commands.registerCommand("rabbithole.openDashboard", () => {
       DashboardPanel.createOrShow(context)
-      // Wire up message handler once panel exists
       if (DashboardPanel.currentPanel) {
         DashboardPanel.currentPanel.onMessage((msg: unknown) => {
           handleMessage(msg as WebviewMessage, storage, DashboardPanel.currentPanel!)

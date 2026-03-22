@@ -9,9 +9,16 @@ export function handleMessage(
   panel: DashboardPanel
 ): void {
   switch (msg.type) {
-    case "ready":
+    case "ready": {
       panel.postMessage({ type: "init", data: storage.getRange(30) })
+      const cfg = vscode.workspace.getConfiguration("rabbithole")
+      panel.postMessage({
+        type: "settings",
+        agentsEnabled: cfg.get<boolean>("detectAgents") ?? true,
+        dailyTargetMs: (cfg.get<number>("dailyTargetMinutes") ?? 0) * 60_000,
+      })
       break
+    }
 
     case "requestRange":
       panel.postMessage({ type: "init", data: storage.getRange(msg.days) })

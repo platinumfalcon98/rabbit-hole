@@ -38,6 +38,10 @@
           "default": 60,
           "description": "Minutes of inactivity before a paused session is closed and a new one starts on return"
         },
+        "rabbithole.dailyTargetMinutes": {
+          "type": "number",
+          "description": "Daily active-coding target in minutes. Streak only increments on days where you meet this target. Leave unset to count any activity."
+        },
         "rabbithole.agents": {
           "type": "object",
           "default": {},
