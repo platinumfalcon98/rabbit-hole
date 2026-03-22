@@ -121,16 +121,20 @@ function updateStatCards(log: DailyLog | undefined): void {
     deletedEl.textContent = String(total)
   }
   if (streakEl) streakEl.textContent = String(log.streak)
-  if (streakTargetEl) {
-    if (dailyTargetMs > 0) {
-      const met = log.activeTime >= dailyTargetMs
+
+  const pill = document.getElementById("streak-pill")
+  if (dailyTargetMs > 0) {
+    const met = log.activeTime >= dailyTargetMs
+    pill?.classList.toggle("streak-at-risk", !met)
+    if (streakTargetEl) {
       streakTargetEl.textContent = met
         ? " · ✓"
         : ` · ${formatDuration(log.activeTime)} / ${formatDuration(dailyTargetMs)}`
       streakTargetEl.className = met ? "streak-target-met" : "streak-target-pending"
-    } else {
-      streakTargetEl.textContent = ""
     }
+  } else {
+    pill?.classList.remove("streak-at-risk")
+    if (streakTargetEl) streakTargetEl.textContent = ""
   }
 }
 
