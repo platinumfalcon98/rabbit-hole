@@ -27,8 +27,13 @@ export class MiniPanel implements vscode.WebviewViewProvider {
   static readonly viewId = "rabbithole.miniView"
 
   private _view?: vscode.WebviewView
+  private onReady?: () => void
 
   constructor(private readonly extensionUri: vscode.Uri) {}
+
+  setOnReady(cb: () => void): void {
+    this.onReady = cb
+  }
 
   resolveWebviewView(
     webviewView: vscode.WebviewView,
@@ -44,8 +49,12 @@ export class MiniPanel implements vscode.WebviewViewProvider {
 
     webviewView.webview.html = this.getHtml(webviewView.webview)
 
+    // Wait for the webview JS to signal it's ready before sending data
     webviewView.webview.onDidReceiveMessage(msg => {
-      if ((msg as { type: string }).type === "openDashboard") {
+      const m = msg as { type: string }
+      if (m.type === "ready") {
+        this.onReady?.()
+      } else if (m.type === "openDashboard") {
         vscode.commands.executeCommand("rabbithole.openDashboard")
       }
     })
@@ -133,24 +142,24 @@ export class MiniPanel implements vscode.WebviewViewProvider {
 <body>
   <div class="streak-row">
     <span>&#x1F525;</span>
-    <span class="streak-number" id="streak">0</span>
+    <span class="streak-number" id="streak">—</span>
     <span class="streak-label">day streak</span>
   </div>
   <div class="divider"></div>
   <div class="stat">
     <div class="stat-label">Active Today</div>
-    <div class="stat-value" id="time">0m</div>
+    <div class="stat-value" id="time">—</div>
   </div>
   <div class="stat">
     <div class="stat-label">Lines</div>
     <div class="stat-value">
-      <span class="add" id="added">+0</span>
-      <span class="del" id="deleted">-0</span>
+      <span class="add" id="added">—</span>
+      <span class="del" id="deleted"></span>
     </div>
   </div>
   <div class="stat">
     <div class="stat-label">AI Events</div>
-    <div class="stat-value" id="ai">0</div>
+    <div class="stat-value" id="ai">—</div>
   </div>
   <button class="open-btn" id="open-btn">Open Dashboard &#x2197;</button>
   <script nonce="${n}">
@@ -166,6 +175,10 @@ export class MiniPanel implements vscode.WebviewViewProvider {
       document.getElementById('added').textContent = '+' + d.linesAdded;
       document.getElementById('deleted').textContent = '-' + d.linesDeleted;
       document.getElementById('ai').textContent = d.aiCount;
+    });
+    // Signal ready so the extension can send initial data immediately
+    window.addEventListener('DOMContentLoaded', () => {
+      vscode.postMessage({ type: 'ready' });
     });
   </script>
 </body>

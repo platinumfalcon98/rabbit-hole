@@ -92,7 +92,9 @@ export class StorageService {
   }
 
   getToday(): DailyLog {
-    return this.getLog(this.currentProjectId, todayKey())
+    const log = this.getLog(this.currentProjectId, todayKey())
+    log.streak = this.getGlobalDay(todayKey()).streak
+    return log
   }
 
   getGlobalToday(): { activeTime: number; streak: number } {
@@ -230,9 +232,6 @@ export class StorageService {
     const todayMet = targetMs > 0
       ? globalToday.activeTime >= targetMs
       : globalToday.activeTime > 0
-
-    // Guard: don't overwrite an awarded streak on the same day
-    if (globalToday.streak > 0 && todayMet) return
 
     const yd = new Date()
     yd.setDate(yd.getDate() - 1)

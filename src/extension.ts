@@ -21,15 +21,7 @@ export function activate(context: vscode.ExtensionContext): void {
   const tracker = new ActivityTracker(context, storage, detector)
 
   tracker.start()
-
-  // Update streak on activation
   storage.updateStreak()
-
-  // Mini panel (Activity Bar sidebar)
-  const miniPanel = new MiniPanel(context.extensionUri)
-  context.subscriptions.push(
-    vscode.window.registerWebviewViewProvider(MiniPanel.viewId, miniPanel)
-  )
 
   // First-run: prompt the user to set a daily target (fires once per install)
   const hasPrompted = context.globalState.get<boolean>("rabbithole:targetPrompted")
@@ -58,12 +50,20 @@ export function activate(context: vscode.ExtensionContext): void {
   }
 
   // Status bar item
-  const statusBar = vscode.window.createStatusBarItem(
-    vscode.StatusBarAlignment.Left,
-    100
-  )
+  const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100)
   statusBar.command = "rabbithole.openDashboard"
   statusBar.tooltip = "Rabbit Hole — click to open dashboard"
+
+  const refreshStatusBar = () => {
+    const global = storage.getGlobalToday()
+    const targetMins = vscode.workspace
+      .getConfiguration("rabbithole")
+      .get<number>("dailyTargetMinutes") ?? 0
+    const activeText = formatDuration(global.activeTime)
+    statusBar.text = targetMins > 0
+      ? `$(clock) ${activeText} / ${formatDuration(targetMins * 60_000)}`
+      : `$(clock) ${activeText}`
+  }
 
   const refreshMiniPanel = () => {
     const global = storage.getGlobalToday()
@@ -80,20 +80,16 @@ export function activate(context: vscode.ExtensionContext): void {
     })
   }
 
-  const refreshStatusBar = () => {
-    const global = storage.getGlobalToday()
-    const targetMins = vscode.workspace
-      .getConfiguration("rabbithole")
-      .get<number>("dailyTargetMinutes") ?? 0
-    const activeText = formatDuration(global.activeTime)
-    statusBar.text = targetMins > 0
-      ? `$(clock) ${activeText} / ${formatDuration(targetMins * 60_000)}`
-      : `$(clock) ${activeText}`
-  }
-
   refreshStatusBar()
   statusBar.show()
   context.subscriptions.push(statusBar)
+
+  // Mini panel (Activity Bar sidebar) — registered after refreshMiniPanel is defined
+  const miniPanel = new MiniPanel(context.extensionUri)
+  miniPanel.setOnReady(() => refreshMiniPanel())
+  context.subscriptions.push(
+    vscode.window.registerWebviewViewProvider(MiniPanel.viewId, miniPanel)
+  )
 
   // Live update interval — update streak, push to dashboard, refresh status bar & mini panel
   const interval = setInterval(() => {

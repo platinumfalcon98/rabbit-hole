@@ -330,6 +330,7 @@ window.addEventListener("message", (event: MessageEvent) => {
         if (todayIdx >= 0) currentLogs[todayIdx] = msg.data
         charts.updateToday(msg.data)
         updateStatCards(msg.data)
+        heatmap.render(currentLogs)
         renderSessions(currentLogs)
         renderFiles(currentLogs)
       }
