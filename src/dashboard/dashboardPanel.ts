@@ -82,7 +82,15 @@ export class DashboardPanel {
   <div id="app">
 
     <nav id="sidebar">
-      <div class="sidebar-header">Projects</div>
+      <div id="nav-items">
+        <button class="nav-item active" data-tab="overview">Overview</button>
+        <button class="nav-item" data-tab="activity">Activity</button>
+        <button class="nav-item" data-tab="code">Code</button>
+        <button class="nav-item" data-tab="projects">Projects</button>
+        <button class="nav-item nav-item-settings" data-tab="settings">Settings</button>
+      </div>
+      <div class="sidebar-divider"></div>
+      <div class="sidebar-filter-header">Projects</div>
       <ul id="project-list">
         <li class="project-item" data-id="all">All Projects</li>
       </ul>
@@ -90,8 +98,7 @@ export class DashboardPanel {
 
     <main id="content">
       <div id="header">
-        <button id="sidebar-toggle" title="Toggle projects panel">&#x2630;</button>
-        <h1>Rabbit Hole</h1>
+        <button id="sidebar-toggle" title="Toggle navigation">&#x2630;</button>
         <div id="streak-pill">&#x1F525; <span id="streak-count">0</span> <span class="streak-label">day streak</span><span id="streak-target"></span></div>
         <div class="toggle-group" id="range-toggle">
           <button class="toggle-btn" data-val="7">7d</button>
@@ -99,14 +106,6 @@ export class DashboardPanel {
           <button class="toggle-btn" data-val="90">90d</button>
         </div>
       </div>
-
-      <nav id="tabs">
-        <button class="tab-btn active" data-tab="overview">Overview</button>
-        <button class="tab-btn" data-tab="activity">Activity</button>
-        <button class="tab-btn" data-tab="code">Code</button>
-        <button class="tab-btn" data-tab="projects">Projects</button>
-        <button class="tab-btn" data-tab="settings">Settings</button>
-      </nav>
 
       <!-- Overview: stat cards + heatmap -->
       <div class="tab-panel active" id="tab-overview">

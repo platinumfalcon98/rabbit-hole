@@ -46,7 +46,7 @@ let activeTab = "overview"
 
 function switchTab(tab: string): void {
   activeTab = tab
-  document.querySelectorAll(".tab-btn").forEach(btn => {
+  document.querySelectorAll(".nav-item").forEach(btn => {
     btn.classList.toggle("active", (btn as HTMLElement).dataset.tab === tab)
   })
   document.querySelectorAll(".tab-panel").forEach(panel => {
@@ -62,8 +62,8 @@ function switchTab(tab: string): void {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-  document.getElementById("tabs")?.addEventListener("click", e => {
-    const btn = (e.target as HTMLElement).closest(".tab-btn") as HTMLElement | null
+  document.getElementById("nav-items")?.addEventListener("click", e => {
+    const btn = (e.target as HTMLElement).closest(".nav-item") as HTMLElement | null
     if (!btn?.dataset.tab) return
     switchTab(btn.dataset.tab)
   })
