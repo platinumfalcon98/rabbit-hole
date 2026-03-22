@@ -31,7 +31,12 @@
         "rabbithole.idleThresholdMinutes": {
           "type": "number",
           "default": 5,
-          "description": "Minutes of inactivity before session is paused"
+          "description": "Minutes of inactivity before the active timer pauses"
+        },
+        "rabbithole.sessionExpiryMinutes": {
+          "type": "number",
+          "default": 60,
+          "description": "Minutes of inactivity before a paused session is closed and a new one starts on return"
         },
         "rabbithole.agents": {
           "type": "object",

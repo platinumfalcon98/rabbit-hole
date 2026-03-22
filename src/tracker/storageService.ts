@@ -71,12 +71,14 @@ export class StorageService {
     } else {
       log.sessions.push(session)
     }
-    // Recompute totals from all sessions
+    // Recompute totals from all sessions.
+    // totalTime counts only ended sessions; activeTime counts all (open sessions
+    // checkpoint their activeTime every 30s).
     let totalTime = 0
     let activeTime = 0
     for (const s of log.sessions) {
-      totalTime += s.duration
-      if (!s.idle) activeTime += s.duration
+      if (s.endTime !== null) totalTime += s.duration
+      activeTime += s.activeTime
     }
     log.totalTime = totalTime
     log.activeTime = activeTime

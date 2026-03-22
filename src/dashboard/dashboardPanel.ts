@@ -104,6 +104,11 @@ export class DashboardPanel {
     <div class="chart-box chart-wide"><canvas id="agent-chart"></canvas></div>
   </div>
 
+  <div id="sessions-panel">
+    <h2 class="section-title">Sessions</h2>
+    <div id="sessions-list"></div>
+  </div>
+
   <script src="${scriptUri}"></script>
 </body>
 </html>`

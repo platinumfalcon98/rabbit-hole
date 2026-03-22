@@ -2,8 +2,8 @@ export interface ActivitySession {
   id: string
   startTime: number        // unix ms
   endTime: number | null   // null if session still active
-  duration: number         // accumulated ms, updated on pause/end
-  idle: boolean            // true if ended by idle timeout
+  duration: number         // total elapsed ms (endTime - startTime), 0 if open
+  activeTime: number       // ms of actual active time (idle gaps excluded)
 }
 
 export interface FileActivity {

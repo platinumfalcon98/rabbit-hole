@@ -4,7 +4,6 @@ import { StorageService } from "./storageService"
 import { AgentDetector } from "./agentDetector"
 
 function uuidSimple(): string {
-  // UUID v4-like without external dependency
   return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, c => {
     const r = (Math.random() * 16) | 0
     const v = c === "x" ? r : (r & 0x3) | 0x8
@@ -15,13 +14,16 @@ function uuidSimple(): string {
 export class ActivityTracker {
   private currentSession: ActivitySession | null = null
   private idleTimer: ReturnType<typeof setTimeout> | null = null
-  private sessionStartTime = 0
-  private lastActiveTime = 0
-  private lastLanguage = ""
+  private expiryTimer: ReturnType<typeof setTimeout> | null = null
+  private checkpointInterval: ReturnType<typeof setInterval> | null = null
 
-  // Per-file last-seen line counts for delta computation
+  // Active time tracking
+  private activeTimeAccumulated = 0  // ms from completed active intervals
+  private activeIntervalStart = 0    // start of current active interval
+  private isPaused = false           // true when idle/blur has paused the session
+
+  private lastLanguage = ""
   private fileLineCounts = new Map<string, number>()
-  // Per-file last-change timestamp
   private fileLastChange = new Map<string, number>()
 
   private readonly subscriptions: vscode.Disposable[] = []
@@ -37,21 +39,27 @@ export class ActivityTracker {
       vscode.workspace.onDidChangeTextDocument(e => this.onTextChange(e)),
       vscode.window.onDidChangeWindowState(s => this.onWindowState(s)),
       vscode.window.onDidChangeActiveTextEditor(e => this.onEditorChange(e)),
-      vscode.window.onDidChangeActiveTerminal(() => this.onActivity())
+      vscode.window.onDidChangeActiveTerminal(() => this.onActivity()),
+      vscode.window.onDidChangeTextEditorVisibleRanges(() => this.onActivity()),
     )
-    // Register disposables with extension context
     this.context.subscriptions.push(
       ...this.subscriptions,
       { dispose: () => this.stop() }
     )
-    // Start initial session if window is focused
+    // Checkpoint every 30s so storage stays fresh for status bar / dashboard
+    this.checkpointInterval = setInterval(() => this.saveCheckpoint(), 30_000)
+
     if (vscode.window.state.focused) {
       this.startSession()
     }
   }
 
   stop(): void {
-    this.pauseSession(false)
+    if (this.checkpointInterval !== null) {
+      clearInterval(this.checkpointInterval)
+      this.checkpointInterval = null
+    }
+    this.endSession()
     for (const d of this.subscriptions) d.dispose()
   }
 
@@ -61,10 +69,23 @@ export class ActivityTracker {
     return minutes * 60 * 1000
   }
 
+  private getSessionExpiryMs(): number {
+    const config = vscode.workspace.getConfiguration("rabbithole")
+    const minutes = config.get<number>("sessionExpiryMinutes") ?? 60
+    return minutes * 60 * 1000
+  }
+
   private onActivity(): void {
     this.clearIdleTimer()
     if (!this.currentSession) {
       this.startSession()
+      return
+    }
+    if (this.isPaused) {
+      // Resume from pause — clear expiry, restart active interval
+      this.clearExpiryTimer()
+      this.activeIntervalStart = Date.now()
+      this.isPaused = false
     }
     this.resetIdleTimer()
   }
@@ -90,12 +111,8 @@ export class ActivityTracker {
 
     const timeMs = now - prevChangeTime
 
-    if (e.contentChanges.length >= 3) {
-      isMultiSite = true
-    }
-    if (timeMs < 50) {
-      isAtomic = true
-    }
+    if (e.contentChanges.length >= 3) isMultiSite = true
+    if (timeMs < 50) isAtomic = true
 
     for (const change of e.contentChanges) {
       const addedLines = change.text.split("\n").length - 1
@@ -105,43 +122,24 @@ export class ActivityTracker {
       totalCharsChanged += Math.abs(change.text.length - (change.rangeLength ?? 0))
     }
 
-    // isSyntaxComplete: heuristic — added text contains balanced braces/brackets
     const addedText = e.contentChanges.map(c => c.text).join("")
     const isSyntaxComplete = this.checkSyntaxComplete(addedText)
-
-    const changeRatio = doc.lineCount > 0
-      ? (linesAdded + linesDeleted) / doc.lineCount
-      : 0
+    const changeRatio = doc.lineCount > 0 ? (linesAdded + linesDeleted) / doc.lineCount : 0
 
     this.fileLineCounts.set(filePath, doc.lineCount)
     this.fileLastChange.set(filePath, now)
 
     const profile = {
-      linesAdded,
-      linesDeleted,
-      fileCount: 1,
-      totalCharsChanged,
-      timeMs,
-      changeRatio,
-      isMultiSite,
-      isAtomic,
-      isSyntaxComplete,
-      language,
-      filePath,
+      linesAdded, linesDeleted, fileCount: 1, totalCharsChanged, timeMs,
+      changeRatio, isMultiSite, isAtomic, isSyntaxComplete, language, filePath,
     }
 
     const agentEvent = this.detector.detect(profile)
-    if (agentEvent) {
-      this.storage.appendAgentEvent(agentEvent)
-    }
+    if (agentEvent) this.storage.appendAgentEvent(agentEvent)
 
     if (linesAdded > 0 || linesDeleted > 0) {
       const fileActivity: FileActivity = {
-        path: filePath,
-        language,
-        linesAdded,
-        linesDeleted,
-        lastModified: now,
+        path: filePath, language, linesAdded, linesDeleted, lastModified: now,
       }
       this.storage.appendFileActivity(fileActivity)
     }
@@ -149,9 +147,9 @@ export class ActivityTracker {
 
   private onWindowState(state: vscode.WindowState): void {
     if (!state.focused) {
-      this.pauseSession(false)
+      this.pauseSession()
     } else {
-      this.startSession()
+      this.onActivity()
     }
   }
 
@@ -165,35 +163,79 @@ export class ActivityTracker {
   private startSession(): void {
     if (this.currentSession) return
     const now = Date.now()
-    this.sessionStartTime = now
-    this.lastActiveTime = now
+    this.activeIntervalStart = now
+    this.activeTimeAccumulated = 0
+    this.isPaused = false
     this.currentSession = {
       id: uuidSimple(),
       startTime: now,
       endTime: null,
       duration: 0,
-      idle: false,
+      activeTime: 0,
     }
     this.resetIdleTimer()
   }
 
-  private pauseSession(idle: boolean): void {
+  // Pause: freeze active time accumulation, start expiry countdown.
+  // Called by idle timer firing OR window blur.
+  private pauseSession(): void {
     this.clearIdleTimer()
+    if (!this.currentSession || this.isPaused) return
+    const now = Date.now()
+    this.activeTimeAccumulated += now - this.activeIntervalStart
+    this.isPaused = true
+    // Persist snapshot so storage stays consistent
+    this.currentSession.activeTime = this.activeTimeAccumulated
+    this.storage.appendSession(this.currentSession)
+    // After the full expiry period, close the session entirely
+    this.expiryTimer = setTimeout(() => this.expireSession(), this.getSessionExpiryMs())
+  }
+
+  // Expiry: session stayed idle for the full expiry duration — close it.
+  // Next activity will open a fresh session.
+  private expireSession(): void {
     if (!this.currentSession) return
     const now = Date.now()
     const session = this.currentSession
     session.endTime = now
     session.duration = now - session.startTime
-    session.idle = idle
+    // activeTime already flushed in pauseSession
     this.storage.appendSession(session)
     this.currentSession = null
+    this.isPaused = false
+    this.activeTimeAccumulated = 0
+  }
+
+  // End: explicitly close an active or paused session (extension deactivate).
+  private endSession(): void {
+    this.clearIdleTimer()
+    this.clearExpiryTimer()
+    if (!this.currentSession) return
+    const now = Date.now()
+    const session = this.currentSession
+    session.endTime = now
+    session.duration = now - session.startTime
+    if (!this.isPaused) {
+      this.activeTimeAccumulated += now - this.activeIntervalStart
+    }
+    session.activeTime = this.activeTimeAccumulated
+    this.storage.appendSession(session)
+    this.currentSession = null
+    this.isPaused = false
+    this.activeTimeAccumulated = 0
+  }
+
+  // Write live activeTime to storage so the status bar / dashboard sees fresh data.
+  private saveCheckpoint(): void {
+    if (!this.currentSession || this.isPaused) return
+    const now = Date.now()
+    this.currentSession.activeTime = this.activeTimeAccumulated + (now - this.activeIntervalStart)
+    this.storage.appendSession(this.currentSession)
   }
 
   private resetIdleTimer(): void {
     this.clearIdleTimer()
-    this.idleTimer = setTimeout(() => {
-      this.pauseSession(true)
-    }, this.getIdleThresholdMs())
+    this.idleTimer = setTimeout(() => this.pauseSession(), this.getIdleThresholdMs())
   }
 
   private clearIdleTimer(): void {
@@ -203,11 +245,16 @@ export class ActivityTracker {
     }
   }
 
+  private clearExpiryTimer(): void {
+    if (this.expiryTimer !== null) {
+      clearTimeout(this.expiryTimer)
+      this.expiryTimer = null
+    }
+  }
+
   private checkSyntaxComplete(text: string): boolean {
     if (text.length === 0) return false
-    let braces = 0
-    let brackets = 0
-    let parens = 0
+    let braces = 0, brackets = 0, parens = 0
     for (const ch of text) {
       if (ch === "{") braces++
       else if (ch === "}") braces--

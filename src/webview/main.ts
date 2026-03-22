@@ -10,12 +10,46 @@ declare function acquireVsCodeApi(): {
 
 const vscode = acquireVsCodeApi()
 
+let currentLogs: DailyLog[] = []
+
 function formatDuration(ms: number): string {
   const totalMinutes = Math.floor(ms / 60_000)
   const hours = Math.floor(totalMinutes / 60)
   const minutes = totalMinutes % 60
   if (hours > 0) return `${hours}h ${minutes}m`
   return `${minutes}m`
+}
+
+function formatTime(ts: number): string {
+  return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+}
+
+function renderSessions(logs: DailyLog[]): void {
+  const container = document.getElementById("sessions-list")
+  if (!container) return
+  container.innerHTML = ""
+
+  // Most recent date first
+  const sorted = [...logs].reverse()
+  for (const log of sorted) {
+    const sessions = log.sessions.filter(s => s.activeTime > 0 || s.endTime !== null)
+    if (sessions.length === 0) continue
+
+    const dateHeader = document.createElement("div")
+    dateHeader.className = "sessions-date"
+    dateHeader.textContent = log.date
+    container.appendChild(dateHeader)
+
+    for (const session of sessions) {
+      const row = document.createElement("div")
+      row.className = "session-row"
+      const end = session.endTime ? formatTime(session.endTime) : "ongoing"
+      row.innerHTML =
+        `<span class="session-time">${formatTime(session.startTime)} – ${end}</span>` +
+        `<span class="session-active">${formatDuration(session.activeTime)} active</span>`
+      container.appendChild(row)
+    }
+  }
 }
 
 function updateStatCards(log: DailyLog | undefined): void {
@@ -57,14 +91,21 @@ window.addEventListener("message", (event: MessageEvent) => {
   const msg = event.data as ExtensionMessage
   switch (msg.type) {
     case "init":
-      heatmap.render(msg.data)
-      charts.renderAll(msg.data)
-      updateStatCards(msg.data[msg.data.length - 1])
+      currentLogs = msg.data
+      heatmap.render(currentLogs)
+      charts.renderAll(currentLogs)
+      updateStatCards(currentLogs[currentLogs.length - 1])
+      renderSessions(currentLogs)
       break
-    case "update":
+    case "update": {
+      // Replace today's entry in currentLogs, keep the rest
+      const todayIdx = currentLogs.findIndex(l => l.date === msg.data.date)
+      if (todayIdx >= 0) currentLogs[todayIdx] = msg.data
       charts.updateToday(msg.data)
       updateStatCards(msg.data)
+      renderSessions(currentLogs)
       break
+    }
     case "settings":
       // Could toggle UI state based on settings
       break
