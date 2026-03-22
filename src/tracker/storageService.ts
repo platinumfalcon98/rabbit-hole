@@ -64,7 +64,11 @@ export class StorageService {
   }
 
   appendSession(session: ActivitySession): void {
-    const log = this.getToday()
+    this.appendSessionToDate(session, todayKey())
+  }
+
+  appendSessionToDate(session: ActivitySession, date: string): void {
+    const log = this.getLog(date)
     const existing = log.sessions.findIndex(s => s.id === session.id)
     if (existing >= 0) {
       log.sessions[existing] = session
@@ -149,7 +153,11 @@ export class StorageService {
   }
 
   updateLanguageTime(language: string, ms: number): void {
-    const log = this.getToday()
+    this.updateLanguageTimeForDate(language, ms, todayKey())
+  }
+
+  updateLanguageTimeForDate(language: string, ms: number, date: string): void {
+    const log = this.getLog(date)
     if (!log.languages[language]) {
       log.languages[language] = { time: 0, linesAdded: 0, linesDeleted: 0 }
     }

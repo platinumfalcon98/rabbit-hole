@@ -194,13 +194,13 @@ export class ActivityTracker {
   private pauseSession(): void {
     this.clearIdleTimer()
     if (!this.currentSession || this.isPaused) return
+    this.splitAtMidnight()
     const now = Date.now()
     this.flushLanguageTime(now)
     this.activeTimeAccumulated += now - this.activeIntervalStart
     this.isPaused = true
-    // Persist snapshot so storage stays consistent
-    this.currentSession.activeTime = this.activeTimeAccumulated
-    this.storage.appendSession(this.currentSession)
+    this.currentSession!.activeTime = this.activeTimeAccumulated
+    this.storage.appendSession(this.currentSession!)
     // After the full expiry period, close the session entirely
     this.expiryTimer = setTimeout(() => this.expireSession(), this.getSessionExpiryMs())
   }
@@ -209,11 +209,12 @@ export class ActivityTracker {
   // Next activity will open a fresh session.
   private expireSession(): void {
     if (!this.currentSession) return
+    this.splitAtMidnight()
     const now = Date.now()
-    const session = this.currentSession
+    const session = this.currentSession!
     session.endTime = now
     session.duration = now - session.startTime
-    // activeTime already flushed in pauseSession
+    // activeTime already set: either flushed by pauseSession, or set by splitAtMidnight
     this.storage.appendSession(session)
     this.currentSession = null
     this.isPaused = false
@@ -225,8 +226,9 @@ export class ActivityTracker {
     this.clearIdleTimer()
     this.clearExpiryTimer()
     if (!this.currentSession) return
+    this.splitAtMidnight()
     const now = Date.now()
-    const session = this.currentSession
+    const session = this.currentSession!
     session.endTime = now
     session.duration = now - session.startTime
     if (!this.isPaused) {
@@ -243,10 +245,77 @@ export class ActivityTracker {
   // Write live activeTime + language time to storage so status bar / dashboard stays fresh.
   private saveCheckpoint(): void {
     if (!this.currentSession || this.isPaused) return
+    this.splitAtMidnight()
     const now = Date.now()
     this.flushLanguageTime(now)
-    this.currentSession.activeTime = this.activeTimeAccumulated + (now - this.activeIntervalStart)
-    this.storage.appendSession(this.currentSession)
+    this.currentSession!.activeTime = this.activeTimeAccumulated + (now - this.activeIntervalStart)
+    this.storage.appendSession(this.currentSession!)
+  }
+
+  // If the current session started on a previous calendar day, close it at midnight
+  // and open a fresh session for today. Handles language time and active time correctly
+  // for both active and paused states.
+  private splitAtMidnight(): void {
+    if (!this.currentSession) return
+
+    const now = Date.now()
+    const todayStart = new Date(now)
+    todayStart.setHours(0, 0, 0, 0)
+    const midnight = todayStart.getTime()
+
+    // Session is already on today — nothing to do
+    const sessionDay = new Date(this.currentSession.startTime)
+    sessionDay.setHours(0, 0, 0, 0)
+    if (sessionDay.getTime() >= midnight) return
+
+    // Date string for the day the session started (yesterday or earlier)
+    const sd = new Date(this.currentSession.startTime)
+    const sessionDateStr = `${sd.getFullYear()}-${String(sd.getMonth() + 1).padStart(2, "0")}-${String(sd.getDate()).padStart(2, "0")}`
+
+    // Language time: flush the pre-midnight portion to yesterday's log.
+    // Skip if paused — language time was already flushed at the time of pause.
+    if (!this.isPaused && this.languageCurrent && this.languageIntervalStart < midnight) {
+      const langMs = midnight - this.languageIntervalStart
+      if (langMs > 0) {
+        this.storage.updateLanguageTimeForDate(this.languageCurrent, langMs, sessionDateStr)
+      }
+      this.languageIntervalStart = midnight
+    }
+
+    // Active time for yesterday:
+    // - If paused: accumulated time is already complete (flushed when pause happened)
+    // - If active: add the portion of the current interval that falls before midnight
+    const activeBeforeMidnight = this.isPaused
+      ? this.activeTimeAccumulated
+      : this.activeTimeAccumulated + (this.activeIntervalStart < midnight
+          ? midnight - this.activeIntervalStart
+          : 0)
+
+    // Write the closed yesterday session
+    this.storage.appendSessionToDate(
+      {
+        ...this.currentSession,
+        endTime: midnight,
+        duration: midnight - this.currentSession.startTime,
+        activeTime: activeBeforeMidnight,
+      },
+      sessionDateStr
+    )
+
+    // Open a fresh session for today starting at midnight
+    this.currentSession = {
+      id: uuidSimple(),
+      startTime: midnight,
+      endTime: null,
+      duration: 0,
+      activeTime: 0,
+    }
+    this.activeTimeAccumulated = 0
+    // Advance interval starts to midnight so post-split flushes only cover today
+    this.activeIntervalStart = Math.max(this.activeIntervalStart, midnight)
+    if (!this.isPaused) {
+      this.languageIntervalStart = Math.max(this.languageIntervalStart, midnight)
+    }
   }
 
   // Credit elapsed time to the current language and advance the interval start.
