@@ -161,7 +161,7 @@ function renderFiles(logs: DailyLog[]): void {
 
   const files = aggregateFiles(logs)
   if (files.length === 0) {
-    container.innerHTML = `<span class="empty-state">No file activity yet</span>`
+    container.innerHTML = `<div class="empty-state">No file activity yet</div>`
     return
   }
 
@@ -186,6 +186,11 @@ function renderSessions(logs: DailyLog[]): void {
 
   const isAggregate = currentProjectId === "all"
   const sorted = [...logs].reverse()
+  const hasSessions = sorted.some(log => log.sessions.some(s => s.activeTime > 0 || s.endTime !== null))
+  if (!hasSessions) {
+    container.innerHTML = `<div class="empty-state">No sessions recorded yet</div>`
+    return
+  }
 
   for (const log of sorted) {
     const sessions = log.sessions.filter(s => s.activeTime > 0 || s.endTime !== null)
@@ -262,7 +267,7 @@ function renderProjectsTab(): void {
 
   const summaries = computeProjectSummaries()
   if (summaries.length === 0) {
-    container.innerHTML = `<span class="empty-state">No projects tracked yet</span>`
+    container.innerHTML = `<div class="empty-state">No projects tracked yet</div>`
     return
   }
 
@@ -346,7 +351,7 @@ window.addEventListener("message", (event: MessageEvent) => {
         linesAdded:   (document.getElementById("pdf-lines-added")  as HTMLInputElement).checked,
         linesDeleted: (document.getElementById("pdf-lines-deleted") as HTMLInputElement).checked,
         topLanguage:  (document.getElementById("pdf-top-lang")     as HTMLInputElement).checked,
-        aiEvents:     (document.getElementById("pdf-ai-events")    as HTMLInputElement).checked,
+        aiEvents:     false,
         heatmap:      (document.getElementById("pdf-heatmap")      as HTMLInputElement).checked,
         days: pdfRangeDays,
       }
@@ -362,8 +367,13 @@ window.addEventListener("message", (event: MessageEvent) => {
 })
 
 // Range selector
-document.getElementById("range")?.addEventListener("change", (e: Event) => {
-  const days = parseInt((e.target as HTMLSelectElement).value) as 7 | 30 | 90
+document.getElementById("range-toggle")?.addEventListener("click", (e: Event) => {
+  const btn = (e.target as HTMLElement).closest(".toggle-btn") as HTMLElement | null
+  if (!btn?.dataset.val) return
+  const days = parseInt(btn.dataset.val) as 7 | 30 | 90
+  document.querySelectorAll("#range-toggle .toggle-btn").forEach(b =>
+    b.classList.toggle("active", b === btn)
+  )
   vscode.postMessage({ type: "requestRange", days })
 })
 

@@ -92,12 +92,12 @@ export class DashboardPanel {
       <div id="header">
         <button id="sidebar-toggle" title="Toggle projects panel">&#x2630;</button>
         <h1>Rabbit Hole</h1>
-        <div id="streak">&#x1F525; <span id="streak-count">0</span> day streak<span id="streak-target"></span></div>
-        <select id="range">
-          <option value="7">Last 7 days</option>
-          <option value="30" selected>Last 30 days</option>
-          <option value="90">Last 90 days</option>
-        </select>
+        <div id="streak-pill">&#x1F525; <span id="streak-count">0</span> <span class="streak-label">day streak</span><span id="streak-target"></span></div>
+        <div class="toggle-group" id="range-toggle">
+          <button class="toggle-btn" data-val="7">7d</button>
+          <button class="toggle-btn active" data-val="30">30d</button>
+          <button class="toggle-btn" data-val="90">90d</button>
+        </div>
       </div>
 
       <nav id="tabs">
@@ -110,15 +110,15 @@ export class DashboardPanel {
 
       <!-- Overview: stat cards + heatmap -->
       <div class="tab-panel active" id="tab-overview">
+        <div class="overview-header">
+          <button id="export-pdf-btn" class="export-pdf-btn">&#x2197; Export Card</button>
+        </div>
         <div id="stat-cards">
-          <div class="stat-card"><div class="stat-label">Active Time</div><div class="stat-value" id="stat-time">&#x2014;</div></div>
-          <div class="stat-card"><div class="stat-label">Lines Added</div><div class="stat-value" id="stat-added">&#x2014;</div></div>
-          <div class="stat-card"><div class="stat-label">Lines Deleted</div><div class="stat-value" id="stat-deleted">&#x2014;</div></div>
+          <div class="stat-card accent-time"><div class="stat-label">Active Time</div><div class="stat-value" id="stat-time">&#x2014;</div></div>
+          <div class="stat-card accent-add"><div class="stat-label">Lines Added</div><div class="stat-value" id="stat-added">&#x2014;</div></div>
+          <div class="stat-card accent-del"><div class="stat-label">Lines Deleted</div><div class="stat-value" id="stat-deleted">&#x2014;</div></div>
         </div>
         <div id="heatmap"></div>
-        <div id="overview-actions">
-          <button id="export-pdf-btn" class="export-pdf-btn">Export Card</button>
-        </div>
       </div>
 
       <!-- PDF export modal -->
@@ -143,7 +143,6 @@ export class DashboardPanel {
               <label class="modal-check"><input type="checkbox" id="pdf-lines-added" checked> Lines Added</label>
               <label class="modal-check"><input type="checkbox" id="pdf-lines-deleted" checked> Lines Deleted</label>
               <label class="modal-check"><input type="checkbox" id="pdf-top-lang" checked> Top Language</label>
-              <label class="modal-check"><input type="checkbox" id="pdf-ai-events" checked> AI Assists</label>
               <label class="modal-check"><input type="checkbox" id="pdf-heatmap" checked> Activity Heatmap</label>
             </div>
           </div>
