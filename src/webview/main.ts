@@ -122,19 +122,27 @@ function updateStatCards(log: DailyLog | undefined): void {
   }
   if (streakEl) streakEl.textContent = String(log.streak)
 
+  // streak > 0 means today's target was met globally (updateStreak stores 0 until earned)
+  const todayEarned = log.streak > 0
   const pill = document.getElementById("streak-pill")
-  if (dailyTargetMs > 0) {
-    const met = log.activeTime >= dailyTargetMs
-    pill?.classList.toggle("streak-at-risk", !met)
-    if (streakTargetEl) {
-      streakTargetEl.textContent = met
-        ? " · ✓"
-        : ` · ${formatDuration(log.activeTime)} / ${formatDuration(dailyTargetMs)}`
-      streakTargetEl.className = met ? "streak-target-met" : "streak-target-pending"
+  pill?.classList.toggle("streak-at-risk", !todayEarned && dailyTargetMs > 0)
+
+  if (streakTargetEl) {
+    if (dailyTargetMs > 0) {
+      if (todayEarned) {
+        streakTargetEl.textContent = " · ✓"
+        streakTargetEl.className = "streak-target-met"
+      } else {
+        const atRisk = currentLogs[currentLogs.length - 2]?.streak ?? 0
+        const progress = `${formatDuration(log.activeTime)} / ${formatDuration(dailyTargetMs)}`
+        streakTargetEl.textContent = atRisk > 0
+          ? ` · ${progress} · ${atRisk}d at risk`
+          : ` · ${progress}`
+        streakTargetEl.className = "streak-target-pending"
+      }
+    } else {
+      streakTargetEl.textContent = ""
     }
-  } else {
-    pill?.classList.remove("streak-at-risk")
-    if (streakTargetEl) streakTargetEl.textContent = ""
   }
 }
 
