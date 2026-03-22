@@ -103,7 +103,7 @@ export function activate(context: vscode.ExtensionContext): void {
         projectId: storage.getCurrentProjectId(),
       })
     }
-  }, 30_000)
+  }, 10_000)
 
   context.subscriptions.push(
     vscode.commands.registerCommand("rabbithole.openDashboard", () => {
