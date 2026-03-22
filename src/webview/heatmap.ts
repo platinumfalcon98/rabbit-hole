@@ -38,7 +38,7 @@ export function render(logs: DailyLog[]): void {
   const cellSize = 14
   const cellPad = 3
   const step = cellSize + cellPad
-  const dayLabels = ["", "Mon", "", "Wed", "", "Fri", ""]
+  const dayLabels = ["Mon", "", "Wed", "", "Fri", "", ""]
   const marginLeft = 32
   const marginTop = 24
   const marginBottom = 8
@@ -48,7 +48,7 @@ export function render(logs: DailyLog[]): void {
 
   const maxTime = d3.max(dates, d => {
     const key = d3.timeFormat("%Y-%m-%d")(d)
-    return logByDate.get(key)?.totalTime ?? 0
+    return logByDate.get(key)?.activeTime ?? 0
   }) ?? 1
 
   const colorScale = d3.scaleSequential()
@@ -125,13 +125,13 @@ export function render(logs: DailyLog[]): void {
     })
     .attr("fill", d => {
       const key = d3.timeFormat("%Y-%m-%d")(d)
-      const t = logByDate.get(key)?.totalTime ?? 0
+      const t = logByDate.get(key)?.activeTime ?? 0
       if (t === 0) return emptyColor
       return colorScale(t)
     })
     .on("mouseover", function(event: MouseEvent, d: Date) {
       const key = d3.timeFormat("%Y-%m-%d")(d)
-      const t = logByDate.get(key)?.totalTime ?? 0
+      const t = logByDate.get(key)?.activeTime ?? 0
       tooltip
         .style("display", "block")
         .style("left", `${event.clientX + 12}px`)

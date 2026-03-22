@@ -58,8 +58,8 @@ export class ActivityTracker {
       { dispose: () => this.stop() }
     )
 
-    // Checkpoint every 30s so storage stays fresh for status bar / dashboard
-    this.checkpointInterval = setInterval(() => this.saveCheckpoint(), 30_000)
+    // Checkpoint every 10s so storage stays fresh for status bar / dashboard
+    this.checkpointInterval = setInterval(() => this.saveCheckpoint(), 10_000)
 
     if (vscode.window.state.focused) {
       this.startSession()
