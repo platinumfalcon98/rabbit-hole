@@ -16,6 +16,8 @@ let dailyTargetMs = 0
 let currentProjectId = ""
 let projects: ProjectMeta[] = []
 let projectTimestamps: Record<string, number> = {}
+let currentPreset = "today"
+let selectedProjectIds: string[] = []
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -54,10 +56,8 @@ function switchTab(tab: string): void {
   document.querySelectorAll(".tab-panel").forEach(panel => {
     panel.classList.toggle("active", panel.id === `tab-${tab}`)
   })
-  // Swap header controls
-  const onProjects = tab === "projects"
-  document.getElementById("range-toggle")?.classList.toggle("hidden", onProjects)
-  document.getElementById("sort-toggle")?.classList.toggle("hidden", !onProjects)
+  // Show filter bar only on Overview
+  document.getElementById("filter-bar")?.classList.toggle("hidden", tab !== "overview")
 
   if (tab === "overview") {
     requestAnimationFrame(() => charts.resizeAll())
@@ -80,12 +80,136 @@ document.addEventListener("click", e => {
   if ((e.target as HTMLElement).closest("#sidebar-toggle")) {
     document.getElementById("sidebar")?.classList.toggle("collapsed")
   }
+  // Close project dropdown when clicking outside it
+  if (!(e.target as HTMLElement).closest("#project-dropdown")) {
+    document.getElementById("proj-dropdown-panel")?.classList.add("hidden")
+  }
 })
+
+// ── Filter bar ─────────────────────────────────────────────────────────────
+
+function renderProjectDropdown(): void {
+  const panel = document.getElementById("proj-dropdown-panel")
+  if (!panel) return
+
+  const isChecked = (id: string): boolean => {
+    if (id === "all") return selectedProjectIds[0] === "all"
+    if (selectedProjectIds[0] === "all") return true
+    if (selectedProjectIds.length === 0) return id === currentProjectId
+    return selectedProjectIds.includes(id)
+  }
+
+  let html = `<label class="proj-dropdown-item">
+      <input type="checkbox" data-id="all" ${isChecked("all") ? "checked" : ""}>
+      <span>All projects</span>
+    </label>
+    <div class="proj-dropdown-divider"></div>`
+
+  html += projects.map(p => `
+    <label class="proj-dropdown-item">
+      <input type="checkbox" data-id="${p.id}" ${isChecked(p.id) ? "checked" : ""}>
+      <span>${p.name}</span>
+    </label>`).join("")
+
+  panel.innerHTML = html
+
+  panel.querySelectorAll("input[type='checkbox']").forEach(cb => {
+    cb.addEventListener("change", () => {
+      const input = cb as HTMLInputElement
+      handleProjectDropdownChange(input.dataset.id!, input.checked)
+    })
+  })
+
+  updateDropdownLabel()
+}
+
+function syncDropdownCheckboxes(): void {
+  const panel = document.getElementById("proj-dropdown-panel")
+  if (!panel) return
+  const allMode = selectedProjectIds[0] === "all"
+  panel.querySelectorAll("input[type='checkbox']").forEach(cb => {
+    const input = cb as HTMLInputElement
+    const id = input.dataset.id!
+    if (id === "all") {
+      input.checked = allMode
+    } else if (allMode) {
+      input.checked = true
+    } else if (selectedProjectIds.length === 0) {
+      input.checked = id === currentProjectId
+    } else {
+      input.checked = selectedProjectIds.includes(id)
+    }
+  })
+}
+
+function handleProjectDropdownChange(id: string, checked: boolean): void {
+  if (id === "all") {
+    selectedProjectIds = checked ? ["all"] : []
+  } else {
+    // Expand "all" mode to the full explicit list before mutating
+    const effective = selectedProjectIds[0] === "all"
+      ? projects.map(p => p.id)
+      : selectedProjectIds.length === 0
+        ? [currentProjectId]
+        : [...selectedProjectIds]
+
+    if (checked && !effective.includes(id)) {
+      selectedProjectIds = [...effective, id]
+    } else if (!checked) {
+      const next = effective.filter(x => x !== id)
+      selectedProjectIds = next.length > 0 ? next : []
+    }
+  }
+
+  syncDropdownCheckboxes()
+  updateDropdownLabel()
+  vscode.postMessage({ type: "selectProjects", projectIds: selectedProjectIds })
+}
+
+function updateDropdownLabel(): void {
+  const label = document.getElementById("proj-dropdown-label")
+  const btn = document.getElementById("proj-dropdown-btn")
+  if (!label) return
+
+  const allMode = selectedProjectIds[0] === "all"
+  const implicitCurrent = selectedProjectIds.length === 0
+
+  let text: string
+  if (allMode) {
+    text = "All projects"
+  } else if (implicitCurrent) {
+    text = projects.find(p => p.id === currentProjectId)?.name ?? "Current project"
+  } else if (selectedProjectIds.length === 1) {
+    text = projects.find(p => p.id === selectedProjectIds[0])?.name ?? selectedProjectIds[0]
+  } else {
+    text = `${selectedProjectIds.length} projects`
+  }
+
+  label.textContent = text
+
+  // Button shows accent colour when not on the implicit default (single current project)
+  const isDefault = implicitCurrent || (selectedProjectIds.length === 1 && selectedProjectIds[0] === currentProjectId)
+  btn?.classList.toggle("active", !isDefault)
+}
+
+function handlePresetChange(preset: string): void {
+  currentPreset = preset
+  document.querySelectorAll(".filter-btn").forEach(b =>
+    b.classList.toggle("active", (b as HTMLElement).dataset.preset === preset)
+  )
+  const customRange = document.getElementById("custom-range")
+  customRange?.classList.toggle("hidden", preset !== "custom")
+  if (preset !== "custom") {
+    vscode.postMessage({ type: "requestRange", preset: preset as import("../shared/types").RangePreset })
+  }
+}
 
 // ── Stat cards ─────────────────────────────────────────────────────────────
 
-function updateStatCards(log: DailyLog | undefined): void {
-  if (!log) return
+function updateStatCards(logs: DailyLog[]): void {
+  if (logs.length === 0) return
+
+  const lastLog = logs[logs.length - 1]
 
   const timeEl = document.getElementById("stat-time")
   const addedEl = document.getElementById("stat-added")
@@ -93,19 +217,17 @@ function updateStatCards(log: DailyLog | undefined): void {
   const streakEl = document.getElementById("streak-count")
   const streakTargetEl = document.getElementById("streak-target")
 
-  if (timeEl) timeEl.textContent = formatDuration(log.activeTime)
-  if (addedEl) {
-    const total = log.files.reduce((s, f) => s + f.linesAdded, 0)
-    addedEl.textContent = String(total)
-  }
-  if (deletedEl) {
-    const total = log.files.reduce((s, f) => s + f.linesDeleted, 0)
-    deletedEl.textContent = String(total)
-  }
-  if (streakEl) streakEl.textContent = String(log.streak)
+  const totalTime = logs.reduce((s, l) => s + l.activeTime, 0)
+  const totalAdded = logs.reduce((s, l) => s + l.files.reduce((fs, f) => fs + f.linesAdded, 0), 0)
+  const totalDeleted = logs.reduce((s, l) => s + l.files.reduce((fs, f) => fs + f.linesDeleted, 0), 0)
+
+  if (timeEl) timeEl.textContent = formatDuration(totalTime)
+  if (addedEl) addedEl.textContent = String(totalAdded)
+  if (deletedEl) deletedEl.textContent = String(totalDeleted)
+  if (streakEl) streakEl.textContent = String(lastLog.streak)
 
   // streak > 0 means today's target was met globally (updateStreak stores 0 until earned)
-  const todayEarned = log.streak > 0
+  const todayEarned = lastLog.streak > 0
   const pill = document.getElementById("streak-pill")
   pill?.classList.toggle("streak-at-risk", !todayEarned && dailyTargetMs > 0)
 
@@ -115,8 +237,8 @@ function updateStatCards(log: DailyLog | undefined): void {
         streakTargetEl.textContent = " · ✓"
         streakTargetEl.className = "streak-target-met"
       } else {
-        const atRisk = currentLogs[currentLogs.length - 2]?.streak ?? 0
-        const progress = `${formatDuration(log.activeTime)} / ${formatDuration(dailyTargetMs)}`
+        const atRisk = logs[logs.length - 2]?.streak ?? 0
+        const progress = `${formatDuration(lastLog.activeTime)} / ${formatDuration(dailyTargetMs)}`
         streakTargetEl.textContent = atRisk > 0
           ? ` · ${progress} · ${atRisk}d at risk`
           : ` · ${progress}`
@@ -353,7 +475,7 @@ function renderProjectsMini(): void {
 function renderAll(): void {
   heatmap.render(currentLogs)
   charts.renderAll(currentLogs)
-  updateStatCards(currentLogs[currentLogs.length - 1])
+  updateStatCards(currentLogs)
   renderSessions(currentLogs)
   renderFiles(currentLogs)
   renderProjectsMini()
@@ -375,15 +497,21 @@ window.addEventListener("message", (event: MessageEvent) => {
       projects = msg.projects
       currentProjectId = msg.currentProjectId
       projectTimestamps = msg.projectTimestamps
+      renderProjectDropdown()
       renderAll()
       break
 
     case "update": {
-      if (currentProjectId !== "all" && msg.projectId === (currentProjectId || "")) {
+      const singleProject = selectedProjectIds.length === 0
+        || (selectedProjectIds.length === 1 && selectedProjectIds[0] !== "all")
+      const projectInScope = selectedProjectIds.length === 0
+        ? msg.projectId === currentProjectId
+        : selectedProjectIds.includes(msg.projectId)
+      if (currentPreset === "today" && singleProject && projectInScope) {
         const todayIdx = currentLogs.findIndex(l => l.date === msg.data.date)
         if (todayIdx >= 0) currentLogs[todayIdx] = msg.data
         charts.updateToday(msg.data)
-        updateStatCards(msg.data)
+        updateStatCards(currentLogs)
         heatmap.render(currentLogs)
         renderSessions(currentLogs)
         renderFiles(currentLogs)
@@ -395,7 +523,7 @@ window.addEventListener("message", (event: MessageEvent) => {
     case "settings":
       dailyTargetMs = msg.dailyTargetMs
       if (currentLogs.length > 0) {
-        updateStatCards(currentLogs[currentLogs.length - 1])
+        updateStatCards(currentLogs)
       }
       populateSettings(msg)
       break
@@ -422,15 +550,28 @@ window.addEventListener("message", (event: MessageEvent) => {
   }
 })
 
-// Range selector
-document.getElementById("range-toggle")?.addEventListener("click", (e: Event) => {
-  const btn = (e.target as HTMLElement).closest(".toggle-btn") as HTMLElement | null
-  if (!btn?.dataset.val) return
-  const days = parseInt(btn.dataset.val) as 7 | 30 | 90
-  document.querySelectorAll("#range-toggle .toggle-btn").forEach(b =>
-    b.classList.toggle("active", b === btn)
-  )
-  vscode.postMessage({ type: "requestRange", days })
+// Filter bar — range preset buttons
+document.getElementById("filter-bar")?.addEventListener("click", (e: Event) => {
+  const btn = (e.target as HTMLElement).closest(".filter-btn") as HTMLElement | null
+  if (!btn?.dataset.preset) return
+  handlePresetChange(btn.dataset.preset)
+})
+
+// Filter bar — custom date range
+function trySubmitCustomRange(): void {
+  const start = (document.getElementById("custom-start") as HTMLInputElement)?.value
+  const end = (document.getElementById("custom-end") as HTMLInputElement)?.value
+  if (start && end && start <= end) {
+    vscode.postMessage({ type: "requestRange", preset: "custom", customStart: start, customEnd: end })
+  }
+}
+document.getElementById("custom-start")?.addEventListener("change", trySubmitCustomRange)
+document.getElementById("custom-end")?.addEventListener("change", trySubmitCustomRange)
+
+// Project dropdown toggle
+document.getElementById("proj-dropdown-btn")?.addEventListener("click", (e: Event) => {
+  e.stopPropagation()
+  document.getElementById("proj-dropdown-panel")?.classList.toggle("hidden")
 })
 
 // Sort toggle

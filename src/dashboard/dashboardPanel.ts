@@ -116,55 +116,104 @@ export class DashboardPanel {
     <main id="content">
       <div id="header">
         <div id="streak-pill">&#x1F525; <span id="streak-count">0</span> <span class="streak-label">day streak</span><span id="streak-target"></span></div>
-        <div class="toggle-group" id="range-toggle">
-          <button class="toggle-btn" data-val="7">7d</button>
-          <button class="toggle-btn active" data-val="30">30d</button>
-          <button class="toggle-btn" data-val="90">90d</button>
+        <button id="export-pdf-btn" class="export-pdf-btn">&#x2197; Export Card</button>
+      </div>
+
+      <div id="filter-bar">
+        <div class="filter-range">
+          <button class="filter-btn active" data-preset="today">Today</button>
+          <button class="filter-btn" data-preset="7d">7d</button>
+          <button class="filter-btn" data-preset="30d">30d</button>
+          <button class="filter-btn" data-preset="1y">1Y</button>
+          <button class="filter-btn" data-preset="custom">Custom</button>
         </div>
-        <div class="toggle-group hidden" id="sort-toggle">
-          <button class="toggle-btn active" data-val="time">Active Time</button>
-          <button class="toggle-btn" data-val="last">Last Active</button>
-          <button class="toggle-btn" data-val="name">Name</button>
+        <div id="custom-range" class="hidden">
+          <input type="date" id="custom-start">
+          <span class="custom-range-sep">&#x2013;</span>
+          <input type="date" id="custom-end">
+        </div>
+        <div id="project-dropdown" class="proj-dropdown">
+          <span class="proj-dropdown-label-text">Project</span>
+          <button id="proj-dropdown-btn" class="proj-dropdown-btn">
+            <span id="proj-dropdown-label">&#x2014;</span>
+            <svg width="10" height="6" viewBox="0 0 10 6" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <path d="M1 1L5 5L9 1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+          <div id="proj-dropdown-panel" class="proj-dropdown-panel hidden"></div>
         </div>
       </div>
 
       <!-- Overview: full dashboard grid -->
       <div class="tab-panel active" id="tab-overview">
-        <div class="overview-header">
-          <button id="export-pdf-btn" class="export-pdf-btn">&#x2197; Export Card</button>
-        </div>
         <div id="stat-cards" class="full-width">
           <div class="stat-card accent-time"><div class="stat-label">Active Time</div><div class="stat-value" id="stat-time">&#x2014;</div></div>
           <div class="stat-card accent-add"><div class="stat-label">Lines Added</div><div class="stat-value" id="stat-added">&#x2014;</div></div>
           <div class="stat-card accent-del"><div class="stat-label">Lines Deleted</div><div class="stat-value" id="stat-deleted">&#x2014;</div></div>
         </div>
         <div class="overview-grid">
-          <div id="heatmap" class="section-card"></div>
-          <div class="chart-box"><canvas id="lines-chart"></canvas></div>
-          <div class="chart-box lang-chart-box">
-            <div class="chart-panel-header">
-              <div class="toggle-group" id="lang-chart-type">
-                <button class="toggle-btn active" data-val="bar">Bar</button>
-                <button class="toggle-btn" data-val="donut">Donut</button>
+          <div id="heatmap" class="section-card">
+            <div class="widget-header">
+              <div class="widget-header-info">
+                <div class="widget-title">Activity Heatmap</div>
+                <div class="widget-subtitle">Daily active time</div>
               </div>
-              <div class="toggle-group" id="lang-metric">
-                <button class="toggle-btn active" data-val="time">Time</button>
-                <button class="toggle-btn" data-val="lines">Lines</button>
+            </div>
+          </div>
+          <div class="chart-box">
+            <div class="widget-header">
+              <div class="widget-header-info">
+                <div class="widget-title">Code Changes</div>
+                <div class="widget-subtitle">Lines added and deleted per day</div>
+              </div>
+            </div>
+            <canvas id="lines-chart"></canvas>
+          </div>
+          <div class="chart-box lang-chart-box">
+            <div class="widget-header">
+              <div class="widget-header-info">
+                <div class="widget-title">Languages</div>
+                <div class="widget-subtitle">Time and lines changed by language</div>
+              </div>
+              <div class="widget-header-controls">
+                <div class="toggle-group" id="lang-chart-type">
+                  <button class="toggle-btn active" data-val="bar">Bar</button>
+                  <button class="toggle-btn" data-val="donut">Donut</button>
+                </div>
+                <div class="toggle-group" id="lang-metric">
+                  <button class="toggle-btn active" data-val="time">Time</button>
+                  <button class="toggle-btn" data-val="lines">Lines</button>
+                </div>
               </div>
             </div>
             <canvas id="lang-chart"></canvas>
             <div id="lang-legend"></div>
           </div>
           <div id="sessions-panel" class="section-card">
-            <h2 class="section-title">Sessions</h2>
+            <div class="widget-header">
+              <div class="widget-header-info">
+                <div class="widget-title">Sessions</div>
+                <div class="widget-subtitle">Start and end times per coding session</div>
+              </div>
+            </div>
             <div id="sessions-list"></div>
           </div>
           <div id="files-panel" class="section-card full-width">
-            <h2 class="section-title">Files</h2>
+            <div class="widget-header">
+              <div class="widget-header-info">
+                <div class="widget-title">Changed Files</div>
+                <div class="widget-subtitle">Most modified files by change volume</div>
+              </div>
+            </div>
             <div id="files-list"></div>
           </div>
           <div id="projects-mini" class="section-card full-width">
-            <h2 class="section-title">Projects</h2>
+            <div class="widget-header">
+              <div class="widget-header-info">
+                <div class="widget-title">Projects</div>
+                <div class="widget-subtitle">Active projects by coding time</div>
+              </div>
+            </div>
             <div id="projects-mini-list"></div>
           </div>
         </div>
@@ -205,6 +254,13 @@ export class DashboardPanel {
 
       <!-- Projects: summary cards -->
       <div class="tab-panel" id="tab-projects">
+        <div class="projects-tab-header">
+          <div class="toggle-group" id="sort-toggle">
+            <button class="toggle-btn active" data-val="time">Active Time</button>
+            <button class="toggle-btn" data-val="last">Last Active</button>
+            <button class="toggle-btn" data-val="name">Name</button>
+          </div>
+        </div>
         <div id="project-cards"></div>
       </div>
 

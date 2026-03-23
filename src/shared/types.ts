@@ -67,10 +67,12 @@ export type ExtensionMessage =
   | { type: "settings"; agentsEnabled: boolean; dailyTargetMs: number; dailyTargetMinutes: number; idleThresholdMinutes: number; sessionExpiryMinutes: number; agentToggles: Record<string, boolean> }
   | { type: "pdfData"; logs: DailyLog[] }
 
+export type RangePreset = "today" | "7d" | "30d" | "1y" | "custom"
+
 export type WebviewMessage =
   | { type: "ready" }
-  | { type: "requestRange"; days: 7 | 30 | 90 }
-  | { type: "selectProject"; projectId: string }
+  | { type: "requestRange"; preset: RangePreset; customStart?: string; customEnd?: string }
+  | { type: "selectProjects"; projectIds: string[] }
   | { type: "export"; format: "csv" | "json" }
   | { type: "exportPdfRequest"; days: 7 | 30 | 90 }
   | { type: "writePdf"; base64: string }
