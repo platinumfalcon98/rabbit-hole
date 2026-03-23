@@ -159,6 +159,7 @@ export class DashboardPanel {
                 <div class="widget-subtitle">Daily active time</div>
               </div>
             </div>
+            <div id="heatmap-canvas"></div>
           </div>
           <div class="chart-box">
             <div class="widget-header">

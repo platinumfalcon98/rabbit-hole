@@ -25,7 +25,7 @@ function isFuture(d: Date, today: Date): boolean {
 }
 
 export function render(logs: DailyLog[]): void {
-  const container = document.getElementById("heatmap")
+  const container = document.getElementById("heatmap-canvas")
   if (!container) return
   container.innerHTML = ""
 

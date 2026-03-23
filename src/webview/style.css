@@ -499,12 +499,11 @@ body {
 
 /* ── Heatmap ─────────────────────────────────────────────────────────────── */
 
-#heatmap {
-  margin-bottom: 8px;
+#heatmap-canvas {
   overflow-x: auto;
 }
 
-#heatmap svg {
+#heatmap-canvas svg {
   display: block;
 }
 
