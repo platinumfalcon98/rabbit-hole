@@ -1,6 +1,5 @@
 import * as vscode from "vscode"
 import { StorageService } from "./tracker/storageService"
-import { AgentDetector } from "./tracker/agentDetector"
 import { ActivityTracker } from "./tracker/activityTracker"
 import { DashboardPanel } from "./dashboard/dashboardPanel"
 import { MiniPanel } from "./dashboard/miniPanel"
@@ -17,8 +16,7 @@ function formatDuration(ms: number): string {
 
 export function activate(context: vscode.ExtensionContext): void {
   const storage = new StorageService(context)
-  const detector = new AgentDetector(context)
-  const tracker = new ActivityTracker(context, storage, detector)
+  const tracker = new ActivityTracker(context, storage)
 
   tracker.start()
   storage.updateStreak()
@@ -68,15 +66,11 @@ export function activate(context: vscode.ExtensionContext): void {
   const refreshMiniPanel = () => {
     const global = storage.getGlobalToday()
     const today = storage.getToday()
-    const aiCount = Object.entries(today.agents)
-      .filter(([k]) => k !== "manual")
-      .reduce((s, [, v]) => s + v.length, 0)
     miniPanel.update({
       activeTime: global.activeTime,
       streak: global.streak,
       linesAdded: today.files.reduce((s, f) => s + f.linesAdded, 0),
       linesDeleted: today.files.reduce((s, f) => s + f.linesDeleted, 0),
-      aiCount,
     })
   }
 
@@ -113,15 +107,6 @@ export function activate(context: vscode.ExtensionContext): void {
           handleMessage(msg as WebviewMessage, storage, DashboardPanel.currentPanel!)
         })
       }
-    }),
-
-    vscode.commands.registerCommand("rabbithole.toggleAgentDetection", () => {
-      const config = vscode.workspace.getConfiguration("rabbithole")
-      const current = config.get<boolean>("detectAgents") ?? true
-      config.update("detectAgents", !current, vscode.ConfigurationTarget.Global)
-      vscode.window.showInformationMessage(
-        `Rabbit Hole: Agent detection ${!current ? "enabled" : "disabled"}`
-      )
     }),
 
     { dispose: () => clearInterval(interval) }

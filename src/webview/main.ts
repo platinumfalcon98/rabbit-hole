@@ -1,6 +1,7 @@
 import { DailyLog, ExtensionMessage, ProjectMeta } from "../shared/types"
 import * as heatmap from "./heatmap"
 import * as charts from "./charts"
+import { generatePdf, PdfOptions } from "./pdfExport"
 
 declare function acquireVsCodeApi(): {
   postMessage(msg: unknown): void
@@ -14,6 +15,9 @@ let currentLogs: DailyLog[] = []
 let dailyTargetMs = 0
 let currentProjectId = ""
 let projects: ProjectMeta[] = []
+let projectTimestamps: Record<string, number> = {}
+let currentPreset = "today"
+let selectedProjectIds: string[] = []
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -42,17 +46,20 @@ function projectName(projectId: string): string {
 // ── Tabs ───────────────────────────────────────────────────────────────────
 
 let activeTab = "overview"
+let projectSort: "time" | "last" | "name" = "time"
 
 function switchTab(tab: string): void {
   activeTab = tab
-  document.querySelectorAll(".tab-btn").forEach(btn => {
+  document.querySelectorAll(".nav-item").forEach(btn => {
     btn.classList.toggle("active", (btn as HTMLElement).dataset.tab === tab)
   })
   document.querySelectorAll(".tab-panel").forEach(panel => {
     panel.classList.toggle("active", panel.id === `tab-${tab}`)
   })
-  // Charts need a resize call when their panel becomes visible
-  if (tab === "activity" || tab === "code" || tab === "ai") {
+  // Show filter bar only on Overview
+  document.getElementById("filter-bar")?.classList.toggle("hidden", tab !== "overview")
+
+  if (tab === "overview") {
     requestAnimationFrame(() => charts.resizeAll())
   }
   if (tab === "projects") {
@@ -61,79 +68,182 @@ function switchTab(tab: string): void {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-  document.getElementById("tabs")?.addEventListener("click", e => {
-    const btn = (e.target as HTMLElement).closest(".tab-btn") as HTMLElement | null
+  document.getElementById("nav-items")?.addEventListener("click", e => {
+    const btn = (e.target as HTMLElement).closest(".nav-item") as HTMLElement | null
     if (!btn?.dataset.tab) return
     switchTab(btn.dataset.tab)
   })
 })
 
-// ── Sidebar ────────────────────────────────────────────────────────────────
-
-function renderSidebar(ps: ProjectMeta[], activeId: string): void {
-  const list = document.getElementById("project-list")
-  if (!list) return
-
-  list.innerHTML = `<li class="project-item${activeId === "all" ? " active" : ""}" data-id="all">All Projects</li>`
-
-  for (const p of ps) {
-    const li = document.createElement("li")
-    li.className = "project-item" + (activeId === p.id ? " active" : "")
-    li.dataset.id = p.id
-    li.title = p.path
-    li.textContent = p.name
-    list.appendChild(li)
-  }
-}
-
 document.addEventListener("click", e => {
-  // Project item click
-  const projectItem = (e.target as HTMLElement).closest(".project-item") as HTMLElement | null
-  if (projectItem) {
-    vscode.postMessage({ type: "selectProject", projectId: projectItem.dataset.id ?? "" })
-    return
-  }
   // Sidebar toggle
   if ((e.target as HTMLElement).closest("#sidebar-toggle")) {
     document.getElementById("sidebar")?.classList.toggle("collapsed")
   }
+  // Close project dropdown when clicking outside it
+  if (!(e.target as HTMLElement).closest("#project-filter")) {
+    document.getElementById("proj-dropdown-panel")?.classList.add("hidden")
+  }
 })
+
+// ── Filter bar ─────────────────────────────────────────────────────────────
+
+function renderProjectDropdown(): void {
+  const panel = document.getElementById("proj-dropdown-panel")
+  if (!panel) return
+
+  const isChecked = (id: string): boolean => {
+    if (id === "all") return selectedProjectIds[0] === "all"
+    if (selectedProjectIds[0] === "all") return true
+    if (selectedProjectIds.length === 0) return id === currentProjectId
+    return selectedProjectIds.includes(id)
+  }
+
+  let html = `<label class="proj-dropdown-item">
+      <input type="checkbox" data-id="all" ${isChecked("all") ? "checked" : ""}>
+      <span>All projects</span>
+    </label>
+    <div class="proj-dropdown-divider"></div>`
+
+  html += projects.map(p => `
+    <label class="proj-dropdown-item">
+      <input type="checkbox" data-id="${p.id}" ${isChecked(p.id) ? "checked" : ""}>
+      <span>${p.name}</span>
+    </label>`).join("")
+
+  panel.innerHTML = html
+
+  panel.querySelectorAll("input[type='checkbox']").forEach(cb => {
+    cb.addEventListener("change", () => {
+      const input = cb as HTMLInputElement
+      handleProjectDropdownChange(input.dataset.id!, input.checked)
+    })
+  })
+
+  updateDropdownLabel()
+}
+
+function syncDropdownCheckboxes(): void {
+  const panel = document.getElementById("proj-dropdown-panel")
+  if (!panel) return
+  const allMode = selectedProjectIds[0] === "all"
+  panel.querySelectorAll("input[type='checkbox']").forEach(cb => {
+    const input = cb as HTMLInputElement
+    const id = input.dataset.id!
+    if (id === "all") {
+      input.checked = allMode
+    } else if (allMode) {
+      input.checked = true
+    } else if (selectedProjectIds.length === 0) {
+      input.checked = id === currentProjectId
+    } else {
+      input.checked = selectedProjectIds.includes(id)
+    }
+  })
+}
+
+function handleProjectDropdownChange(id: string, checked: boolean): void {
+  if (id === "all") {
+    selectedProjectIds = checked ? ["all"] : []
+  } else {
+    // Expand "all" mode to the full explicit list before mutating
+    const effective = selectedProjectIds[0] === "all"
+      ? projects.map(p => p.id)
+      : selectedProjectIds.length === 0
+        ? [currentProjectId]
+        : [...selectedProjectIds]
+
+    if (checked && !effective.includes(id)) {
+      selectedProjectIds = [...effective, id]
+    } else if (!checked) {
+      const next = effective.filter(x => x !== id)
+      selectedProjectIds = next.length > 0 ? next : []
+    }
+  }
+
+  syncDropdownCheckboxes()
+  updateDropdownLabel()
+  vscode.postMessage({ type: "selectProjects", projectIds: selectedProjectIds })
+}
+
+function updateDropdownLabel(): void {
+  const label = document.getElementById("proj-filter-label")
+  const btn = document.getElementById("proj-filter-btn")
+  if (!label) return
+
+  const allMode = selectedProjectIds[0] === "all"
+  const implicitCurrent = selectedProjectIds.length === 0
+
+  let text: string
+  if (allMode) {
+    text = "Choose Project"
+  } else if (implicitCurrent) {
+    text = projects.find(p => p.id === currentProjectId)?.name ?? "Choose Project"
+  } else if (selectedProjectIds.length === 1) {
+    text = projects.find(p => p.id === selectedProjectIds[0])?.name ?? selectedProjectIds[0]
+  } else {
+    text = `${selectedProjectIds.length} projects`
+  }
+
+  label.textContent = text
+
+  // Button shows accent colour when not on the implicit default (single current project)
+  const isDefault = implicitCurrent || (selectedProjectIds.length === 1 && selectedProjectIds[0] === currentProjectId)
+  btn?.classList.toggle("active", !isDefault)
+}
+
+function handlePresetChange(preset: string): void {
+  currentPreset = preset
+  document.querySelectorAll(".filter-btn").forEach(b =>
+    b.classList.toggle("active", (b as HTMLElement).dataset.preset === preset)
+  )
+  const customRange = document.getElementById("custom-range")
+  customRange?.classList.toggle("hidden", preset !== "custom")
+  if (preset !== "custom") {
+    vscode.postMessage({ type: "requestRange", preset: preset as import("../shared/types").RangePreset })
+  }
+}
 
 // ── Stat cards ─────────────────────────────────────────────────────────────
 
-function updateStatCards(log: DailyLog | undefined): void {
-  if (!log) return
+function updateStatCards(logs: DailyLog[]): void {
+  if (logs.length === 0) return
+
+  const lastLog = logs[logs.length - 1]
 
   const timeEl = document.getElementById("stat-time")
   const addedEl = document.getElementById("stat-added")
   const deletedEl = document.getElementById("stat-deleted")
-  const aiEl = document.getElementById("stat-ai")
   const streakEl = document.getElementById("streak-count")
   const streakTargetEl = document.getElementById("streak-target")
 
-  if (timeEl) timeEl.textContent = formatDuration(log.activeTime)
-  if (addedEl) {
-    const total = log.files.reduce((s, f) => s + f.linesAdded, 0)
-    addedEl.textContent = String(total)
-  }
-  if (deletedEl) {
-    const total = log.files.reduce((s, f) => s + f.linesDeleted, 0)
-    deletedEl.textContent = String(total)
-  }
-  if (aiEl) {
-    const aiEvents = Object.entries(log.agents)
-      .filter(([k]) => k !== "manual")
-      .flatMap(([, v]) => v)
-    aiEl.textContent = String(aiEvents.length)
-  }
-  if (streakEl) streakEl.textContent = String(log.streak)
+  const totalTime = logs.reduce((s, l) => s + l.activeTime, 0)
+  const totalAdded = logs.reduce((s, l) => s + l.files.reduce((fs, f) => fs + f.linesAdded, 0), 0)
+  const totalDeleted = logs.reduce((s, l) => s + l.files.reduce((fs, f) => fs + f.linesDeleted, 0), 0)
+
+  if (timeEl) timeEl.textContent = formatDuration(totalTime)
+  if (addedEl) addedEl.textContent = String(totalAdded)
+  if (deletedEl) deletedEl.textContent = String(totalDeleted)
+  if (streakEl) streakEl.textContent = String(lastLog.streak)
+
+  // streak > 0 means today's target was met globally (updateStreak stores 0 until earned)
+  const todayEarned = lastLog.streak > 0
+  const pill = document.getElementById("streak-pill")
+  pill?.classList.toggle("streak-at-risk", !todayEarned && dailyTargetMs > 0)
+
   if (streakTargetEl) {
     if (dailyTargetMs > 0) {
-      const met = log.activeTime >= dailyTargetMs
-      streakTargetEl.textContent = met
-        ? " · ✓"
-        : ` · ${formatDuration(log.activeTime)} / ${formatDuration(dailyTargetMs)}`
-      streakTargetEl.className = met ? "streak-target-met" : "streak-target-pending"
+      if (todayEarned) {
+        streakTargetEl.textContent = " · ✓"
+        streakTargetEl.className = "streak-target-met"
+      } else {
+        const atRisk = logs[logs.length - 2]?.streak ?? 0
+        const progress = `${formatDuration(lastLog.activeTime)} / ${formatDuration(dailyTargetMs)}`
+        streakTargetEl.textContent = atRisk > 0
+          ? ` · ${progress} · ${atRisk}d at risk`
+          : ` · ${progress}`
+        streakTargetEl.className = "streak-target-pending"
+      }
     } else {
       streakTargetEl.textContent = ""
     }
@@ -167,7 +277,7 @@ function renderFiles(logs: DailyLog[]): void {
 
   const files = aggregateFiles(logs)
   if (files.length === 0) {
-    container.innerHTML = `<span class="empty-state">No file activity yet</span>`
+    container.innerHTML = `<div class="empty-state">No file activity yet</div>`
     return
   }
 
@@ -185,90 +295,173 @@ function renderFiles(logs: DailyLog[]): void {
 
 // ── Sessions ───────────────────────────────────────────────────────────────
 
+const SESSIONS_COLLAPSED = 3
+const expandedSessionDates = new Set<string>()
+let sessionSortOrder: "desc" | "asc" = "desc"
+
+function buildSessionRow(session: import("../shared/types").ActivitySession, isAggregate: boolean, ongoingId: string | null): HTMLElement {
+  const row = document.createElement("div")
+  row.className = "session-row"
+  const end = session.endTime
+    ? formatTime(session.endTime)
+    : session.id === ongoingId ? "ongoing" : "—"
+  const projectTag = isAggregate && session.projectId
+    ? `<span class="session-project">${projectName(session.projectId)}</span>`
+    : ""
+  row.innerHTML =
+    `<span class="session-time">${formatTime(session.startTime)} – ${end}</span>` +
+    projectTag +
+    `<span class="session-active">${formatDuration(session.activeTime)} active</span>`
+  return row
+}
+
 function renderSessions(logs: DailyLog[]): void {
   const container = document.getElementById("sessions-list")
   if (!container) return
   container.innerHTML = ""
 
+  const now = new Date()
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`
+
   const isAggregate = currentProjectId === "all"
   const sorted = [...logs].reverse()
+  const hasSessions = sorted.some(log => log.sessions.some(s => s.activeTime > 0 || s.endTime !== null))
+  if (!hasSessions) {
+    container.innerHTML = `<div class="empty-state">No sessions recorded yet</div>`
+    return
+  }
 
   for (const log of sorted) {
-    const sessions = log.sessions.filter(s => s.activeTime > 0 || s.endTime !== null)
+    const sessions = log.sessions
+      .filter(s => s.activeTime > 0 || s.endTime !== null)
+      .sort((a, b) => sessionSortOrder === "desc" ? b.startTime - a.startTime : a.startTime - b.startTime)
     if (sessions.length === 0) continue
+
+    // At most one session can be truly ongoing: the latest open one from today
+    const openSessions = log.date === todayStr
+      ? sessions.filter(s => s.endTime === null)
+      : []
+    const ongoingId = openSessions.length > 0
+      ? openSessions.reduce((a, b) => a.startTime > b.startTime ? a : b).id
+      : null
 
     const dateHeader = document.createElement("div")
     dateHeader.className = "sessions-date"
     dateHeader.textContent = log.date
     container.appendChild(dateHeader)
 
-    for (const session of sessions) {
-      const row = document.createElement("div")
-      row.className = "session-row"
-      const end = session.endTime ? formatTime(session.endTime) : "ongoing"
-      const projectTag = isAggregate && session.projectId
-        ? `<span class="session-project">${projectName(session.projectId)}</span>`
-        : ""
-      row.innerHTML =
-        `<span class="session-time">${formatTime(session.startTime)} – ${end}</span>` +
-        projectTag +
-        `<span class="session-active">${formatDuration(session.activeTime)} active</span>`
-      container.appendChild(row)
+    const expanded = expandedSessionDates.has(log.date)
+    const visible = expanded ? sessions : sessions.slice(0, SESSIONS_COLLAPSED)
+    const hidden = expanded ? [] : sessions.slice(SESSIONS_COLLAPSED)
+
+    for (const session of visible) {
+      container.appendChild(buildSessionRow(session, isAggregate, ongoingId))
+    }
+
+    if (hidden.length > 0) {
+      const showMore = document.createElement("div")
+      showMore.className = "sessions-show-more"
+      showMore.textContent = `${hidden.length} more session${hidden.length !== 1 ? "s" : ""}`
+      showMore.addEventListener("click", () => {
+        expandedSessionDates.add(log.date)
+        for (const session of hidden) {
+          showMore.before(buildSessionRow(session, isAggregate, ongoingId))
+        }
+        showMore.remove()
+      })
+      container.appendChild(showMore)
     }
   }
 }
 
 // ── Projects tab ───────────────────────────────────────────────────────────
 
+function timeAgo(ts: number): string {
+  const diff = Date.now() - ts
+  const minutes = Math.floor(diff / 60_000)
+  const hours = Math.floor(diff / 3_600_000)
+  const days = Math.floor(diff / 86_400_000)
+  if (minutes < 1) return "just now"
+  if (minutes < 60) return `${minutes}m ago`
+  if (hours < 24) return `${hours}h ago`
+  if (days === 1) return "yesterday"
+  if (days < 7) return `${days} days ago`
+  if (days < 14) return "last week"
+  return `${Math.floor(days / 7)} weeks ago`
+}
+
 interface ProjectSummary {
   id: string
   name: string
   path: string
   activeTime: number
-  linesAdded: number
-  linesDeleted: number
-  lastActive: string
+  streak: number
+  lastActiveTs: number
 }
 
 function computeProjectSummaries(): ProjectSummary[] {
   const map = new Map<string, ProjectSummary>()
+  const daysMap = new Map<string, Set<string>>()
 
   // Seed from projects registry so we show all even with zero activity
   for (const p of projects) {
-    map.set(p.id, { id: p.id, name: p.name, path: p.path, activeTime: 0, linesAdded: 0, linesDeleted: 0, lastActive: "" })
+    map.set(p.id, { id: p.id, name: p.name, path: p.path, activeTime: 0, streak: 0, lastActiveTs: projectTimestamps[p.id] ?? 0 })
+    daysMap.set(p.id, new Set())
   }
+
+  const fallbackPid = currentProjectId !== "all" ? currentProjectId : (map.size === 1 ? [...map.keys()][0] : null)
 
   for (const log of currentLogs) {
     for (const session of log.sessions) {
-      const pid = session.projectId ?? currentProjectId
-      if (!pid || pid === "all") continue
+      const pid = session.projectId ?? fallbackPid
+      if (!pid) continue
       if (!map.has(pid)) {
-        map.set(pid, { id: pid, name: projectName(pid), path: "", activeTime: 0, linesAdded: 0, linesDeleted: 0, lastActive: "" })
+        map.set(pid, { id: pid, name: projectName(pid), path: "", activeTime: 0, streak: 0, lastActiveTs: 0 })
+        daysMap.set(pid, new Set())
       }
       const s = map.get(pid)!
       s.activeTime += session.activeTime
-      if (!s.lastActive || log.date > s.lastActive) s.lastActive = log.date
-    }
-    for (const file of log.files) {
-      const pid = file.projectId ?? currentProjectId
-      if (!pid || pid === "all") continue
-      if (!map.has(pid)) continue
-      const s = map.get(pid)!
-      s.linesAdded += file.linesAdded
-      s.linesDeleted += file.linesDeleted
+      const sessionTs = session.endTime ?? session.startTime
+      if (sessionTs > s.lastActiveTs) s.lastActiveTs = sessionTs
+      daysMap.get(pid)!.add(log.date)
     }
   }
 
+  for (const [pid, days] of daysMap) {
+    const s = map.get(pid)
+    if (!s || days.size === 0) continue
+    const sorted = [...days].sort().reverse()
+    let streak = 1
+    for (let i = 0; i < sorted.length - 1; i++) {
+      const curr = new Date(sorted[i]).getTime()
+      const prev = new Date(sorted[i + 1]).getTime()
+      if (Math.round((curr - prev) / 86_400_000) === 1) streak++
+      else break
+    }
+    s.streak = streak
+  }
+
   return [...map.values()].sort((a, b) => b.activeTime - a.activeTime)
+}
+
+function sortedProjectSummaries(): ProjectSummary[] {
+  const summaries = computeProjectSummaries()
+  if (projectSort === "last") {
+    return summaries.sort((a, b) => b.lastActiveTs - a.lastActiveTs)
+  }
+  if (projectSort === "name") {
+    return summaries.sort((a, b) => a.name.localeCompare(b.name))
+  }
+  return summaries // already sorted by activeTime desc from computeProjectSummaries
 }
 
 function renderProjectsTab(): void {
   const container = document.getElementById("project-cards")
   if (!container) return
 
-  const summaries = computeProjectSummaries()
+  const summaries = sortedProjectSummaries()
   if (summaries.length === 0) {
-    container.innerHTML = `<span class="empty-state">No projects tracked yet</span>`
+    container.innerHTML = `<div class="empty-state">No projects tracked yet</div>`
     return
   }
 
@@ -276,13 +469,12 @@ function renderProjectsTab(): void {
     <div class="project-card" data-id="${p.id}" title="Click to view this project">
       <div class="project-card-header">
         <span class="project-card-name">${p.name}</span>
-        ${p.lastActive ? `<span class="project-card-last">Last active ${p.lastActive}</span>` : ""}
+        ${p.lastActiveTs ? `<span class="project-card-last">${timeAgo(p.lastActiveTs)}</span>` : ""}
       </div>
       <div class="project-card-path">${shortenPath(p.path, 4)}</div>
       <div class="project-card-stats">
         <span class="pstat"><span class="pstat-label">Active</span> <span class="pstat-val">${formatDuration(p.activeTime)}</span></span>
-        <span class="pstat"><span class="pstat-label">Added</span> <span class="pstat-val add">+${p.linesAdded}</span></span>
-        <span class="pstat"><span class="pstat-label">Deleted</span> <span class="pstat-val del">-${p.linesDeleted}</span></span>
+        <span class="pstat"><span class="pstat-label">Streak</span> <span class="pstat-val">${p.streak}d</span></span>
       </div>
     </div>`).join("")
 
@@ -296,21 +488,53 @@ function renderProjectsTab(): void {
   })
 }
 
+// ── Projects mini widget ────────────────────────────────────────────────────
+
+function renderProjectsMini(): void {
+  const container = document.getElementById("projects-mini-list")
+  if (!container) return
+
+  const summaries = computeProjectSummaries().filter(p => p.activeTime > 0)
+  if (summaries.length === 0) {
+    container.innerHTML = `<div class="empty-state">No projects tracked yet</div>`
+    return
+  }
+
+  container.innerHTML = summaries.slice(0, 5).map(p => `
+    <div class="projects-mini-row" data-id="${p.id}">
+      <span class="projects-mini-name">${p.name}</span>
+      <span class="projects-mini-time">${formatDuration(p.activeTime)}</span>
+    </div>`).join("")
+
+  container.querySelectorAll(".projects-mini-row").forEach(row => {
+    row.addEventListener("click", () => switchTab("projects"))
+  })
+}
+
 // ── Full render ────────────────────────────────────────────────────────────
 
 function renderAll(): void {
   heatmap.render(currentLogs)
   charts.renderAll(currentLogs)
-  updateStatCards(currentLogs[currentLogs.length - 1])
+  updateStatCards(currentLogs)
   renderSessions(currentLogs)
   renderFiles(currentLogs)
+  renderProjectsMini()
   if (activeTab === "projects") renderProjectsTab()
+  requestAnimationFrame(() => charts.resizeAll())
 }
 
 // ── Message handling ───────────────────────────────────────────────────────
 
 window.addEventListener("DOMContentLoaded", () => {
   vscode.postMessage({ type: "ready" })
+})
+
+window.addEventListener("resize", () => {
+  requestAnimationFrame(() => {
+    charts.resizeAll()
+    heatmap.resize()
+  })
 })
 
 window.addEventListener("message", (event: MessageEvent) => {
@@ -320,19 +544,26 @@ window.addEventListener("message", (event: MessageEvent) => {
       currentLogs = msg.data
       projects = msg.projects
       currentProjectId = msg.currentProjectId
-      renderSidebar(projects, currentProjectId)
+      projectTimestamps = msg.projectTimestamps
+      renderProjectDropdown()
       renderAll()
       break
 
     case "update": {
-      if (currentProjectId !== "all" && msg.projectId === (currentProjectId || "")) {
+      const singleProject = selectedProjectIds.length === 0
+        || (selectedProjectIds.length === 1 && selectedProjectIds[0] !== "all")
+      const projectInScope = selectedProjectIds.length === 0
+        ? msg.projectId === currentProjectId
+        : selectedProjectIds.includes(msg.projectId)
+      if (currentPreset === "today" && singleProject && projectInScope) {
         const todayIdx = currentLogs.findIndex(l => l.date === msg.data.date)
         if (todayIdx >= 0) currentLogs[todayIdx] = msg.data
         charts.updateToday(msg.data)
-        updateStatCards(msg.data)
+        updateStatCards(currentLogs)
         heatmap.render(currentLogs)
         renderSessions(currentLogs)
         renderFiles(currentLogs)
+        renderProjectsMini()
       }
       break
     }
@@ -340,14 +571,141 @@ window.addEventListener("message", (event: MessageEvent) => {
     case "settings":
       dailyTargetMs = msg.dailyTargetMs
       if (currentLogs.length > 0) {
-        updateStatCards(currentLogs[currentLogs.length - 1])
+        updateStatCards(currentLogs)
       }
+      populateSettings(msg)
       break
+
+    case "pdfData": {
+      const options: PdfOptions = {
+        streak:       (document.getElementById("pdf-streak")       as HTMLInputElement).checked,
+        activeTime:   (document.getElementById("pdf-active-time")  as HTMLInputElement).checked,
+        linesAdded:   (document.getElementById("pdf-lines-added")  as HTMLInputElement).checked,
+        linesDeleted: (document.getElementById("pdf-lines-deleted") as HTMLInputElement).checked,
+        topLanguage:  (document.getElementById("pdf-top-lang")     as HTMLInputElement).checked,
+        aiEvents:     false,
+        heatmap:      (document.getElementById("pdf-heatmap")      as HTMLInputElement).checked,
+        days: pdfRangeDays,
+      }
+      const buffer = generatePdf(msg.logs, options)
+      const bytes = new Uint8Array(buffer)
+      let binary = ""
+      for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i])
+      vscode.postMessage({ type: "writePdf", base64: btoa(binary) })
+      closePdfModal()
+      break
+    }
   }
 })
 
-// Range selector
-document.getElementById("range")?.addEventListener("change", (e: Event) => {
-  const days = parseInt((e.target as HTMLSelectElement).value) as 7 | 30 | 90
-  vscode.postMessage({ type: "requestRange", days })
+// Filter bar — range preset buttons
+document.getElementById("filter-bar")?.addEventListener("click", (e: Event) => {
+  const btn = (e.target as HTMLElement).closest(".filter-btn") as HTMLElement | null
+  if (!btn?.dataset.preset) return
+  handlePresetChange(btn.dataset.preset)
+})
+
+// Filter bar — custom date range
+function trySubmitCustomRange(): void {
+  const start = (document.getElementById("custom-start") as HTMLInputElement)?.value
+  const end = (document.getElementById("custom-end") as HTMLInputElement)?.value
+  if (start && end && start <= end) {
+    vscode.postMessage({ type: "requestRange", preset: "custom", customStart: start, customEnd: end })
+  }
+}
+document.getElementById("custom-start")?.addEventListener("change", trySubmitCustomRange)
+document.getElementById("custom-end")?.addEventListener("change", trySubmitCustomRange)
+
+// Project dropdown toggle
+document.getElementById("proj-filter-btn")?.addEventListener("click", (e: Event) => {
+  e.stopPropagation()
+  document.getElementById("proj-dropdown-panel")?.classList.toggle("hidden")
+})
+
+// Sessions sort toggle
+document.getElementById("sessions-sort")?.addEventListener("click", (e: Event) => {
+  const btn = (e.target as HTMLElement).closest(".toggle-btn") as HTMLElement | null
+  if (!btn?.dataset.val) return
+  sessionSortOrder = btn.dataset.val as "desc" | "asc"
+  document.querySelectorAll("#sessions-sort .toggle-btn").forEach(b =>
+    b.classList.toggle("active", b === btn)
+  )
+  expandedSessionDates.clear()
+  renderSessions(currentLogs)
+})
+
+// Sort toggle
+document.getElementById("sort-toggle")?.addEventListener("click", (e: Event) => {
+  const btn = (e.target as HTMLElement).closest(".toggle-btn") as HTMLElement | null
+  if (!btn?.dataset.val) return
+  projectSort = btn.dataset.val as "time" | "last" | "name"
+  document.querySelectorAll("#sort-toggle .toggle-btn").forEach(b =>
+    b.classList.toggle("active", b === btn)
+  )
+  renderProjectsTab()
+})
+
+// ── Settings tab ────────────────────────────────────────────────────────────
+
+type SettingsMsg = Extract<ExtensionMessage, { type: "settings" }>
+
+function populateSettings(msg: SettingsMsg): void {
+  const dailyTarget  = document.getElementById("pref-daily-target")  as HTMLInputElement
+  const idleThresh   = document.getElementById("pref-idle-threshold") as HTMLInputElement
+  const sessionExp   = document.getElementById("pref-session-expiry") as HTMLInputElement
+
+  if (dailyTarget)  dailyTarget.value  = msg.dailyTargetMinutes > 0 ? String(msg.dailyTargetMinutes) : ""
+  if (idleThresh)   idleThresh.value   = String(msg.idleThresholdMinutes)
+  if (sessionExp)   sessionExp.value   = String(msg.sessionExpiryMinutes)
+}
+
+document.getElementById("pref-daily-target")?.addEventListener("change", (e: Event) => {
+  const raw = (e.target as HTMLInputElement).value.trim()
+  vscode.postMessage({ type: "updateSetting", key: "dailyTargetMinutes", value: raw === "" ? null : parseInt(raw) })
+})
+
+document.getElementById("pref-idle-threshold")?.addEventListener("change", (e: Event) => {
+  const val = parseInt((e.target as HTMLInputElement).value)
+  if (!isNaN(val) && val > 0) vscode.postMessage({ type: "updateSetting", key: "idleThresholdMinutes", value: val })
+})
+
+document.getElementById("pref-session-expiry")?.addEventListener("change", (e: Event) => {
+  const val = parseInt((e.target as HTMLInputElement).value)
+  if (!isNaN(val) && val > 0) vscode.postMessage({ type: "updateSetting", key: "sessionExpiryMinutes", value: val })
+})
+
+// ── PDF export modal ────────────────────────────────────────────────────────
+
+let pdfRangeDays: 7 | 30 | 90 = 30
+
+function closePdfModal(): void {
+  document.getElementById("pdf-modal-overlay")?.classList.add("hidden")
+  const btn = document.getElementById("pdf-generate") as HTMLButtonElement | null
+  if (btn) { btn.disabled = false; btn.textContent = "Generate PDF" }
+}
+
+document.getElementById("export-pdf-btn")?.addEventListener("click", () => {
+  document.getElementById("pdf-modal-overlay")?.classList.remove("hidden")
+})
+
+document.getElementById("pdf-cancel")?.addEventListener("click", closePdfModal)
+
+document.getElementById("pdf-modal-overlay")?.addEventListener("click", (e: Event) => {
+  if (e.target === document.getElementById("pdf-modal-overlay")) closePdfModal()
+})
+
+document.getElementById("pdf-range")?.addEventListener("click", (e: Event) => {
+  const btn = (e.target as HTMLElement).closest(".toggle-btn") as HTMLElement | null
+  if (!btn?.dataset.val) return
+  pdfRangeDays = parseInt(btn.dataset.val) as 7 | 30 | 90
+  document.querySelectorAll("#pdf-range .toggle-btn").forEach(b => {
+    b.classList.toggle("active", (b as HTMLElement).dataset.val === btn.dataset.val)
+  })
+})
+
+document.getElementById("pdf-generate")?.addEventListener("click", () => {
+  const btn = document.getElementById("pdf-generate") as HTMLButtonElement
+  btn.disabled = true
+  btn.textContent = "Generating…"
+  vscode.postMessage({ type: "exportPdfRequest", days: pdfRangeDays })
 })

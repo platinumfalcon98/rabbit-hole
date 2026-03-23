@@ -160,6 +160,103 @@ export class StorageService {
     return logs
   }
 
+  private iterDateRange(startDate: string, endDate: string): string[] {
+    const dates: string[] = []
+    const start = new Date(startDate + "T00:00:00")
+    const end = new Date(endDate + "T00:00:00")
+    const d = new Date(start)
+    while (d <= end) {
+      dates.push(dateKey(new Date(d)))
+      d.setDate(d.getDate() + 1)
+    }
+    return dates
+  }
+
+  getRangeByDates(startDate: string, endDate: string, projectId?: string): DailyLog[] {
+    const pid = projectId ?? this.currentProjectId
+    return this.iterDateRange(startDate, endDate).map(date => {
+      const log = this.getLog(pid, date)
+      log.streak = this.getGlobalDay(date).streak
+      return log
+    })
+  }
+
+  getAggregateRangeByDates(startDate: string, endDate: string): DailyLog[] {
+    const projects = this.getProjects()
+    return this.iterDateRange(startDate, endDate).map(date => {
+      const globalDay = this.getGlobalDay(date)
+      const merged = emptyDailyLog(date)
+      merged.activeTime = globalDay.activeTime
+      merged.streak = globalDay.streak
+
+      for (const project of projects) {
+        const pLog = this.getLog(project.id, date)
+        merged.totalTime += pLog.totalTime
+        for (const s of pLog.sessions) merged.sessions.push({ ...s, projectId: project.id })
+        for (const f of pLog.files) merged.files.push({ ...f, projectId: project.id })
+        for (const [lang, stat] of Object.entries(pLog.languages)) {
+          if (!merged.languages[lang]) merged.languages[lang] = { time: 0, linesAdded: 0, linesDeleted: 0 }
+          merged.languages[lang].time += stat.time
+          merged.languages[lang].linesAdded += stat.linesAdded
+          merged.languages[lang].linesDeleted += stat.linesDeleted
+        }
+        for (const agent of ALL_AGENTS) {
+          if (pLog.agents[agent]?.length) merged.agents[agent].push(...pLog.agents[agent])
+        }
+      }
+      return merged
+    })
+  }
+
+  getMultiProjectRangeByDates(startDate: string, endDate: string, projectIds: string[]): DailyLog[] {
+    const selectedProjects = this.getProjects().filter(p => projectIds.includes(p.id))
+    return this.iterDateRange(startDate, endDate).map(date => {
+      const globalDay = this.getGlobalDay(date)
+      const merged = emptyDailyLog(date)
+      merged.streak = globalDay.streak
+
+      for (const project of selectedProjects) {
+        const pLog = this.getLog(project.id, date)
+        merged.totalTime += pLog.totalTime
+        merged.activeTime += pLog.activeTime
+        for (const s of pLog.sessions) merged.sessions.push({ ...s, projectId: project.id })
+        for (const f of pLog.files) merged.files.push({ ...f, projectId: project.id })
+        for (const [lang, stat] of Object.entries(pLog.languages)) {
+          if (!merged.languages[lang]) merged.languages[lang] = { time: 0, linesAdded: 0, linesDeleted: 0 }
+          merged.languages[lang].time += stat.time
+          merged.languages[lang].linesAdded += stat.linesAdded
+          merged.languages[lang].linesDeleted += stat.linesDeleted
+        }
+        for (const agent of ALL_AGENTS) {
+          if (pLog.agents[agent]?.length) merged.agents[agent].push(...pLog.agents[agent])
+        }
+      }
+      return merged
+    })
+  }
+
+  // On startup: close any sessions from previous days that were left open by a crash or
+  // unclean shutdown (endTime === null). Sets endTime = startTime + activeTime as best estimate.
+  closeStaleSessions(): void {
+    for (const project of this.getProjects()) {
+      for (let i = 0; i <= 7; i++) {
+        const d = new Date()
+        d.setDate(d.getDate() - i)
+        const date = dateKey(d)
+        const log = this.getLog(project.id, date)
+        let changed = false
+        for (const session of log.sessions) {
+          if (session.endTime === null && session.activeTime > 0) {
+            session.endTime = session.startTime + session.activeTime
+            session.duration = session.activeTime
+            changed = true
+          }
+        }
+        if (changed) this.saveLog(project.id, log)
+      }
+    }
+  }
+
   appendSession(session: ActivitySession): void {
     this.appendSessionToDate(session, todayKey())
   }
@@ -241,7 +338,7 @@ export class StorageService {
       : globalYesterday.activeTime > 0
     const chainSoFar = yesterdayMet ? (globalYesterday.streak || 0) : 0
 
-    const newStreak = todayMet ? chainSoFar + 1 : chainSoFar
+    const newStreak = todayMet ? chainSoFar + 1 : 0
     if (globalToday.streak !== newStreak) {
       globalToday.streak = newStreak
       this.saveGlobalDay(globalToday)

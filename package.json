@@ -4,9 +4,15 @@
   "description": "Dev time intelligence — automatic tracking, AI agent attribution, activity dashboard",
   "version": "0.1.0",
   "publisher": "rabbit-hole",
-  "engines": { "vscode": "^1.85.0" },
-  "categories": ["Other"],
-  "activationEvents": ["onStartupFinished"],
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
   "main": "./out/extension.js",
   "contributes": {
     "viewsContainers": {
@@ -64,10 +70,22 @@
           "type": "object",
           "default": {},
           "properties": {
-            "claudeCode": { "type": "boolean", "default": true },
-            "copilot":    { "type": "boolean", "default": true },
-            "cursor":     { "type": "boolean", "default": true },
-            "continue":   { "type": "boolean", "default": true }
+            "claudeCode": {
+              "type": "boolean",
+              "default": true
+            },
+            "copilot": {
+              "type": "boolean",
+              "default": true
+            },
+            "cursor": {
+              "type": "boolean",
+              "default": true
+            },
+            "continue": {
+              "type": "boolean",
+              "default": true
+            }
           },
           "description": "Toggle detection per AI agent"
         }
@@ -78,7 +96,7 @@
     "build": "npm run build:ext && npm run build:webview",
     "build:ext": "esbuild src/extension.ts --bundle --outfile=out/extension.js --external:vscode --platform=node --sourcemap",
     "build:webview": "esbuild src/webview/main.ts --bundle --outfile=out/webview/main.js --platform=browser --sourcemap && node scripts/copy-assets.js",
-    "watch": "npm run build:ext -- --watch & npm run build:webview -- --watch",
+    "watch": "node scripts/watch.js",
     "package": "vsce package"
   },
   "devDependencies": {
@@ -90,6 +108,7 @@
   },
   "dependencies": {
     "chart.js": "^4.4.0",
-    "d3": "^7.9.0"
+    "d3": "^7.9.0",
+    "jspdf": "^4.2.1"
   }
 }

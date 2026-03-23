@@ -10,7 +10,7 @@ import {
   PieController,
   ArcElement,
 } from "chart.js"
-import { AgentName, DailyLog, LanguageStat } from "../shared/types"
+import { DailyLog, LanguageStat } from "../shared/types"
 
 Chart.register(
   BarController,
@@ -24,23 +24,13 @@ Chart.register(
   ArcElement
 )
 
-const AGENT_COLORS: Record<AgentName, string> = {
-  "claude-code": "#9b59b6",
-  "copilot":     "#3498db",
-  "cursor":      "#1abc9c",
-  "continue":    "#2ecc71",
-  "unknown-ai":  "#e67e22",
-  "manual":      "#95a5a6",
-}
-
 let linesChart: Chart | null = null
 let langChart: Chart | null = null
-let agentChart: Chart | null = null
+let resizeObservers: ResizeObserver[] = []
 
 // Lang panel state — persists across range changes and 30s updates
-let langChartType: "bar" | "donut" = "bar"
 let langMetric: "time" | "lines" = "time"
-let langTogglesBound = false
+let langMetricBound = false
 let storedLogs: DailyLog[] = []
 
 interface LangData extends LanguageStat {
@@ -83,12 +73,18 @@ const labelColor = () =>
   getCssVar("--vscode-editor-foreground") || "#ccc"
 
 function destroyAll(): void {
+  resizeObservers.forEach(o => o.disconnect())
+  resizeObservers = []
   linesChart?.destroy()
   langChart?.destroy()
-  agentChart?.destroy()
   linesChart = null
   langChart = null
-  agentChart = null
+}
+
+function watchResize(el: Element, fn: () => void): void {
+  const obs = new ResizeObserver(fn)
+  obs.observe(el)
+  resizeObservers.push(obs)
 }
 
 export function renderAll(logs: DailyLog[]): void {
@@ -96,22 +92,16 @@ export function renderAll(logs: DailyLog[]): void {
   destroyAll()
   renderLinesChart(logs)
   renderLangPanel(logs)
-  renderAgentChart(logs)
 }
 
 export function resizeAll(): void {
   linesChart?.resize()
   langChart?.resize()
-  agentChart?.resize()
 }
 
 export function updateToday(log: DailyLog): void {
-  if (!linesChart || !agentChart) return
+  if (!linesChart) return
   updateLinesChartToday(log)
-  updateAgentChartToday(log)
-  // Re-render lang panel with updated today entry
-  const idx = storedLogs.findIndex(l => l.date === log.date)
-  if (idx >= 0) storedLogs[idx] = log
   renderLangPanel(storedLogs)
 }
 
@@ -121,66 +111,47 @@ function renderLinesChart(logs: DailyLog[]): void {
   const canvas = document.getElementById("lines-chart") as HTMLCanvasElement | null
   if (!canvas) return
 
-  const labels = logs.map(l => l.date.slice(5)) // MM-DD
-  const added = logs.map(l => l.files.reduce((s, f) => s + f.linesAdded, 0))
-  const deleted = logs.map(l => l.files.reduce((s, f) => s + f.linesDeleted, 0))
+  const added   = logs.reduce((s, l) => s + l.files.reduce((fs, f) => fs + f.linesAdded, 0), 0)
+  const deleted = logs.reduce((s, l) => s + l.files.reduce((fs, f) => fs + f.linesDeleted, 0), 0)
 
   linesChart = new Chart(canvas, {
-    type: "bar",
+    type: "pie",
     data: {
-      labels,
-      datasets: [
-        {
-          label: "Lines Added",
-          data: added,
-          backgroundColor: "rgba(46, 204, 113, 0.7)",
-          borderColor: "rgba(46, 204, 113, 1)",
-          borderWidth: 1,
-        },
-        {
-          label: "Lines Deleted",
-          data: deleted,
-          backgroundColor: "rgba(231, 76, 60, 0.7)",
-          borderColor: "rgba(231, 76, 60, 1)",
-          borderWidth: 1,
-        },
-      ],
+      labels: ["Lines Added", "Lines Deleted"],
+      datasets: [{
+        data: [added, deleted],
+        backgroundColor: ["rgba(46, 204, 113, 0.75)", "rgba(231, 76, 60, 0.75)"],
+        borderColor: getCssVar("--vscode-editor-background") || "#1e1e1e",
+        borderWidth: added === 0 || deleted === 0 ? 0 : 2,
+      }],
     },
     options: {
       responsive: true,
+      aspectRatio: 1.6,
       plugins: {
-        legend: { labels: { color: labelColor() } },
-        tooltip: { mode: "index" },
-      },
-      scales: {
-        x: {
-          ticks: { color: labelColor(), maxRotation: 45 },
-          grid: { color: gridColor() },
+        legend: {
+          position: "bottom",
+          labels: { color: labelColor(), boxWidth: 10, padding: 12, font: { size: 11 } },
         },
-        y: {
-          ticks: { color: labelColor() },
-          grid: { color: gridColor() },
+        tooltip: {
+          callbacks: {
+            label: ctx => ` ${ctx.label}: ${ctx.parsed}`,
+          },
         },
       },
     },
   })
+  if (canvas.parentElement) watchResize(canvas.parentElement, () => linesChart?.resize())
 }
 
 function updateLinesChartToday(log: DailyLog): void {
   if (!linesChart) return
-  const lastIdx = (linesChart.data.labels?.length ?? 1) - 1
-  if (linesChart.data.datasets[0]) {
-    linesChart.data.datasets[0].data[lastIdx] = log.files.reduce(
-      (s, f) => s + f.linesAdded,
-      0
-    )
-  }
-  if (linesChart.data.datasets[1]) {
-    linesChart.data.datasets[1].data[lastIdx] = log.files.reduce(
-      (s, f) => s + f.linesDeleted,
-      0
-    )
-  }
+  const idx = storedLogs.findIndex(l => l.date === log.date)
+  if (idx >= 0) storedLogs[idx] = log
+  const added   = storedLogs.reduce((s, l) => s + l.files.reduce((fs, f) => fs + f.linesAdded, 0), 0)
+  const deleted = storedLogs.reduce((s, l) => s + l.files.reduce((fs, f) => fs + f.linesDeleted, 0), 0)
+  linesChart.data.datasets[0].data = [added, deleted]
+  ;(linesChart.data.datasets[0] as any).borderWidth = added === 0 || deleted === 0 ? 0 : 2
   linesChart.update()
 }
 
@@ -194,7 +165,9 @@ function renderLangPanel(logs: DailyLog[]): void {
   langChart?.destroy()
   langChart = null
 
-  const langs = aggregateLangs(logs)
+  const langs = aggregateLangs(logs).filter(l =>
+    langMetric === "time" ? l.time >= 60_000 : (l.linesAdded + l.linesDeleted) > 0
+  )
   const colors = langs.map((_, i) => `hsl(${(i * 47) % 360}, 65%, 55%)`)
 
   if (langs.length === 0) {
@@ -207,67 +180,40 @@ function renderLangPanel(logs: DailyLog[]): void {
   )
   const total = metricValues.reduce((s, v) => s + v, 0)
 
-  if (langChartType === "bar") {
-    langChart = new Chart(canvas, {
-      type: "bar",
-      data: {
-        labels: langs.map(l => l.name),
-        datasets: [{
-          data: metricValues,
-          backgroundColor: colors,
-          borderWidth: 0,
-        }],
-      },
-      options: {
-        indexAxis: "y",
-        responsive: true,
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            callbacks: {
-              label: ctx => {
-                const l = langs[ctx.dataIndex]
-                return langMetric === "time"
-                  ? ` ${formatDuration(l.time)}`
-                  : ` ${l.linesAdded + l.linesDeleted} lines`
-              },
+  langChart = new Chart(canvas, {
+    type: "pie",
+    data: {
+      labels: langs.map(l => l.name),
+      datasets: [{
+        data: metricValues,
+        backgroundColor: colors,
+        borderColor: getCssVar("--vscode-editor-background") || "#1e1e1e",
+        borderWidth: langs.length === 1 ? 0 : 2,
+      }],
+    },
+    options: {
+      responsive: true,
+      aspectRatio: 1.6,
+      plugins: {
+        legend: {
+          position: "bottom",
+          labels: { color: labelColor(), boxWidth: 10, padding: 12, font: { size: 11 } },
+        },
+        tooltip: {
+          callbacks: {
+            label: ctx => {
+              const l = langs[ctx.dataIndex]
+              return langMetric === "time"
+                ? ` ${formatDuration(l.time)}`
+                : ` ${l.linesAdded + l.linesDeleted} lines`
             },
           },
         },
-        scales: {
-          x: {
-            ticks: {
-              color: labelColor(),
-              callback: v =>
-                langMetric === "time" ? formatDuration(v as number) : String(v),
-            },
-            grid: { color: gridColor() },
-          },
-          y: { ticks: { color: labelColor() }, grid: { color: gridColor() } },
-        },
       },
-    })
-  } else {
-    langChart = new Chart(canvas, {
-      type: "doughnut",
-      data: {
-        labels: langs.map((l, i) => {
-          const pct = total > 0 ? Math.round((metricValues[i] / total) * 100) : 0
-          return `${l.name} (${pct}%)`
-        }),
-        datasets: [{
-          data: metricValues,
-          backgroundColor: colors,
-          borderColor: getCssVar("--vscode-editor-background") || "#1e1e1e",
-          borderWidth: 2,
-        }],
-      },
-      options: {
-        responsive: true,
-        plugins: { legend: { display: false } },
-      },
-    })
-  }
+    },
+  })
+
+  if (canvas.parentElement) watchResize(canvas.parentElement, () => langChart?.resize())
 
   // Legend table — always shows time + lines regardless of metric toggle
   if (legendEl) {
@@ -290,18 +236,9 @@ function renderLangPanel(logs: DailyLog[]): void {
       </table>`
   }
 
-  // Bind toggle buttons once
-  if (!langTogglesBound) {
-    langTogglesBound = true
-    document.getElementById("lang-chart-type")?.addEventListener("click", e => {
-      const btn = (e.target as HTMLElement).closest("[data-val]") as HTMLElement | null
-      if (!btn) return
-      langChartType = btn.dataset.val as "bar" | "donut"
-      document.querySelectorAll("#lang-chart-type .toggle-btn").forEach(b =>
-        b.classList.toggle("active", b === btn)
-      )
-      renderLangPanel(storedLogs)
-    })
+  // Bind metric toggle once
+  if (!langMetricBound) {
+    langMetricBound = true
     document.getElementById("lang-metric")?.addEventListener("click", e => {
       const btn = (e.target as HTMLElement).closest("[data-val]") as HTMLElement | null
       if (!btn) return
@@ -314,64 +251,3 @@ function renderLangPanel(logs: DailyLog[]): void {
   }
 }
 
-// ── Agent Stacked Bar ──────────────────────────────────────────────────────
-
-const AGENT_NAMES: AgentName[] = [
-  "claude-code",
-  "copilot",
-  "cursor",
-  "continue",
-  "unknown-ai",
-  "manual",
-]
-
-function renderAgentChart(logs: DailyLog[]): void {
-  const canvas = document.getElementById("agent-chart") as HTMLCanvasElement | null
-  if (!canvas) return
-
-  const labels = logs.map(l => l.date.slice(5))
-
-  const datasets = AGENT_NAMES.map(agent => ({
-    label: agent,
-    data: logs.map(log => log.agents[agent]?.length ?? 0),
-    backgroundColor: AGENT_COLORS[agent],
-    stack: "agents",
-  }))
-
-  agentChart = new Chart(canvas, {
-    type: "bar",
-    data: { labels, datasets },
-    options: {
-      responsive: true,
-      plugins: {
-        legend: { labels: { color: labelColor() } },
-        tooltip: { mode: "index" },
-      },
-      scales: {
-        x: {
-          stacked: true,
-          ticks: { color: labelColor(), maxRotation: 45 },
-          grid: { color: gridColor() },
-        },
-        y: {
-          stacked: true,
-          ticks: { color: labelColor() },
-          grid: { color: gridColor() },
-        },
-      },
-    },
-  })
-}
-
-function updateAgentChartToday(log: DailyLog): void {
-  if (!agentChart) return
-  const lastIdx = (agentChart.data.labels?.length ?? 1) - 1
-  for (let i = 0; i < AGENT_NAMES.length; i++) {
-    const agent = AGENT_NAMES[i]
-    const ds = agentChart.data.datasets[i]
-    if (ds) {
-      ds.data[lastIdx] = log.agents[agent]?.length ?? 0
-    }
-  }
-  agentChart.update()
-}
