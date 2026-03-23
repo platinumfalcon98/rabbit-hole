@@ -42,6 +42,7 @@ export class ActivityTracker {
 
   start(): void {
     this.initProjects()
+    this.storage.closeStaleSessions()
 
     this.subscriptions.push(
       vscode.workspace.onDidChangeTextDocument(e => this.onTextChange(e)),

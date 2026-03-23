@@ -300,6 +300,9 @@ function renderSessions(logs: DailyLog[]): void {
   if (!container) return
   container.innerHTML = ""
 
+  const now = new Date()
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`
+
   const isAggregate = currentProjectId === "all"
   const sorted = [...logs].reverse()
   const hasSessions = sorted.some(log => log.sessions.some(s => s.activeTime > 0 || s.endTime !== null))
@@ -312,6 +315,14 @@ function renderSessions(logs: DailyLog[]): void {
     const sessions = log.sessions.filter(s => s.activeTime > 0 || s.endTime !== null)
     if (sessions.length === 0) continue
 
+    // At most one session can be truly ongoing: the latest open one from today
+    const openSessions = log.date === todayStr
+      ? sessions.filter(s => s.endTime === null)
+      : []
+    const ongoingId = openSessions.length > 0
+      ? openSessions.reduce((a, b) => a.startTime > b.startTime ? a : b).id
+      : null
+
     const dateHeader = document.createElement("div")
     dateHeader.className = "sessions-date"
     dateHeader.textContent = log.date
@@ -320,7 +331,9 @@ function renderSessions(logs: DailyLog[]): void {
     for (const session of sessions) {
       const row = document.createElement("div")
       row.className = "session-row"
-      const end = session.endTime ? formatTime(session.endTime) : "ongoing"
+      const end = session.endTime
+        ? formatTime(session.endTime)
+        : session.id === ongoingId ? "ongoing" : "—"
       const projectTag = isAggregate && session.projectId
         ? `<span class="session-project">${projectName(session.projectId)}</span>`
         : ""

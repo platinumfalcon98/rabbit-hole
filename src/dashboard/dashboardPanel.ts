@@ -163,8 +163,8 @@ export class DashboardPanel {
           <div class="chart-box">
             <div class="widget-header">
               <div class="widget-header-info">
-                <div class="widget-title">Code Changes</div>
-                <div class="widget-subtitle">Lines added and deleted per day</div>
+                <div class="widget-title">Line Changes</div>
+                <div class="widget-subtitle">Total lines added vs deleted</div>
               </div>
             </div>
             <canvas id="lines-chart"></canvas>

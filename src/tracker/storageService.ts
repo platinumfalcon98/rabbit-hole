@@ -235,6 +235,28 @@ export class StorageService {
     })
   }
 
+  // On startup: close any sessions from previous days that were left open by a crash or
+  // unclean shutdown (endTime === null). Sets endTime = startTime + activeTime as best estimate.
+  closeStaleSessions(): void {
+    for (const project of this.getProjects()) {
+      for (let i = 0; i <= 7; i++) {
+        const d = new Date()
+        d.setDate(d.getDate() - i)
+        const date = dateKey(d)
+        const log = this.getLog(project.id, date)
+        let changed = false
+        for (const session of log.sessions) {
+          if (session.endTime === null && session.activeTime > 0) {
+            session.endTime = session.startTime + session.activeTime
+            session.duration = session.activeTime
+            changed = true
+          }
+        }
+        if (changed) this.saveLog(project.id, log)
+      }
+    }
+  }
+
   appendSession(session: ActivitySession): void {
     this.appendSessionToDate(session, todayKey())
   }
