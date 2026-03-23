@@ -82,8 +82,10 @@ export class DashboardPanel {
   <div id="app">
 
     <nav id="sidebar">
-      <button id="sidebar-toggle" title="Toggle navigation">&#x2630;</button>
-      <div class="sidebar-wordmark">Rabbit Hole</div>
+      <div class="sidebar-header">
+        <button id="sidebar-toggle" title="Toggle navigation">&#x2630;</button>
+        <div class="sidebar-wordmark">Rabbit Hole</div>
+      </div>
       <div id="nav-items">
         <button class="nav-item active" data-tab="overview">
           <span class="nav-icon">
@@ -110,8 +112,14 @@ export class DashboardPanel {
           <span class="nav-label">Projects</span>
         </button>
         <div class="nav-spacer"></div>
+        <div class="nav-divider"></div>
         <button class="nav-item" data-tab="settings">
-          <span class="nav-icon">&#x2699;</span>
+          <span class="nav-icon">
+            <svg width="18" height="18" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M6.5 1.5H9.5L10 3.3C10.6 3.6 11.1 3.9 11.5 4.3L13.3 3.7L14.8 6.3L13.4 7.5C13.5 7.7 13.5 7.8 13.5 8C13.5 8.2 13.5 8.3 13.4 8.5L14.8 9.7L13.3 12.3L11.5 11.7C11.1 12.1 10.6 12.4 10 12.7L9.5 14.5H6.5L6 12.7C5.4 12.4 4.9 12.1 4.5 11.7L2.7 12.3L1.2 9.7L2.6 8.5C2.5 8.3 2.5 8.2 2.5 8C2.5 7.8 2.5 7.7 2.6 7.5L1.2 6.3L2.7 3.7L4.5 4.3C4.9 3.9 5.4 3.6 6 3.3L6.5 1.5Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
+              <circle cx="8" cy="8" r="2.3" stroke="currentColor" stroke-width="1.4"/>
+            </svg>
+          </span>
           <span class="nav-label">Settings</span>
         </button>
       </div>
