@@ -15,6 +15,7 @@ let currentLogs: DailyLog[] = []
 let dailyTargetMs = 0
 let currentProjectId = ""
 let projects: ProjectMeta[] = []
+let projectTimestamps: Record<string, number> = {}
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -212,43 +213,69 @@ function renderSessions(logs: DailyLog[]): void {
 
 // ── Projects tab ───────────────────────────────────────────────────────────
 
+function timeAgo(ts: number): string {
+  const diff = Date.now() - ts
+  const minutes = Math.floor(diff / 60_000)
+  const hours = Math.floor(diff / 3_600_000)
+  const days = Math.floor(diff / 86_400_000)
+  if (minutes < 1) return "just now"
+  if (minutes < 60) return `${minutes}m ago`
+  if (hours < 24) return `${hours}h ago`
+  if (days === 1) return "yesterday"
+  if (days < 7) return `${days} days ago`
+  if (days < 14) return "last week"
+  return `${Math.floor(days / 7)} weeks ago`
+}
+
 interface ProjectSummary {
   id: string
   name: string
   path: string
   activeTime: number
-  linesAdded: number
-  linesDeleted: number
-  lastActive: string
+  streak: number
+  lastActiveTs: number
 }
 
 function computeProjectSummaries(): ProjectSummary[] {
   const map = new Map<string, ProjectSummary>()
+  const daysMap = new Map<string, Set<string>>()
 
   // Seed from projects registry so we show all even with zero activity
   for (const p of projects) {
-    map.set(p.id, { id: p.id, name: p.name, path: p.path, activeTime: 0, linesAdded: 0, linesDeleted: 0, lastActive: "" })
+    map.set(p.id, { id: p.id, name: p.name, path: p.path, activeTime: 0, streak: 0, lastActiveTs: projectTimestamps[p.id] ?? 0 })
+    daysMap.set(p.id, new Set())
   }
+
+  const fallbackPid = currentProjectId !== "all" ? currentProjectId : (map.size === 1 ? [...map.keys()][0] : null)
 
   for (const log of currentLogs) {
     for (const session of log.sessions) {
-      const pid = session.projectId ?? currentProjectId
-      if (!pid || pid === "all") continue
+      const pid = session.projectId ?? fallbackPid
+      if (!pid) continue
       if (!map.has(pid)) {
-        map.set(pid, { id: pid, name: projectName(pid), path: "", activeTime: 0, linesAdded: 0, linesDeleted: 0, lastActive: "" })
+        map.set(pid, { id: pid, name: projectName(pid), path: "", activeTime: 0, streak: 0, lastActiveTs: 0 })
+        daysMap.set(pid, new Set())
       }
       const s = map.get(pid)!
       s.activeTime += session.activeTime
-      if (!s.lastActive || log.date > s.lastActive) s.lastActive = log.date
+      const sessionTs = session.endTime ?? session.startTime
+      if (sessionTs > s.lastActiveTs) s.lastActiveTs = sessionTs
+      daysMap.get(pid)!.add(log.date)
     }
-    for (const file of log.files) {
-      const pid = file.projectId ?? currentProjectId
-      if (!pid || pid === "all") continue
-      if (!map.has(pid)) continue
-      const s = map.get(pid)!
-      s.linesAdded += file.linesAdded
-      s.linesDeleted += file.linesDeleted
+  }
+
+  for (const [pid, days] of daysMap) {
+    const s = map.get(pid)
+    if (!s || days.size === 0) continue
+    const sorted = [...days].sort().reverse()
+    let streak = 1
+    for (let i = 0; i < sorted.length - 1; i++) {
+      const curr = new Date(sorted[i]).getTime()
+      const prev = new Date(sorted[i + 1]).getTime()
+      if (Math.round((curr - prev) / 86_400_000) === 1) streak++
+      else break
     }
+    s.streak = streak
   }
 
   return [...map.values()].sort((a, b) => b.activeTime - a.activeTime)
@@ -257,7 +284,7 @@ function computeProjectSummaries(): ProjectSummary[] {
 function sortedProjectSummaries(): ProjectSummary[] {
   const summaries = computeProjectSummaries()
   if (projectSort === "last") {
-    return summaries.sort((a, b) => (b.lastActive ?? "").localeCompare(a.lastActive ?? ""))
+    return summaries.sort((a, b) => b.lastActiveTs - a.lastActiveTs)
   }
   if (projectSort === "name") {
     return summaries.sort((a, b) => a.name.localeCompare(b.name))
@@ -279,13 +306,12 @@ function renderProjectsTab(): void {
     <div class="project-card" data-id="${p.id}" title="Click to view this project">
       <div class="project-card-header">
         <span class="project-card-name">${p.name}</span>
-        ${p.lastActive ? `<span class="project-card-last">Last active ${p.lastActive}</span>` : ""}
+        ${p.lastActiveTs ? `<span class="project-card-last">${timeAgo(p.lastActiveTs)}</span>` : ""}
       </div>
       <div class="project-card-path">${shortenPath(p.path, 4)}</div>
       <div class="project-card-stats">
         <span class="pstat"><span class="pstat-label">Active</span> <span class="pstat-val">${formatDuration(p.activeTime)}</span></span>
-        <span class="pstat"><span class="pstat-label">Added</span> <span class="pstat-val add">+${p.linesAdded}</span></span>
-        <span class="pstat"><span class="pstat-label">Deleted</span> <span class="pstat-val del">-${p.linesDeleted}</span></span>
+        <span class="pstat"><span class="pstat-label">Streak</span> <span class="pstat-val">${p.streak}d</span></span>
       </div>
     </div>`).join("")
 
@@ -348,6 +374,7 @@ window.addEventListener("message", (event: MessageEvent) => {
       currentLogs = msg.data
       projects = msg.projects
       currentProjectId = msg.currentProjectId
+      projectTimestamps = msg.projectTimestamps
       renderAll()
       break
 

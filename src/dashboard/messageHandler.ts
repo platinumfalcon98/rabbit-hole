@@ -83,11 +83,26 @@ function sendInit(storage: StorageService, panel: DashboardPanel): void {
     ? storage.getCurrentProjectId()
     : currentProjectView
 
+  // Compute latest session timestamp per project from aggregate logs
+  const projectTimestamps: Record<string, number> = {}
+  const allLogs = storage.getAggregateRange(currentDays)
+  for (const log of allLogs) {
+    for (const session of log.sessions) {
+      const pid = session.projectId
+      if (!pid) continue
+      const ts = session.endTime ?? session.startTime
+      if (!projectTimestamps[pid] || ts > projectTimestamps[pid]) {
+        projectTimestamps[pid] = ts
+      }
+    }
+  }
+
   panel.postMessage({
     type: "init",
     data,
     projects: storage.getProjects(),
     currentProjectId: resolvedProjectId,
+    projectTimestamps,
   })
 }
 
