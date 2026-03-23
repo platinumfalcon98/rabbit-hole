@@ -278,12 +278,59 @@ body {
   margin-bottom: 14px;
 }
 
+.overview-grid {
+  display: grid;
+  grid-template-columns: 3fr 2fr;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.overview-grid .full-width {
+  grid-column: 1 / -1;
+}
+
+/* ── Projects mini widget ────────────────────────────────────────────────── */
+
+.projects-mini-row {
+  display: flex;
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--vscode-editorWidget-border, rgba(128,128,128,0.1));
+  font-size: 0.9em;
+  cursor: pointer;
+  gap: 8px;
+}
+
+.projects-mini-row:last-child {
+  border-bottom: none;
+}
+
+.projects-mini-row:hover .projects-mini-name {
+  color: #f97316;
+}
+
+.projects-mini-name {
+  flex: 1;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: color 0.1s;
+}
+
+.projects-mini-time {
+  color: var(--vscode-descriptionForeground);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.88em;
+  white-space: nowrap;
+}
+
 /* ── Stat cards ─────────────────────────────────────────────────────────── */
 
 #stat-cards {
   display: flex;
   gap: 12px;
-  margin-bottom: 24px;
+  margin-bottom: 0;
   flex-wrap: wrap;
 }
 
@@ -352,7 +399,6 @@ body {
   border: 1px solid var(--vscode-editorWidget-border);
   border-radius: 8px;
   padding: 16px;
-  min-height: 240px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35), 0 0 24px rgba(249, 115, 22, 0.08);
 }
 

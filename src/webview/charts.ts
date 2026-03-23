@@ -132,6 +132,7 @@ function renderLinesChart(logs: DailyLog[]): void {
     },
     options: {
       responsive: true,
+      aspectRatio: 2.5,
       plugins: {
         legend: { labels: { color: labelColor() } },
         tooltip: { mode: "index" },
@@ -178,7 +179,9 @@ function renderLangPanel(logs: DailyLog[]): void {
   langChart?.destroy()
   langChart = null
 
-  const langs = aggregateLangs(logs)
+  const langs = aggregateLangs(logs).filter(l =>
+    langMetric === "time" ? l.time >= 60_000 : (l.linesAdded + l.linesDeleted) > 0
+  )
   const colors = langs.map((_, i) => `hsl(${(i * 47) % 360}, 65%, 55%)`)
 
   if (langs.length === 0) {
@@ -205,6 +208,7 @@ function renderLangPanel(logs: DailyLog[]): void {
       options: {
         indexAxis: "y",
         responsive: true,
+        aspectRatio: 2,
         plugins: {
           legend: { display: false },
           tooltip: {
@@ -248,7 +252,20 @@ function renderLangPanel(logs: DailyLog[]): void {
       },
       options: {
         responsive: true,
-        plugins: { legend: { display: false } },
+        aspectRatio: 1.6,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: ctx => {
+                const l = langs[ctx.dataIndex]
+                return langMetric === "time"
+                  ? ` ${formatDuration(l.time)}`
+                  : ` ${l.linesAdded + l.linesDeleted} lines`
+              },
+            },
+          },
+        },
       },
     })
   }

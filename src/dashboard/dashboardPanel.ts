@@ -95,18 +95,6 @@ export class DashboardPanel {
           </span>
           <span class="nav-label">Overview</span>
         </button>
-        <button class="nav-item" data-tab="activity">
-          <span class="nav-icon">
-            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <polyline points="1,11 4,11 6,4 8,12 10,7 12,11 15,11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-          </span>
-          <span class="nav-label">Activity</span>
-        </button>
-        <button class="nav-item" data-tab="code">
-          <span class="nav-icon">&lt;/&gt;</span>
-          <span class="nav-label">Code</span>
-        </button>
         <button class="nav-item" data-tab="projects">
           <span class="nav-icon">&#x229E;</span>
           <span class="nav-label">Projects</span>
@@ -135,17 +123,46 @@ export class DashboardPanel {
         </div>
       </div>
 
-      <!-- Overview: stat cards + heatmap -->
+      <!-- Overview: full dashboard grid -->
       <div class="tab-panel active" id="tab-overview">
         <div class="overview-header">
           <button id="export-pdf-btn" class="export-pdf-btn">&#x2197; Export Card</button>
         </div>
-        <div id="stat-cards">
+        <div id="stat-cards" class="full-width">
           <div class="stat-card accent-time"><div class="stat-label">Active Time</div><div class="stat-value" id="stat-time">&#x2014;</div></div>
           <div class="stat-card accent-add"><div class="stat-label">Lines Added</div><div class="stat-value" id="stat-added">&#x2014;</div></div>
           <div class="stat-card accent-del"><div class="stat-label">Lines Deleted</div><div class="stat-value" id="stat-deleted">&#x2014;</div></div>
         </div>
-        <div id="heatmap" class="section-card"></div>
+        <div class="overview-grid">
+          <div id="heatmap" class="section-card"></div>
+          <div class="chart-box"><canvas id="lines-chart"></canvas></div>
+          <div class="chart-box lang-chart-box">
+            <div class="chart-panel-header">
+              <div class="toggle-group" id="lang-chart-type">
+                <button class="toggle-btn active" data-val="bar">Bar</button>
+                <button class="toggle-btn" data-val="donut">Donut</button>
+              </div>
+              <div class="toggle-group" id="lang-metric">
+                <button class="toggle-btn active" data-val="time">Time</button>
+                <button class="toggle-btn" data-val="lines">Lines</button>
+              </div>
+            </div>
+            <canvas id="lang-chart"></canvas>
+            <div id="lang-legend"></div>
+          </div>
+          <div id="sessions-panel" class="section-card">
+            <h2 class="section-title">Sessions</h2>
+            <div id="sessions-list"></div>
+          </div>
+          <div id="files-panel" class="section-card full-width">
+            <h2 class="section-title">Files</h2>
+            <div id="files-list"></div>
+          </div>
+          <div id="projects-mini" class="section-card full-width">
+            <h2 class="section-title">Projects</h2>
+            <div id="projects-mini-list"></div>
+          </div>
+        </div>
       </div>
 
       <!-- PDF export modal -->
@@ -178,41 +195,6 @@ export class DashboardPanel {
             <button id="pdf-cancel" class="modal-btn-secondary">Cancel</button>
             <button id="pdf-generate" class="modal-btn-primary">Generate PDF</button>
           </div>
-        </div>
-      </div>
-
-      <!-- Activity: lines chart + sessions -->
-      <div class="tab-panel" id="tab-activity">
-        <div class="chart-grid">
-          <div class="chart-box chart-wide"><canvas id="lines-chart"></canvas></div>
-        </div>
-        <div id="sessions-panel" class="section-card">
-          <h2 class="section-title">Sessions</h2>
-          <div id="sessions-list"></div>
-        </div>
-      </div>
-
-      <!-- Code: language panel + files -->
-      <div class="tab-panel" id="tab-code">
-        <div class="chart-grid">
-          <div class="chart-box chart-wide lang-chart-box">
-            <div class="chart-panel-header">
-              <div class="toggle-group" id="lang-chart-type">
-                <button class="toggle-btn active" data-val="bar">Bar</button>
-                <button class="toggle-btn" data-val="donut">Donut</button>
-              </div>
-              <div class="toggle-group" id="lang-metric">
-                <button class="toggle-btn active" data-val="time">Time</button>
-                <button class="toggle-btn" data-val="lines">Lines</button>
-              </div>
-            </div>
-            <canvas id="lang-chart"></canvas>
-            <div id="lang-legend"></div>
-          </div>
-        </div>
-        <div id="files-panel" class="section-card">
-          <h2 class="section-title">Files</h2>
-          <div id="files-list"></div>
         </div>
       </div>
 

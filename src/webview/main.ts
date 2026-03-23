@@ -52,8 +52,7 @@ function switchTab(tab: string): void {
   document.querySelectorAll(".tab-panel").forEach(panel => {
     panel.classList.toggle("active", panel.id === `tab-${tab}`)
   })
-  // Charts need a resize call when their panel becomes visible
-  if (tab === "activity" || tab === "code") {
+  if (tab === "overview") {
     requestAnimationFrame(() => charts.resizeAll())
   }
   if (tab === "projects") {
@@ -308,6 +307,29 @@ function renderProjectsTab(): void {
   })
 }
 
+// ── Projects mini widget ────────────────────────────────────────────────────
+
+function renderProjectsMini(): void {
+  const container = document.getElementById("projects-mini-list")
+  if (!container) return
+
+  const summaries = computeProjectSummaries().filter(p => p.activeTime > 0)
+  if (summaries.length === 0) {
+    container.innerHTML = `<div class="empty-state">No projects tracked yet</div>`
+    return
+  }
+
+  container.innerHTML = summaries.slice(0, 5).map(p => `
+    <div class="projects-mini-row" data-id="${p.id}">
+      <span class="projects-mini-name">${p.name}</span>
+      <span class="projects-mini-time">${formatDuration(p.activeTime)}</span>
+    </div>`).join("")
+
+  container.querySelectorAll(".projects-mini-row").forEach(row => {
+    row.addEventListener("click", () => switchTab("projects"))
+  })
+}
+
 // ── Full render ────────────────────────────────────────────────────────────
 
 function renderAll(): void {
@@ -316,7 +338,9 @@ function renderAll(): void {
   updateStatCards(currentLogs[currentLogs.length - 1])
   renderSessions(currentLogs)
   renderFiles(currentLogs)
+  renderProjectsMini()
   if (activeTab === "projects") renderProjectsTab()
+  requestAnimationFrame(() => charts.resizeAll())
 }
 
 // ── Message handling ───────────────────────────────────────────────────────
@@ -345,6 +369,7 @@ window.addEventListener("message", (event: MessageEvent) => {
         heatmap.render(currentLogs)
         renderSessions(currentLogs)
         renderFiles(currentLogs)
+        renderProjectsMini()
       }
       break
     }
