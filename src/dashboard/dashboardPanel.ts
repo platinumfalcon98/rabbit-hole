@@ -191,6 +191,12 @@ export class DashboardPanel {
                 <div class="widget-title">Sessions</div>
                 <div class="widget-subtitle">Start and end times per coding session</div>
               </div>
+              <div class="widget-header-controls">
+                <div class="toggle-group" id="sessions-sort">
+                  <button class="toggle-btn active" data-val="desc">Latest</button>
+                  <button class="toggle-btn" data-val="asc">Oldest</button>
+                </div>
+              </div>
             </div>
             <div id="sessions-list"></div>
           </div>

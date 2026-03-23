@@ -675,6 +675,20 @@ body {
   font-size: 0.9em;
 }
 
+.sessions-show-more {
+  padding: 5px 0 5px 12px;
+  font-size: 0.8em;
+  color: var(--vscode-descriptionForeground);
+  cursor: pointer;
+  opacity: 0.7;
+  transition: opacity 0.1s;
+}
+
+.sessions-show-more:hover {
+  opacity: 1;
+  color: var(--vscode-editor-foreground);
+}
+
 /* ── Files panel ─────────────────────────────────────────────────────────── */
 
 #files-panel {

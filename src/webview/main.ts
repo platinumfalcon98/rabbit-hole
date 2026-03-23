@@ -295,6 +295,26 @@ function renderFiles(logs: DailyLog[]): void {
 
 // ── Sessions ───────────────────────────────────────────────────────────────
 
+const SESSIONS_COLLAPSED = 3
+const expandedSessionDates = new Set<string>()
+let sessionSortOrder: "desc" | "asc" = "desc"
+
+function buildSessionRow(session: import("../shared/types").ActivitySession, isAggregate: boolean, ongoingId: string | null): HTMLElement {
+  const row = document.createElement("div")
+  row.className = "session-row"
+  const end = session.endTime
+    ? formatTime(session.endTime)
+    : session.id === ongoingId ? "ongoing" : "—"
+  const projectTag = isAggregate && session.projectId
+    ? `<span class="session-project">${projectName(session.projectId)}</span>`
+    : ""
+  row.innerHTML =
+    `<span class="session-time">${formatTime(session.startTime)} – ${end}</span>` +
+    projectTag +
+    `<span class="session-active">${formatDuration(session.activeTime)} active</span>`
+  return row
+}
+
 function renderSessions(logs: DailyLog[]): void {
   const container = document.getElementById("sessions-list")
   if (!container) return
@@ -312,7 +332,9 @@ function renderSessions(logs: DailyLog[]): void {
   }
 
   for (const log of sorted) {
-    const sessions = log.sessions.filter(s => s.activeTime > 0 || s.endTime !== null)
+    const sessions = log.sessions
+      .filter(s => s.activeTime > 0 || s.endTime !== null)
+      .sort((a, b) => sessionSortOrder === "desc" ? b.startTime - a.startTime : a.startTime - b.startTime)
     if (sessions.length === 0) continue
 
     // At most one session can be truly ongoing: the latest open one from today
@@ -328,20 +350,26 @@ function renderSessions(logs: DailyLog[]): void {
     dateHeader.textContent = log.date
     container.appendChild(dateHeader)
 
-    for (const session of sessions) {
-      const row = document.createElement("div")
-      row.className = "session-row"
-      const end = session.endTime
-        ? formatTime(session.endTime)
-        : session.id === ongoingId ? "ongoing" : "—"
-      const projectTag = isAggregate && session.projectId
-        ? `<span class="session-project">${projectName(session.projectId)}</span>`
-        : ""
-      row.innerHTML =
-        `<span class="session-time">${formatTime(session.startTime)} – ${end}</span>` +
-        projectTag +
-        `<span class="session-active">${formatDuration(session.activeTime)} active</span>`
-      container.appendChild(row)
+    const expanded = expandedSessionDates.has(log.date)
+    const visible = expanded ? sessions : sessions.slice(0, SESSIONS_COLLAPSED)
+    const hidden = expanded ? [] : sessions.slice(SESSIONS_COLLAPSED)
+
+    for (const session of visible) {
+      container.appendChild(buildSessionRow(session, isAggregate, ongoingId))
+    }
+
+    if (hidden.length > 0) {
+      const showMore = document.createElement("div")
+      showMore.className = "sessions-show-more"
+      showMore.textContent = `${hidden.length} more session${hidden.length !== 1 ? "s" : ""}`
+      showMore.addEventListener("click", () => {
+        expandedSessionDates.add(log.date)
+        for (const session of hidden) {
+          showMore.before(buildSessionRow(session, isAggregate, ongoingId))
+        }
+        showMore.remove()
+      })
+      container.appendChild(showMore)
     }
   }
 }
@@ -592,6 +620,18 @@ document.getElementById("custom-end")?.addEventListener("change", trySubmitCusto
 document.getElementById("proj-filter-btn")?.addEventListener("click", (e: Event) => {
   e.stopPropagation()
   document.getElementById("proj-dropdown-panel")?.classList.toggle("hidden")
+})
+
+// Sessions sort toggle
+document.getElementById("sessions-sort")?.addEventListener("click", (e: Event) => {
+  const btn = (e.target as HTMLElement).closest(".toggle-btn") as HTMLElement | null
+  if (!btn?.dataset.val) return
+  sessionSortOrder = btn.dataset.val as "desc" | "asc"
+  document.querySelectorAll("#sessions-sort .toggle-btn").forEach(b =>
+    b.classList.toggle("active", b === btn)
+  )
+  expandedSessionDates.clear()
+  renderSessions(currentLogs)
 })
 
 // Sort toggle
