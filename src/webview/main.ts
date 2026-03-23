@@ -43,6 +43,7 @@ function projectName(projectId: string): string {
 // ── Tabs ───────────────────────────────────────────────────────────────────
 
 let activeTab = "overview"
+let projectSort: "time" | "last" | "name" = "time"
 
 function switchTab(tab: string): void {
   activeTab = tab
@@ -52,6 +53,11 @@ function switchTab(tab: string): void {
   document.querySelectorAll(".tab-panel").forEach(panel => {
     panel.classList.toggle("active", panel.id === `tab-${tab}`)
   })
+  // Swap header controls
+  const onProjects = tab === "projects"
+  document.getElementById("range-toggle")?.classList.toggle("hidden", onProjects)
+  document.getElementById("sort-toggle")?.classList.toggle("hidden", !onProjects)
+
   if (tab === "overview") {
     requestAnimationFrame(() => charts.resizeAll())
   }
@@ -68,31 +74,7 @@ document.addEventListener("DOMContentLoaded", () => {
   })
 })
 
-// ── Sidebar ────────────────────────────────────────────────────────────────
-
-function renderSidebar(ps: ProjectMeta[], activeId: string): void {
-  const filter = document.getElementById("project-filter")
-  if (!filter) return
-
-  if (ps.length === 0) {
-    filter.innerHTML = ""
-    return
-  }
-
-  const allBtn = `<button class="project-chip${activeId === "all" ? " active" : ""}" data-id="all">All Projects</button>`
-  const chips = ps.map(p =>
-    `<button class="project-chip${activeId === p.id ? " active" : ""}" data-id="${p.id}" title="${p.path}">${p.name}</button>`
-  ).join("")
-  filter.innerHTML = allBtn + chips
-}
-
 document.addEventListener("click", e => {
-  // Project filter chip click
-  const chip = (e.target as HTMLElement).closest(".project-chip") as HTMLElement | null
-  if (chip) {
-    vscode.postMessage({ type: "selectProject", projectId: chip.dataset.id ?? "" })
-    return
-  }
   // Sidebar toggle
   if ((e.target as HTMLElement).closest("#sidebar-toggle")) {
     document.getElementById("sidebar")?.classList.toggle("collapsed")
@@ -272,12 +254,22 @@ function computeProjectSummaries(): ProjectSummary[] {
   return [...map.values()].sort((a, b) => b.activeTime - a.activeTime)
 }
 
+function sortedProjectSummaries(): ProjectSummary[] {
+  const summaries = computeProjectSummaries()
+  if (projectSort === "last") {
+    return summaries.sort((a, b) => (b.lastActive ?? "").localeCompare(a.lastActive ?? ""))
+  }
+  if (projectSort === "name") {
+    return summaries.sort((a, b) => a.name.localeCompare(b.name))
+  }
+  return summaries // already sorted by activeTime desc from computeProjectSummaries
+}
+
 function renderProjectsTab(): void {
-  renderSidebar(projects, currentProjectId)
   const container = document.getElementById("project-cards")
   if (!container) return
 
-  const summaries = computeProjectSummaries()
+  const summaries = sortedProjectSummaries()
   if (summaries.length === 0) {
     container.innerHTML = `<div class="empty-state">No projects tracked yet</div>`
     return
@@ -356,7 +348,6 @@ window.addEventListener("message", (event: MessageEvent) => {
       currentLogs = msg.data
       projects = msg.projects
       currentProjectId = msg.currentProjectId
-      renderSidebar(projects, currentProjectId)
       renderAll()
       break
 
@@ -413,6 +404,17 @@ document.getElementById("range-toggle")?.addEventListener("click", (e: Event) =>
     b.classList.toggle("active", b === btn)
   )
   vscode.postMessage({ type: "requestRange", days })
+})
+
+// Sort toggle
+document.getElementById("sort-toggle")?.addEventListener("click", (e: Event) => {
+  const btn = (e.target as HTMLElement).closest(".toggle-btn") as HTMLElement | null
+  if (!btn?.dataset.val) return
+  projectSort = btn.dataset.val as "time" | "last" | "name"
+  document.querySelectorAll("#sort-toggle .toggle-btn").forEach(b =>
+    b.classList.toggle("active", b === btn)
+  )
+  renderProjectsTab()
 })
 
 // ── Settings tab ────────────────────────────────────────────────────────────

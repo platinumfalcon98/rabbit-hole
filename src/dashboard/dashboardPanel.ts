@@ -121,6 +121,11 @@ export class DashboardPanel {
           <button class="toggle-btn active" data-val="30">30d</button>
           <button class="toggle-btn" data-val="90">90d</button>
         </div>
+        <div class="toggle-group hidden" id="sort-toggle">
+          <button class="toggle-btn active" data-val="time">Active Time</button>
+          <button class="toggle-btn" data-val="last">Last Active</button>
+          <button class="toggle-btn" data-val="name">Name</button>
+        </div>
       </div>
 
       <!-- Overview: full dashboard grid -->
@@ -198,9 +203,8 @@ export class DashboardPanel {
         </div>
       </div>
 
-      <!-- Projects: filter chips + summary cards -->
+      <!-- Projects: summary cards -->
       <div class="tab-panel" id="tab-projects">
-        <div id="project-filter"></div>
         <div id="project-cards"></div>
       </div>
 

@@ -249,10 +249,15 @@ body {
   color: rgba(46, 204, 113, 0.9);
 }
 
-/* ── Range toggle (replaces select) ───────────────────────────────────── */
+/* ── Range / sort toggles ──────────────────────────────────────────────── */
 
-#range-toggle {
+#range-toggle,
+#sort-toggle {
   margin-left: auto;
+}
+
+.hidden {
+  display: none !important;
 }
 
 .tab-panel {
