@@ -4,6 +4,8 @@ import { DailyLog } from "../shared/types"
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 const DAY_LABELS = ["Mon", "", "Wed", "", "Fri", "", ""]
 
+let storedLogs: DailyLog[] = []
+
 function formatDuration(ms: number): string {
   const totalMinutes = Math.floor(ms / 60_000)
   const hours = Math.floor(totalMinutes / 60)
@@ -24,7 +26,12 @@ function isFuture(d: Date, today: Date): boolean {
   return d.getTime() > today.getTime()
 }
 
+export function resize(): void {
+  if (storedLogs.length > 0) render(storedLogs)
+}
+
 export function render(logs: DailyLog[]): void {
+  storedLogs = logs
   const container = document.getElementById("heatmap-canvas")
   if (!container) return
   container.innerHTML = ""
@@ -37,7 +44,15 @@ export function render(logs: DailyLog[]): void {
   // Always start on a Monday so column boundaries align with calendar weeks
   const today = new Date()
   today.setHours(0, 0, 0, 0)
-  const weeks = 18
+
+  const cellSize = 13
+  const cellPad = 3
+  const step = cellSize + cellPad
+  const marginLeft = 32
+
+  // Fit as many weeks as the container can hold, between 8 and 52
+  const availableWidth = container.clientWidth || 320
+  const weeks = Math.min(52, Math.max(8, Math.floor((availableWidth - marginLeft - cellPad) / step)))
   const totalDays = weeks * 7
 
   const todayDow = (today.getDay() + 6) % 7  // Mon=0 … Sun=6
@@ -53,10 +68,6 @@ export function render(logs: DailyLog[]): void {
     dates.push(d)
   }
 
-  const cellSize = 13
-  const cellPad = 3
-  const step = cellSize + cellPad
-  const marginLeft = 32
   const marginTop = 24
   const marginBottom = 8
 

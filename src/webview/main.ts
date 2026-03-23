@@ -81,7 +81,7 @@ document.addEventListener("click", e => {
     document.getElementById("sidebar")?.classList.toggle("collapsed")
   }
   // Close project dropdown when clicking outside it
-  if (!(e.target as HTMLElement).closest("#project-dropdown")) {
+  if (!(e.target as HTMLElement).closest("#project-filter")) {
     document.getElementById("proj-dropdown-panel")?.classList.add("hidden")
   }
 })
@@ -167,8 +167,8 @@ function handleProjectDropdownChange(id: string, checked: boolean): void {
 }
 
 function updateDropdownLabel(): void {
-  const label = document.getElementById("proj-dropdown-label")
-  const btn = document.getElementById("proj-dropdown-btn")
+  const label = document.getElementById("proj-filter-label")
+  const btn = document.getElementById("proj-filter-btn")
   if (!label) return
 
   const allMode = selectedProjectIds[0] === "all"
@@ -176,9 +176,9 @@ function updateDropdownLabel(): void {
 
   let text: string
   if (allMode) {
-    text = "All projects"
+    text = "Choose Project"
   } else if (implicitCurrent) {
-    text = projects.find(p => p.id === currentProjectId)?.name ?? "Current project"
+    text = projects.find(p => p.id === currentProjectId)?.name ?? "Choose Project"
   } else if (selectedProjectIds.length === 1) {
     text = projects.find(p => p.id === selectedProjectIds[0])?.name ?? selectedProjectIds[0]
   } else {
@@ -489,6 +489,13 @@ window.addEventListener("DOMContentLoaded", () => {
   vscode.postMessage({ type: "ready" })
 })
 
+window.addEventListener("resize", () => {
+  requestAnimationFrame(() => {
+    charts.resizeAll()
+    heatmap.resize()
+  })
+})
+
 window.addEventListener("message", (event: MessageEvent) => {
   const msg = event.data as ExtensionMessage
   switch (msg.type) {
@@ -569,7 +576,7 @@ document.getElementById("custom-start")?.addEventListener("change", trySubmitCus
 document.getElementById("custom-end")?.addEventListener("change", trySubmitCustomRange)
 
 // Project dropdown toggle
-document.getElementById("proj-dropdown-btn")?.addEventListener("click", (e: Event) => {
+document.getElementById("proj-filter-btn")?.addEventListener("click", (e: Event) => {
   e.stopPropagation()
   document.getElementById("proj-dropdown-panel")?.classList.toggle("hidden")
 })

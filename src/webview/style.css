@@ -105,28 +105,18 @@ body {
   padding: 0;
 }
 
-/* ── Project dropdown ───────────────────────────────────────────────────── */
+/* ── Project filter button ──────────────────────────────────────────────── */
 
-.proj-dropdown {
+.proj-filter {
   position: relative;
   margin-left: auto;
 }
 
-.proj-dropdown-label-text {
-  font-size: 0.75em;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--vscode-descriptionForeground);
-  white-space: nowrap;
-  align-self: center;
-}
-
-.proj-dropdown-btn {
+.proj-filter-btn {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 3px 10px 3px 12px;
+  padding: 3px 11px;
   border-radius: 12px;
   border: 1px solid var(--vscode-editorWidget-border);
   background: transparent;
@@ -139,12 +129,9 @@ body {
   transition: opacity 0.1s, border-color 0.1s, background 0.1s, color 0.1s;
 }
 
-.proj-dropdown-btn:hover {
-  opacity: 1;
-  border-color: var(--vscode-focusBorder);
-}
+.proj-filter-btn:hover { opacity: 1; border-color: var(--vscode-focusBorder); }
 
-.proj-dropdown-btn.active {
+.proj-filter-btn.active {
   background: rgba(249, 115, 22, 0.12);
   border-color: #f97316;
   color: #f97316;
@@ -403,9 +390,13 @@ body {
 
 .overview-grid {
   display: grid;
-  grid-template-columns: 3fr 2fr;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
   gap: 12px;
   margin-top: 12px;
+}
+
+@media (max-width: 660px) {
+  .overview-grid { grid-template-columns: 1fr; }
 }
 
 .overview-grid .full-width {
@@ -448,28 +439,32 @@ body {
   white-space: nowrap;
 }
 
-/* ── Stat cards ─────────────────────────────────────────────────────────── */
+/* ── Stat group ─────────────────────────────────────────────────────────── */
 
-#stat-cards {
+.stat-group {
   display: flex;
-  gap: 12px;
-  margin-bottom: 0;
-  flex-wrap: wrap;
-}
-
-.stat-card {
   background: color-mix(in srgb, var(--vscode-editorWidget-background), black 20%);
   border: 1px solid var(--vscode-editorWidget-border);
   border-radius: 8px;
-  padding: 14px 20px;
-  min-width: 110px;
-  flex: 1;
-  border-left-width: 3px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35), 0 0 24px rgba(249, 115, 22, 0.08);
+  overflow: hidden;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
 }
 
-.accent-time { border-left-color: #f97316;                  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35), 0 0 24px rgba(249, 115, 22, 0.18); }
-.accent-add  { border-left-color: rgba(46, 204, 113, 0.85); box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35), 0 0 24px rgba(46, 204, 113, 0.18); }
-.accent-del  { border-left-color: rgba(231, 76, 60, 0.85);  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35), 0 0 24px rgba(231, 76, 60, 0.18); }
+.stat-item {
+  flex: 1;
+  min-width: 100px;
+  padding: 14px 20px;
+  border-right: 1px solid var(--vscode-editorWidget-border);
+  border-top: 3px solid transparent;
+}
+
+.stat-item:last-child { border-right: none; }
+
+.stat-item.accent-time { border-top-color: #f97316; }
+.stat-item.accent-add  { border-top-color: rgba(46, 204, 113, 0.85); }
+.stat-item.accent-del  { border-top-color: rgba(231, 76, 60, 0.85); }
 
 .stat-label {
   font-size: 0.75em;
@@ -495,6 +490,7 @@ body {
   border-radius: 8px;
   padding: 16px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35), 0 0 24px rgba(249, 115, 22, 0.08);
+  min-width: 0;
 }
 
 /* ── Heatmap ─────────────────────────────────────────────────────────────── */
@@ -520,8 +516,10 @@ body {
   background: color-mix(in srgb, var(--vscode-editorWidget-background), black 20%);
   border: 1px solid var(--vscode-editorWidget-border);
   border-radius: 8px;
-  padding: 16px;
+  padding: 12px 14px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35), 0 0 24px rgba(249, 115, 22, 0.08);
+  min-width: 0;
+  overflow: hidden;
 }
 
 .chart-wide {

@@ -132,13 +132,12 @@ export class DashboardPanel {
           <span class="custom-range-sep">&#x2013;</span>
           <input type="date" id="custom-end">
         </div>
-        <div id="project-dropdown" class="proj-dropdown">
-          <span class="proj-dropdown-label-text">Project</span>
-          <button id="proj-dropdown-btn" class="proj-dropdown-btn">
-            <span id="proj-dropdown-label">&#x2014;</span>
-            <svg width="10" height="6" viewBox="0 0 10 6" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-              <path d="M1 1L5 5L9 1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <div id="project-filter" class="proj-filter">
+          <button id="proj-filter-btn" class="proj-filter-btn">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <path d="M1 2.5h10L7.5 6.5v4l-3-1.5V6.5L1 2.5Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
             </svg>
+            <span id="proj-filter-label">Choose Project</span>
           </button>
           <div id="proj-dropdown-panel" class="proj-dropdown-panel hidden"></div>
         </div>
@@ -146,10 +145,10 @@ export class DashboardPanel {
 
       <!-- Overview: full dashboard grid -->
       <div class="tab-panel active" id="tab-overview">
-        <div id="stat-cards" class="full-width">
-          <div class="stat-card accent-time"><div class="stat-label">Active Time</div><div class="stat-value" id="stat-time">&#x2014;</div></div>
-          <div class="stat-card accent-add"><div class="stat-label">Lines Added</div><div class="stat-value" id="stat-added">&#x2014;</div></div>
-          <div class="stat-card accent-del"><div class="stat-label">Lines Deleted</div><div class="stat-value" id="stat-deleted">&#x2014;</div></div>
+        <div class="stat-group">
+          <div class="stat-item accent-time"><div class="stat-label">Active Time</div><div class="stat-value" id="stat-time">&#x2014;</div></div>
+          <div class="stat-item accent-add"><div class="stat-label">Lines Added</div><div class="stat-value" id="stat-added">&#x2014;</div></div>
+          <div class="stat-item accent-del"><div class="stat-label">Lines Deleted</div><div class="stat-value" id="stat-deleted">&#x2014;</div></div>
         </div>
         <div class="overview-grid">
           <div id="heatmap" class="section-card">

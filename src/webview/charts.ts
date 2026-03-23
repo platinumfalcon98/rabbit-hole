@@ -26,6 +26,7 @@ Chart.register(
 
 let linesChart: Chart | null = null
 let langChart: Chart | null = null
+let resizeObservers: ResizeObserver[] = []
 
 // Lang panel state — persists across range changes and 30s updates
 let langChartType: "bar" | "donut" = "bar"
@@ -73,10 +74,18 @@ const labelColor = () =>
   getCssVar("--vscode-editor-foreground") || "#ccc"
 
 function destroyAll(): void {
+  resizeObservers.forEach(o => o.disconnect())
+  resizeObservers = []
   linesChart?.destroy()
   langChart?.destroy()
   linesChart = null
   langChart = null
+}
+
+function watchResize(el: Element, fn: () => void): void {
+  const obs = new ResizeObserver(fn)
+  obs.observe(el)
+  resizeObservers.push(obs)
 }
 
 export function renderAll(logs: DailyLog[]): void {
@@ -94,8 +103,6 @@ export function resizeAll(): void {
 export function updateToday(log: DailyLog): void {
   if (!linesChart) return
   updateLinesChartToday(log)
-  const idx = storedLogs.findIndex(l => l.date === log.date)
-  if (idx >= 0) storedLogs[idx] = log
   renderLangPanel(storedLogs)
 }
 
@@ -105,67 +112,47 @@ function renderLinesChart(logs: DailyLog[]): void {
   const canvas = document.getElementById("lines-chart") as HTMLCanvasElement | null
   if (!canvas) return
 
-  const labels = logs.map(l => l.date.slice(5)) // MM-DD
-  const added = logs.map(l => l.files.reduce((s, f) => s + f.linesAdded, 0))
-  const deleted = logs.map(l => l.files.reduce((s, f) => s + f.linesDeleted, 0))
+  const added   = logs.reduce((s, l) => s + l.files.reduce((fs, f) => fs + f.linesAdded, 0), 0)
+  const deleted = logs.reduce((s, l) => s + l.files.reduce((fs, f) => fs + f.linesDeleted, 0), 0)
 
   linesChart = new Chart(canvas, {
-    type: "bar",
+    type: "pie",
     data: {
-      labels,
-      datasets: [
-        {
-          label: "Lines Added",
-          data: added,
-          backgroundColor: "rgba(46, 204, 113, 0.7)",
-          borderColor: "rgba(46, 204, 113, 1)",
-          borderWidth: 1,
-        },
-        {
-          label: "Lines Deleted",
-          data: deleted,
-          backgroundColor: "rgba(231, 76, 60, 0.7)",
-          borderColor: "rgba(231, 76, 60, 1)",
-          borderWidth: 1,
-        },
-      ],
+      labels: ["Lines Added", "Lines Deleted"],
+      datasets: [{
+        data: [added, deleted],
+        backgroundColor: ["rgba(46, 204, 113, 0.75)", "rgba(231, 76, 60, 0.75)"],
+        borderColor: getCssVar("--vscode-editor-background") || "#1e1e1e",
+        borderWidth: added === 0 || deleted === 0 ? 0 : 2,
+      }],
     },
     options: {
       responsive: true,
-      aspectRatio: 2.5,
+      aspectRatio: 1.6,
       plugins: {
-        legend: { labels: { color: labelColor() } },
-        tooltip: { mode: "index" },
-      },
-      scales: {
-        x: {
-          ticks: { color: labelColor(), maxRotation: 45 },
-          grid: { color: gridColor() },
+        legend: {
+          position: "bottom",
+          labels: { color: labelColor(), boxWidth: 10, padding: 12, font: { size: 11 } },
         },
-        y: {
-          ticks: { color: labelColor() },
-          grid: { color: gridColor() },
+        tooltip: {
+          callbacks: {
+            label: ctx => ` ${ctx.label}: ${ctx.parsed}`,
+          },
         },
       },
     },
   })
+  if (canvas.parentElement) watchResize(canvas.parentElement, () => linesChart?.resize())
 }
 
 function updateLinesChartToday(log: DailyLog): void {
   if (!linesChart) return
-  const lastIdx = (linesChart.data.labels?.length ?? 1) - 1
-  if (linesChart.data.datasets[0]) {
-    linesChart.data.datasets[0].data[lastIdx] = log.files.reduce(
-      (s, f) => s + f.linesAdded,
-      0
-    )
-  }
-  if (linesChart.data.datasets[1]) {
-    linesChart.data.datasets[1].data[lastIdx] = log.files.reduce(
-      (s, f) => s + f.linesDeleted,
-      0
-    )
-  }
+  const idx = storedLogs.findIndex(l => l.date === log.date)
+  if (idx >= 0) storedLogs[idx] = log
+  const added   = storedLogs.reduce((s, l) => s + l.files.reduce((fs, f) => fs + f.linesAdded, 0), 0)
+  const deleted = storedLogs.reduce((s, l) => s + l.files.reduce((fs, f) => fs + f.linesDeleted, 0), 0)
+  linesChart.data.datasets[0].data = [added, deleted]
+  ;(linesChart.data.datasets[0] as any).borderWidth = added === 0 || deleted === 0 ? 0 : 2
   linesChart.update()
 }
 
@@ -208,7 +195,7 @@ function renderLangPanel(logs: DailyLog[]): void {
       options: {
         indexAxis: "y",
         responsive: true,
-        aspectRatio: 2,
+        aspectRatio: 3,
         plugins: {
           legend: { display: false },
           tooltip: {
@@ -222,16 +209,18 @@ function renderLangPanel(logs: DailyLog[]): void {
             },
           },
         },
+        datasets: { bar: { maxBarThickness: 16 } },
         scales: {
           x: {
             ticks: {
               color: labelColor(),
+              font: { size: 10 },
               callback: v =>
                 langMetric === "time" ? formatDuration(v as number) : String(v),
             },
             grid: { color: gridColor() },
           },
-          y: { ticks: { color: labelColor() }, grid: { color: gridColor() } },
+          y: { ticks: { color: labelColor(), font: { size: 10 } }, grid: { color: gridColor() } },
         },
       },
     })
@@ -252,7 +241,8 @@ function renderLangPanel(logs: DailyLog[]): void {
       },
       options: {
         responsive: true,
-        aspectRatio: 1.6,
+        aspectRatio: 2.2,
+        cutout: "62%",
         plugins: {
           legend: { display: false },
           tooltip: {
@@ -269,6 +259,8 @@ function renderLangPanel(logs: DailyLog[]): void {
       },
     })
   }
+
+  if (canvas.parentElement) watchResize(canvas.parentElement, () => langChart?.resize())
 
   // Legend table — always shows time + lines regardless of metric toggle
   if (legendEl) {
