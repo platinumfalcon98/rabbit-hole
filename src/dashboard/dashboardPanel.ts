@@ -88,9 +88,7 @@ export class DashboardPanel {
         <button class="nav-item active" data-tab="overview">
           <span class="nav-icon">
             <svg width="15" height="15" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <circle cx="6.5" cy="6.5" r="5" stroke="currentColor" stroke-width="1.5"/>
-              <circle cx="6.5" cy="6.5" r="2" fill="currentColor"/>
-              <line x1="10.5" y1="10.5" x2="14.5" y2="14.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              <path d="M1.5 7L8 1.5L14.5 7V14.5H10V10H6V14.5H1.5V7Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
             </svg>
           </span>
           <span class="nav-label">Overview</span>
@@ -98,8 +96,7 @@ export class DashboardPanel {
         <button class="nav-item" data-tab="activity">
           <span class="nav-icon">
             <svg width="15" height="15" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <polyline points="1,13 5,8 9,10 13,4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-              <polyline points="10,3 13,3 13,6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              <polyline points="1,11 4,11 6,4 8,12 10,7 12,11 15,11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
           </span>
           <span class="nav-label">Activity</span>
@@ -140,7 +137,7 @@ export class DashboardPanel {
           <div class="stat-card accent-add"><div class="stat-label">Lines Added</div><div class="stat-value" id="stat-added">&#x2014;</div></div>
           <div class="stat-card accent-del"><div class="stat-label">Lines Deleted</div><div class="stat-value" id="stat-deleted">&#x2014;</div></div>
         </div>
-        <div id="heatmap"></div>
+        <div id="heatmap" class="section-card"></div>
       </div>
 
       <!-- PDF export modal -->
@@ -181,7 +178,7 @@ export class DashboardPanel {
         <div class="chart-grid">
           <div class="chart-box chart-wide"><canvas id="lines-chart"></canvas></div>
         </div>
-        <div id="sessions-panel">
+        <div id="sessions-panel" class="section-card">
           <h2 class="section-title">Sessions</h2>
           <div id="sessions-list"></div>
         </div>
@@ -205,7 +202,7 @@ export class DashboardPanel {
             <div id="lang-legend"></div>
           </div>
         </div>
-        <div id="files-panel">
+        <div id="files-panel" class="section-card">
           <h2 class="section-title">Files</h2>
           <div id="files-list"></div>
         </div>
