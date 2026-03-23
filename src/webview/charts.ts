@@ -29,9 +29,8 @@ let langChart: Chart | null = null
 let resizeObservers: ResizeObserver[] = []
 
 // Lang panel state — persists across range changes and 30s updates
-let langChartType: "bar" | "donut" = "bar"
 let langMetric: "time" | "lines" = "time"
-let langTogglesBound = false
+let langMetricBound = false
 let storedLogs: DailyLog[] = []
 
 interface LangData extends LanguageStat {
@@ -181,84 +180,38 @@ function renderLangPanel(logs: DailyLog[]): void {
   )
   const total = metricValues.reduce((s, v) => s + v, 0)
 
-  if (langChartType === "bar") {
-    langChart = new Chart(canvas, {
-      type: "bar",
-      data: {
-        labels: langs.map(l => l.name),
-        datasets: [{
-          data: metricValues,
-          backgroundColor: colors,
-          borderWidth: 0,
-        }],
-      },
-      options: {
-        indexAxis: "y",
-        responsive: true,
-        aspectRatio: 3,
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            callbacks: {
-              label: ctx => {
-                const l = langs[ctx.dataIndex]
-                return langMetric === "time"
-                  ? ` ${formatDuration(l.time)}`
-                  : ` ${l.linesAdded + l.linesDeleted} lines`
-              },
-            },
-          },
+  langChart = new Chart(canvas, {
+    type: "pie",
+    data: {
+      labels: langs.map(l => l.name),
+      datasets: [{
+        data: metricValues,
+        backgroundColor: colors,
+        borderColor: getCssVar("--vscode-editor-background") || "#1e1e1e",
+        borderWidth: langs.length === 1 ? 0 : 2,
+      }],
+    },
+    options: {
+      responsive: true,
+      aspectRatio: 1.6,
+      plugins: {
+        legend: {
+          position: "bottom",
+          labels: { color: labelColor(), boxWidth: 10, padding: 12, font: { size: 11 } },
         },
-        datasets: { bar: { maxBarThickness: 16 } },
-        scales: {
-          x: {
-            ticks: {
-              color: labelColor(),
-              font: { size: 10 },
-              callback: v =>
-                langMetric === "time" ? formatDuration(v as number) : String(v),
-            },
-            grid: { color: gridColor() },
-          },
-          y: { ticks: { color: labelColor(), font: { size: 10 } }, grid: { color: gridColor() } },
-        },
-      },
-    })
-  } else {
-    langChart = new Chart(canvas, {
-      type: "doughnut",
-      data: {
-        labels: langs.map((l, i) => {
-          const pct = total > 0 ? Math.round((metricValues[i] / total) * 100) : 0
-          return `${l.name} (${pct}%)`
-        }),
-        datasets: [{
-          data: metricValues,
-          backgroundColor: colors,
-          borderColor: getCssVar("--vscode-editor-background") || "#1e1e1e",
-          borderWidth: 2,
-        }],
-      },
-      options: {
-        responsive: true,
-        aspectRatio: 2.2,
-        cutout: "62%",
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            callbacks: {
-              label: ctx => {
-                const l = langs[ctx.dataIndex]
-                return langMetric === "time"
-                  ? ` ${formatDuration(l.time)}`
-                  : ` ${l.linesAdded + l.linesDeleted} lines`
-              },
+        tooltip: {
+          callbacks: {
+            label: ctx => {
+              const l = langs[ctx.dataIndex]
+              return langMetric === "time"
+                ? ` ${formatDuration(l.time)}`
+                : ` ${l.linesAdded + l.linesDeleted} lines`
             },
           },
         },
       },
-    })
-  }
+    },
+  })
 
   if (canvas.parentElement) watchResize(canvas.parentElement, () => langChart?.resize())
 
@@ -283,18 +236,9 @@ function renderLangPanel(logs: DailyLog[]): void {
       </table>`
   }
 
-  // Bind toggle buttons once
-  if (!langTogglesBound) {
-    langTogglesBound = true
-    document.getElementById("lang-chart-type")?.addEventListener("click", e => {
-      const btn = (e.target as HTMLElement).closest("[data-val]") as HTMLElement | null
-      if (!btn) return
-      langChartType = btn.dataset.val as "bar" | "donut"
-      document.querySelectorAll("#lang-chart-type .toggle-btn").forEach(b =>
-        b.classList.toggle("active", b === btn)
-      )
-      renderLangPanel(storedLogs)
-    })
+  // Bind metric toggle once
+  if (!langMetricBound) {
+    langMetricBound = true
     document.getElementById("lang-metric")?.addEventListener("click", e => {
       const btn = (e.target as HTMLElement).closest("[data-val]") as HTMLElement | null
       if (!btn) return

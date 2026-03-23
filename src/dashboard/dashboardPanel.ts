@@ -176,10 +176,6 @@ export class DashboardPanel {
                 <div class="widget-subtitle">Time and lines changed by language</div>
               </div>
               <div class="widget-header-controls">
-                <div class="toggle-group" id="lang-chart-type">
-                  <button class="toggle-btn active" data-val="bar">Bar</button>
-                  <button class="toggle-btn" data-val="donut">Donut</button>
-                </div>
                 <div class="toggle-group" id="lang-metric">
                   <button class="toggle-btn active" data-val="time">Time</button>
                   <button class="toggle-btn" data-val="lines">Lines</button>
