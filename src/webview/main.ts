@@ -842,7 +842,7 @@ document.getElementById("pref-session-expiry")?.addEventListener("change", (e: E
 
 // ── Export modal (JPG) ──────────────────────────────────────────────────────
 
-let exportPreset: "today" | "7d" | "30d" | "custom" = "today"
+let exportPreset: "today" | "7d" | "30d" | "date" | "custom" = "today"
 let exportCustomStart = ""
 let exportCustomEnd = ""
 
@@ -868,24 +868,25 @@ document.getElementById("export-pdf-btn")?.addEventListener("click", () => {
       : "All Projects"
   }
 
-  // Auto-select "today" preset and reset custom range
+  // Auto-select "today" preset and reset all date inputs
   exportPreset = "today"
   exportCustomStart = ""
   exportCustomEnd = ""
   document.querySelectorAll("#pdf-range .toggle-btn").forEach(b => {
     b.classList.toggle("active", (b as HTMLElement).dataset.val === "today")
   })
-  const customRangeEl = document.getElementById("export-custom-range")
-  if (customRangeEl) customRangeEl.classList.add("hidden")
-  const rangeError = document.getElementById("export-range-error")
-  if (rangeError) rangeError.classList.add("hidden")
+  document.getElementById("export-single-date-range")?.classList.add("hidden")
+  document.getElementById("export-custom-range")?.classList.add("hidden")
+  document.getElementById("export-range-error")?.classList.add("hidden")
 
   // Initialise date inputs with sane defaults (today)
   const today = getExportMaxDate()
-  const startInput = document.getElementById("export-custom-start") as HTMLInputElement | null
-  const endInput   = document.getElementById("export-custom-end")   as HTMLInputElement | null
-  if (startInput) { startInput.value = today; startInput.max = today }
-  if (endInput)   { endInput.value   = today; endInput.max   = today }
+  const singleInput = document.getElementById("export-single-date") as HTMLInputElement | null
+  const startInput  = document.getElementById("export-custom-start") as HTMLInputElement | null
+  const endInput    = document.getElementById("export-custom-end")   as HTMLInputElement | null
+  if (singleInput) { singleInput.value = today; singleInput.max = today }
+  if (startInput)  { startInput.value  = today; startInput.max  = today }
+  if (endInput)    { endInput.value    = today; endInput.max    = today }
 
   // Show/hide streak option based on current streak
   const latestStreak = currentLogs.length > 0 ? currentLogs[currentLogs.length - 1].streak : 0
@@ -908,12 +909,21 @@ document.getElementById("pdf-modal-overlay")?.addEventListener("click", (e: Even
 document.getElementById("pdf-range")?.addEventListener("click", (e: Event) => {
   const btn = (e.target as HTMLElement).closest(".toggle-btn") as HTMLElement | null
   if (!btn?.dataset.val) return
-  exportPreset = btn.dataset.val as "today" | "7d" | "30d" | "custom"
+  exportPreset = btn.dataset.val as "today" | "7d" | "30d" | "date" | "custom"
   document.querySelectorAll("#pdf-range .toggle-btn").forEach(b => {
     b.classList.toggle("active", (b as HTMLElement).dataset.val === btn.dataset.val)
   })
-  const customRangeEl = document.getElementById("export-custom-range")
-  if (customRangeEl) customRangeEl.classList.toggle("hidden", exportPreset !== "custom")
+  document.getElementById("export-single-date-range")?.classList.toggle("hidden", exportPreset !== "date")
+  document.getElementById("export-custom-range")?.classList.toggle("hidden", exportPreset !== "custom")
+  if (exportPreset !== "custom") document.getElementById("export-range-error")?.classList.add("hidden")
+})
+
+document.getElementById("export-single-date")?.addEventListener("change", (e: Event) => {
+  const date = (e.target as HTMLInputElement).value
+  if (date) {
+    exportCustomStart = date
+    exportCustomEnd = date
+  }
 })
 
 function validateExportCustomRange(): boolean {
@@ -945,12 +955,19 @@ document.getElementById("export-custom-end")?.addEventListener("change", (e: Eve
 document.getElementById("pdf-generate")?.addEventListener("click", () => {
   const btn = document.getElementById("pdf-generate") as HTMLButtonElement
   if (exportPreset === "custom" && !validateExportCustomRange()) return
+  if (exportPreset === "date") {
+    const date = (document.getElementById("export-single-date") as HTMLInputElement | null)?.value
+    if (!date) return
+    exportCustomStart = date
+    exportCustomEnd = date
+  }
   btn.disabled = true
   btn.textContent = "Generating…"
+  const isCustomLike = exportPreset === "custom" || exportPreset === "date"
   vscode.postMessage({
     type: "exportPdfRequest",
-    preset: exportPreset,
-    customStart: exportPreset === "custom" ? exportCustomStart : undefined,
-    customEnd:   exportPreset === "custom" ? exportCustomEnd   : undefined,
+    preset: isCustomLike ? "custom" : exportPreset,
+    customStart: isCustomLike ? exportCustomStart : undefined,
+    customEnd:   isCustomLike ? exportCustomEnd   : undefined,
   })
 })

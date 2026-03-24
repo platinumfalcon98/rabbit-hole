@@ -383,7 +383,11 @@ export class DashboardPanel {
               <button class="toggle-btn active" data-val="today">Today</button>
               <button class="toggle-btn" data-val="7d">Past Week</button>
               <button class="toggle-btn" data-val="30d">30 days</button>
-              <button class="toggle-btn" data-val="custom">Custom</button>
+              <button class="toggle-btn" data-val="date">Date</button>
+              <button class="toggle-btn" data-val="custom">Range</button>
+            </div>
+            <div id="export-single-date-range" class="export-custom-range hidden">
+              <input type="date" id="export-single-date" class="modal-date-input">
             </div>
             <div id="export-custom-range" class="export-custom-range hidden">
               <input type="date" id="export-custom-start" class="modal-date-input">
