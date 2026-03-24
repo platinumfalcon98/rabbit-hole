@@ -172,7 +172,7 @@ export class DashboardPanel {
           <div class="chart-box">
             <div class="widget-header">
               <div class="widget-header-info">
-                <div class="widget-title">Line Changes</div>
+                <div class="widget-title">LINE CHANGES</div>
                 <div class="widget-subtitle">Total lines added vs deleted</div>
               </div>
             </div>
@@ -181,7 +181,7 @@ export class DashboardPanel {
           <div class="chart-box lang-chart-box">
             <div class="widget-header">
               <div class="widget-header-info">
-                <div class="widget-title">Languages</div>
+                <div class="widget-title">LANGUAGES</div>
                 <div class="widget-subtitle">Time and lines changed by language</div>
               </div>
               <div class="widget-header-controls">
@@ -197,7 +197,7 @@ export class DashboardPanel {
           <div id="sessions-panel" class="section-card">
             <div class="widget-header">
               <div class="widget-header-info">
-                <div class="widget-title">Sessions</div>
+                <div class="widget-title">SESSIONS</div>
                 <div class="widget-subtitle">Start and end times per coding session</div>
               </div>
               <div class="widget-header-controls">
@@ -212,7 +212,7 @@ export class DashboardPanel {
           <div id="files-panel" class="section-card full-width">
             <div class="widget-header">
               <div class="widget-header-info">
-                <div class="widget-title">Changed Files</div>
+                <div class="widget-title">CHANGED FILES</div>
                 <div class="widget-subtitle">Most modified files by change volume</div>
               </div>
             </div>
@@ -221,7 +221,7 @@ export class DashboardPanel {
           <div id="projects-mini" class="section-card full-width">
             <div class="widget-header">
               <div class="widget-header-info">
-                <div class="widget-title">Projects</div>
+                <div class="widget-title">PROJECTS</div>
                 <div class="widget-subtitle">Active projects by coding time</div>
               </div>
             </div>
