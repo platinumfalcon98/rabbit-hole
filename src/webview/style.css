@@ -507,10 +507,14 @@ body {
 
 /* ── Activity tab ────────────────────────────────────────────────────────── */
 
+.activity-summary {
+  margin-bottom: 12px;
+}
+
 .activity-stats-row {
   display: flex;
   align-items: center;
-  padding: 24px 0 20px;
+  padding: 20px 0;
 }
 
 .activity-stat {
@@ -524,6 +528,29 @@ body {
   height: 40px;
   background: var(--vscode-editorWidget-border);
   flex-shrink: 0;
+}
+
+@media (max-width: 480px) {
+  .activity-stats-row {
+    flex-direction: column;
+    gap: 0;
+    padding: 0;
+  }
+
+  .activity-stat {
+    width: 100%;
+    text-align: left;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--vscode-editorWidget-border);
+  }
+
+  .activity-stat:last-child {
+    border-bottom: none;
+  }
+
+  .activity-stat-sep {
+    display: none;
+  }
 }
 
 .activity-stat-value {

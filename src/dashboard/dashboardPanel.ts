@@ -259,25 +259,27 @@ export class DashboardPanel {
 
       <!-- Activity: heatmap -->
       <div class="tab-panel" id="tab-activity">
-        <div class="activity-stats-row">
-          <div class="activity-stat">
-            <div class="activity-stat-value" id="act-active-days">—</div>
-            <div class="activity-stat-label">Active days</div>
-          </div>
-          <div class="activity-stat-sep"></div>
-          <div class="activity-stat">
-            <div class="activity-stat-value" id="act-total-time">—</div>
-            <div class="activity-stat-label">Total this year</div>
-          </div>
-          <div class="activity-stat-sep"></div>
-          <div class="activity-stat">
-            <div class="activity-stat-value" id="act-longest-streak">—</div>
-            <div class="activity-stat-label">Longest streak</div>
-          </div>
-          <div class="activity-stat-sep"></div>
-          <div class="activity-stat">
-            <div class="activity-stat-value" id="act-best-day">—</div>
-            <div class="activity-stat-label">Most active day</div>
+        <div class="activity-summary section-card">
+          <div class="activity-stats-row">
+            <div class="activity-stat">
+              <div class="activity-stat-value" id="act-active-days">—</div>
+              <div class="activity-stat-label">Active days</div>
+            </div>
+            <div class="activity-stat-sep"></div>
+            <div class="activity-stat">
+              <div class="activity-stat-value" id="act-total-time">—</div>
+              <div class="activity-stat-label">Total this year</div>
+            </div>
+            <div class="activity-stat-sep"></div>
+            <div class="activity-stat">
+              <div class="activity-stat-value" id="act-longest-streak">—</div>
+              <div class="activity-stat-label">Longest streak</div>
+            </div>
+            <div class="activity-stat-sep"></div>
+            <div class="activity-stat">
+              <div class="activity-stat-value" id="act-best-day">—</div>
+              <div class="activity-stat-label">Most active day</div>
+            </div>
           </div>
         </div>
         <div id="heatmap" class="section-card">
