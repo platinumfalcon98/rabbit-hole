@@ -20,6 +20,9 @@ export interface MiniUpdateData {
   streak: number
   linesAdded: number
   linesDeleted: number
+  topLanguage: string
+  sessionCount: number
+  isTracking: boolean
 }
 
 export class MiniPanel implements vscode.WebviewViewProvider {
@@ -67,6 +70,9 @@ export class MiniPanel implements vscode.WebviewViewProvider {
       streak: data.streak,
       linesAdded: data.linesAdded,
       linesDeleted: data.linesDeleted,
+      topLanguage: data.topLanguage,
+      sessionCount: data.sessionCount,
+      isTracking: data.isTracking,
     })
   }
 
@@ -160,6 +166,7 @@ export class MiniPanel implements vscode.WebviewViewProvider {
       cursor: pointer;
     }
     .open-btn:hover { background: var(--vscode-button-hoverBackground); }
+    .tracking { color: #22c55e; }
   </style>
 </head>
 <body>
@@ -180,6 +187,14 @@ export class MiniPanel implements vscode.WebviewViewProvider {
       <span class="del" id="deleted"></span>
     </div>
   </div>
+  <div class="stat">
+    <div class="stat-label">Top Language</div>
+    <div class="stat-value" id="top-lang">—</div>
+  </div>
+  <div class="stat">
+    <div class="stat-label">Sessions</div>
+    <div class="stat-value" id="sessions">—</div>
+  </div>
   <button class="open-btn" id="open-btn">Open Dashboard &#x2197;</button>
   <script nonce="${n}">
     const vscode = acquireVsCodeApi();
@@ -189,10 +204,14 @@ export class MiniPanel implements vscode.WebviewViewProvider {
     window.addEventListener('message', e => {
       const d = e.data;
       if (d.type !== 'update') return;
-      document.getElementById('time').textContent = d.time;
+      const timeEl = document.getElementById('time');
+      timeEl.textContent = d.time;
+      timeEl.className = 'stat-value' + (d.isTracking ? ' tracking' : '');
       document.getElementById('streak').textContent = d.streak;
       document.getElementById('added').textContent = '+' + d.linesAdded;
       document.getElementById('deleted').textContent = '-' + d.linesDeleted;
+      document.getElementById('top-lang').textContent = d.topLanguage || '—';
+      document.getElementById('sessions').textContent = d.sessionCount;
     });
     // Signal ready so the extension can send initial data immediately
     window.addEventListener('DOMContentLoaded', () => {
