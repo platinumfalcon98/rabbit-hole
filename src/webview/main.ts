@@ -21,6 +21,7 @@ let projectTimestamps: Record<string, number> = {}
 let currentPreset = "today"
 let selectedProjectIds: string[] = []   // [] = all, ["<id>"] = single project
 let pendingSelectedId = ""              // draft while panel is open ("" = all)
+let initializedProject = false          // auto-select current project only on first init
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -592,7 +593,13 @@ window.addEventListener("message", (event: MessageEvent) => {
       projects = msg.projects
       currentProjectId = msg.currentProjectId
       projectTimestamps = msg.projectTimestamps
+      if (!initializedProject && currentProjectId && currentProjectId !== "all") {
+        initializedProject = true
+        selectedProjectIds = [currentProjectId]
+        pendingSelectedId = currentProjectId
+      }
       renderProjectDropdown()
+      updateDropdownLabel()
       renderAll()
       break
 

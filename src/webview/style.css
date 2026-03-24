@@ -279,7 +279,8 @@ body {
 #header-logo {
   width: 100%;
   display: flex;
-  justify-content: left;
+  margin-top: -19px;
+  justify-content: center;
   margin-bottom: 19px;
 }
 
