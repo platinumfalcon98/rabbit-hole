@@ -270,7 +270,11 @@ export class DashboardPanel {
           <button class="filter-btn" data-preset="7d">7d</button>
           <button class="filter-btn" data-preset="30d">30d</button>
           <button class="filter-btn" data-preset="1y">1Y</button>
-          <button class="filter-btn" data-preset="custom">Custom</button>
+          <button class="filter-btn" data-preset="date">Date</button>
+          <button class="filter-btn" data-preset="custom">Range</button>
+        </div>
+        <div id="single-date-range" class="hidden">
+          <input type="date" id="single-date">
         </div>
         <div id="custom-range" class="hidden">
           <input type="date" id="custom-start">

@@ -182,14 +182,27 @@ function updateDropdownLabel(): void {
   })
 }
 
+function todayDateStr(): string {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+}
+
 function handlePresetChange(preset: string): void {
   currentPreset = preset
   document.querySelectorAll(".filter-btn").forEach(b =>
     b.classList.toggle("active", (b as HTMLElement).dataset.preset === preset)
   )
-  const customRange = document.getElementById("custom-range")
-  customRange?.classList.toggle("hidden", preset !== "custom")
-  if (preset !== "custom") {
+  document.getElementById("single-date-range")?.classList.toggle("hidden", preset !== "date")
+  document.getElementById("custom-range")?.classList.toggle("hidden", preset !== "custom")
+
+  if (preset === "date") {
+    const input = document.getElementById("single-date") as HTMLInputElement | null
+    if (input) {
+      if (!input.value) input.value = todayDateStr()
+      input.max = todayDateStr()
+      vscode.postMessage({ type: "requestRange", preset: "custom", customStart: input.value, customEnd: input.value })
+    }
+  } else if (preset !== "custom") {
     vscode.postMessage({ type: "requestRange", preset: preset as import("../shared/types").RangePreset })
   }
 }
@@ -230,6 +243,9 @@ function updateRangeLabel(): void {
     label = "Last 30 days"
   } else if (currentPreset === "1y") {
     label = "Last year"
+  } else if (currentPreset === "date") {
+    const date = (document.getElementById("single-date") as HTMLInputElement)?.value
+    if (date) label = dateLabel(date)
   } else if (currentPreset === "custom") {
     const start = (document.getElementById("custom-start") as HTMLInputElement)?.value
     const end = (document.getElementById("custom-end") as HTMLInputElement)?.value
@@ -715,6 +731,13 @@ document.getElementById("filter-bar")?.addEventListener("click", (e: Event) => {
   const btn = (e.target as HTMLElement).closest(".filter-btn") as HTMLElement | null
   if (!btn?.dataset.preset) return
   handlePresetChange(btn.dataset.preset)
+})
+
+// Filter bar — single date picker
+document.getElementById("single-date")?.addEventListener("change", (e: Event) => {
+  const date = (e.target as HTMLInputElement).value
+  if (date) vscode.postMessage({ type: "requestRange", preset: "custom", customStart: date, customEnd: date })
+  updateRangeLabel()
 })
 
 // Filter bar — custom date range

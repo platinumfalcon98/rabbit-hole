@@ -426,6 +426,7 @@ body {
   opacity: 1;
 }
 
+#single-date-range,
 #custom-range {
   display: flex;
   align-items: center;
@@ -437,6 +438,7 @@ body {
   font-size: 0.85em;
 }
 
+#single-date-range input[type="date"],
 #custom-range input[type="date"] {
   background: var(--vscode-input-background);
   color: var(--vscode-input-foreground);
