@@ -253,9 +253,9 @@ function updateStatCards(logs: DailyLog[]): void {
     if (timeEl) timeEl.textContent = formatDuration(totalTime)
     if (addedEl) addedEl.textContent = String(totalAdded)
     if (deletedEl) deletedEl.textContent = String(totalDeleted)
-    if (timeAvgEl) { timeAvgEl.textContent = `avg ${formatDuration(Math.round(totalTime / activeDays))}/day`; timeAvgEl.classList.remove("hidden") }
-    if (addedAvgEl) { addedAvgEl.textContent = `avg ${Math.round(totalAdded / activeDays)}/day`; addedAvgEl.classList.remove("hidden") }
-    if (deletedAvgEl) { deletedAvgEl.textContent = `avg ${Math.round(totalDeleted / activeDays)}/day`; deletedAvgEl.classList.remove("hidden") }
+    if (timeAvgEl) { timeAvgEl.textContent = `average ${formatDuration(Math.round(totalTime / activeDays))}/day`; timeAvgEl.classList.remove("hidden") }
+    if (addedAvgEl) { addedAvgEl.textContent = `average ${Math.round(totalAdded / activeDays)}/day`; addedAvgEl.classList.remove("hidden") }
+    if (deletedAvgEl) { deletedAvgEl.textContent = `average ${Math.round(totalDeleted / activeDays)}/day`; deletedAvgEl.classList.remove("hidden") }
   } else {
     if (timeEl) timeEl.textContent = formatDuration(totalTime)
     if (addedEl) addedEl.textContent = String(totalAdded)
@@ -270,6 +270,7 @@ function updateStatCards(logs: DailyLog[]): void {
   const todayEarned = lastLog.streak > 0
   const pill = document.getElementById("streak-pill")
   pill?.classList.toggle("streak-at-risk", !todayEarned && dailyTargetMs > 0)
+  document.getElementById("streak-extended")?.classList.toggle("hidden", !todayEarned)
 
   if (streakTargetEl) {
     if (dailyTargetMs > 0) {
