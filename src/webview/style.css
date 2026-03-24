@@ -19,6 +19,13 @@
   font-style: normal;
 }
 
+@font-face {
+  font-family: 'Unica One';
+  src: url('./fonts/UnicaOne-Regular.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+}
+
 * { box-sizing: border-box; }
 
 body {
@@ -264,9 +271,16 @@ body {
   align-items: center;
   gap: 10px;
   margin-bottom: 0;
-  padding: 48px 0 20px;
+  padding: 24px 0 20px;
   flex-wrap: wrap;
   flex-shrink: 0;
+}
+
+#header-logo {
+  width: 100%;
+  display: flex;
+  justify-content: left;
+  margin-bottom: 19px;
 }
 
 .sidebar-header {
@@ -530,6 +544,9 @@ body {
 
 .stat-item:last-child { border-right: none; }
 
+.stat-item.accent-add .stat-value { color: rgba(46, 204, 113, 0.9); }
+.stat-item.accent-del .stat-value { color: rgba(231, 76, 60, 0.9); }
+
 .stat-label {
   font-family: 'Electrolize', sans-serif;
   font-size: 0.75em;
@@ -541,7 +558,7 @@ body {
 }
 
 .stat-value {
-  font-family: 'VT323', monospace;
+  font-family: 'Unica One', sans-serif;
   font-size: 1.9em;
   font-weight: 700;
   letter-spacing: -0.02em;
@@ -622,7 +639,7 @@ body {
 }
 
 .activity-stat-value {
-  font-family: 'VT323', monospace;
+  font-family: 'Unica One', sans-serif;
   font-size: 1.9em;
   font-weight: 700;
   letter-spacing: -0.02em;

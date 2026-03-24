@@ -86,12 +86,29 @@ export function handleMessage(
       const logs = currentProjectIds[0] === "all"
         ? storage.getAggregateRange(msg.days)
         : storage.getRange(msg.days, currentProjectIds[0] || undefined)
-      panel.postMessage({ type: "pdfData", logs })
+
+      const projects = storage.getProjects()
+      const pid = currentProjectIds[0] === "all" ? "all"
+        : currentProjectIds[0] ?? storage.getCurrentProjectId()
+      const projectName = pid === "all" ? "All Projects"
+        : projects.find(p => p.id === pid)?.name ?? "Rabbit Hole"
+
+      const today = todayStr()
+      const fromDate = new Date()
+      fromDate.setDate(fromDate.getDate() - (msg.days - 1))
+      const from = fromDate.toLocaleDateString(undefined, { month: "numeric", day: "numeric", year: "numeric" })
+      const to   = new Date().toLocaleDateString(undefined, { month: "numeric", day: "numeric", year: "numeric" })
+
+      panel.postMessage({ type: "pdfData", logs, projectName, dateRange: { from, to } })
       break
     }
 
     case "writePdf":
-      writePdfExport(msg.base64)
+      writePdfExport(msg.base64, msg.projectName)
+      break
+
+    case "writeJpg":
+      writeJpgExport(msg.base64, msg.projectName)
       break
 
     case "updateSetting": {
@@ -174,17 +191,39 @@ function sendInit(storage: StorageService, panel: DashboardPanel): void {
   })
 }
 
-async function writePdfExport(base64: string): Promise<void> {
+function exportFilename(projectName: string, ext: string): string {
+  const slug = projectName.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "")
+  const date = todayStr().replace(/-/g, "")
+  return `rabbit_hole_${slug}_${date}.${ext}`
+}
+
+async function writePdfExport(base64: string, projectName: string): Promise<void> {
+  const filename = exportFilename(projectName, "pdf")
   const defaultUri = vscode.workspace.workspaceFolders?.[0]?.uri
-    ? vscode.Uri.joinPath(
-        vscode.workspace.workspaceFolders[0].uri,
-        "rabbit-hole-card.pdf"
-      )
+    ? vscode.Uri.joinPath(vscode.workspace.workspaceFolders[0].uri, filename)
     : undefined
 
   const uri = await vscode.window.showSaveDialog({
     defaultUri,
     filters: { "PDF Files": ["pdf"] },
+  })
+
+  if (!uri) return
+
+  const bytes = Buffer.from(base64, "base64")
+  await vscode.workspace.fs.writeFile(uri, bytes)
+  vscode.window.showInformationMessage(`Rabbit Hole: Card exported to ${uri.fsPath}`)
+}
+
+async function writeJpgExport(base64: string, projectName: string): Promise<void> {
+  const filename = exportFilename(projectName, "jpg")
+  const defaultUri = vscode.workspace.workspaceFolders?.[0]?.uri
+    ? vscode.Uri.joinPath(vscode.workspace.workspaceFolders[0].uri, filename)
+    : undefined
+
+  const uri = await vscode.window.showSaveDialog({
+    defaultUri,
+    filters: { "JPEG Images": ["jpg", "jpeg"] },
   })
 
   if (!uri) return

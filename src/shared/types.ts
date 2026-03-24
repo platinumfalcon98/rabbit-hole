@@ -65,7 +65,7 @@ export type ExtensionMessage =
   | { type: "init"; data: DailyLog[]; heatmapData: DailyLog[]; projects: ProjectMeta[]; currentProjectId: string; projectTimestamps: Record<string, number> }
   | { type: "update"; data: DailyLog; projectId: string }
   | { type: "settings"; agentsEnabled: boolean; dailyTargetMs: number; dailyTargetMinutes: number; idleThresholdMinutes: number; sessionExpiryMinutes: number; agentToggles: Record<string, boolean> }
-  | { type: "pdfData"; logs: DailyLog[] }
+  | { type: "pdfData"; logs: DailyLog[]; projectName: string; dateRange: { from: string; to: string } }
 
 export type RangePreset = "today" | "7d" | "30d" | "1y" | "custom"
 
@@ -74,6 +74,7 @@ export type WebviewMessage =
   | { type: "requestRange"; preset: RangePreset; customStart?: string; customEnd?: string }
   | { type: "selectProjects"; projectIds: string[] }
   | { type: "export"; format: "csv" | "json" }
-  | { type: "exportPdfRequest"; days: 7 | 30 | 90 }
-  | { type: "writePdf"; base64: string }
+  | { type: "exportPdfRequest"; days: 7 | 30 | 90; format: "pdf" | "jpg" }
+  | { type: "writePdf"; base64: string; projectName: string }
+  | { type: "writeJpg"; base64: string; projectName: string }
   | { type: "updateSetting"; key: string; value: number | boolean | null | Record<string, boolean> }

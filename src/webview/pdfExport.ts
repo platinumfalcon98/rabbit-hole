@@ -10,7 +10,11 @@ export interface PdfOptions {
   aiEvents: boolean
   heatmap: boolean
   days: 7 | 30 | 90
+  projectName: string
+  dateRange: { from: string; to: string }
 }
+
+export { computeStats }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -107,12 +111,12 @@ function renderStatGrid(
     setFill(doc, colors.surface)
     doc.roundedRect(x, y, colW, cellH, 6, 6, "F")
 
-    doc.setFont("helvetica", "bold")
+    doc.setFont("courier", "bold")
     doc.setFontSize(20)
     setText(doc, item.color)
     doc.text(item.value, x + 12, y + 26)
 
-    doc.setFont("helvetica", "normal")
+    doc.setFont("helvetica", "bold")
     doc.setFontSize(8)
     setText(doc, colors.muted)
     doc.text(item.label, x + 12, y + 44)
@@ -195,7 +199,7 @@ export function generatePdf(logs: DailyLog[], options: PdfOptions): ArrayBuffer 
   doc.text("RABBIT HOLE", W / 2, 34, { align: "center" })
 
   // Subtitle
-  const rangeLabel = `LAST ${options.days} DAYS`
+  const rangeLabel = `ACTIVITY FROM ${options.dateRange.from} TO ${options.dateRange.to}`
   doc.setFont("helvetica", "normal")
   doc.setFontSize(8)
   setText(doc, MUTED)
@@ -216,7 +220,7 @@ export function generatePdf(logs: DailyLog[], options: PdfOptions): ArrayBuffer 
 
   // Hero block — streak gets the big treatment if it's first
   if (options.streak && allItems.length > 0 && allItems[0].label === "DAY STREAK") {
-    doc.setFont("helvetica", "bold")
+    doc.setFont("courier", "bold")
     doc.setFontSize(80)
     setText(doc, ACCENT)
     doc.text(String(stats.streak), W / 2, yPos + 68, { align: "center" })

@@ -72,12 +72,30 @@ export class MiniPanel implements vscode.WebviewViewProvider {
 
   private getHtml(webview: vscode.Webview): string {
     const n = nonce()
+    const fontBase = webview.asWebviewUri(
+      vscode.Uri.joinPath(this.extensionUri, "out", "webview", "fonts")
+    )
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${n}';">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; font-src ${webview.cspSource}; script-src 'nonce-${n}';">
   <style>
+    @font-face {
+      font-family: 'Press Start 2P';
+      src: url('${fontBase}/PressStart2P.woff2') format('woff2');
+      font-weight: normal; font-style: normal;
+    }
+    @font-face {
+      font-family: 'Electrolize';
+      src: url('${fontBase}/Electrolize-Regular.ttf') format('truetype');
+      font-weight: normal; font-style: normal;
+    }
+    @font-face {
+      font-family: 'Unica One';
+      src: url('${fontBase}/UnicaOne-Regular.woff2') format('woff2');
+      font-weight: normal; font-style: normal;
+    }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       background: var(--vscode-sideBar-background);
@@ -93,12 +111,16 @@ export class MiniPanel implements vscode.WebviewViewProvider {
       margin-bottom: 14px;
     }
     .streak-number {
+      font-family: 'Press Start 2P', monospace;
       font-size: 2em;
       font-weight: 700;
       line-height: 1;
     }
     .streak-label {
+      font-family: 'Electrolize', sans-serif;
       font-size: 0.8em;
+      font-weight: 700;
+      text-transform: uppercase;
       color: var(--vscode-descriptionForeground);
     }
     .divider {
@@ -110,13 +132,16 @@ export class MiniPanel implements vscode.WebviewViewProvider {
       margin-bottom: 10px;
     }
     .stat-label {
+      font-family: 'Electrolize', sans-serif;
       font-size: 0.75em;
+      font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.05em;
       color: var(--vscode-descriptionForeground);
       margin-bottom: 2px;
     }
     .stat-value {
+      font-family: 'Unica One', sans-serif;
       font-size: 1.15em;
       font-weight: 600;
     }

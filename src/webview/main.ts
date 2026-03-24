@@ -2,6 +2,7 @@ import { DailyLog, ExtensionMessage, ProjectMeta } from "../shared/types"
 import * as heatmap from "./heatmap"
 import * as charts from "./charts"
 import { generatePdf, PdfOptions } from "./pdfExport"
+import { generateJpg } from "./jpgExport"
 
 declare function acquireVsCodeApi(): {
   postMessage(msg: unknown): void
@@ -633,13 +634,23 @@ window.addEventListener("message", (event: MessageEvent) => {
         aiEvents:     false,
         heatmap:      (document.getElementById("pdf-heatmap")      as HTMLInputElement).checked,
         days: pdfRangeDays,
+        projectName:  msg.projectName,
+        dateRange:    msg.dateRange,
       }
-      const buffer = generatePdf(msg.logs, options)
-      const bytes = new Uint8Array(buffer)
-      let binary = ""
-      for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i])
-      vscode.postMessage({ type: "writePdf", base64: btoa(binary) })
-      closePdfModal()
+      if (exportFormat === "jpg") {
+        generateJpg(msg.logs, options).then(dataUrl => {
+          const base64 = dataUrl.split(",")[1]
+          vscode.postMessage({ type: "writeJpg", base64, projectName: msg.projectName })
+          closePdfModal()
+        })
+      } else {
+        const buffer = generatePdf(msg.logs, options)
+        const bytes = new Uint8Array(buffer)
+        let binary = ""
+        for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i])
+        vscode.postMessage({ type: "writePdf", base64: btoa(binary), projectName: msg.projectName })
+        closePdfModal()
+      }
       break
     }
   }
@@ -755,11 +766,12 @@ document.getElementById("pref-session-expiry")?.addEventListener("change", (e: E
 // ── PDF export modal ────────────────────────────────────────────────────────
 
 let pdfRangeDays: 7 | 30 | 90 = 30
+let exportFormat: "pdf" | "jpg" = "pdf"
 
 function closePdfModal(): void {
   document.getElementById("pdf-modal-overlay")?.classList.add("hidden")
   const btn = document.getElementById("pdf-generate") as HTMLButtonElement | null
-  if (btn) { btn.disabled = false; btn.textContent = "Generate PDF" }
+  if (btn) { btn.disabled = false; btn.textContent = exportFormat === "jpg" ? "Generate JPG" : "Generate PDF" }
 }
 
 document.getElementById("export-pdf-btn")?.addEventListener("click", () => {
@@ -770,6 +782,17 @@ document.getElementById("pdf-cancel")?.addEventListener("click", closePdfModal)
 
 document.getElementById("pdf-modal-overlay")?.addEventListener("click", (e: Event) => {
   if (e.target === document.getElementById("pdf-modal-overlay")) closePdfModal()
+})
+
+document.getElementById("pdf-format")?.addEventListener("click", (e: Event) => {
+  const btn = (e.target as HTMLElement).closest(".toggle-btn") as HTMLElement | null
+  if (!btn?.dataset.val) return
+  exportFormat = btn.dataset.val as "pdf" | "jpg"
+  document.querySelectorAll("#pdf-format .toggle-btn").forEach(b => {
+    b.classList.toggle("active", (b as HTMLElement).dataset.val === btn.dataset.val)
+  })
+  const genBtn = document.getElementById("pdf-generate") as HTMLButtonElement | null
+  if (genBtn) genBtn.textContent = exportFormat === "jpg" ? "Generate JPG" : "Generate PDF"
 })
 
 document.getElementById("pdf-range")?.addEventListener("click", (e: Event) => {
@@ -785,5 +808,5 @@ document.getElementById("pdf-generate")?.addEventListener("click", () => {
   const btn = document.getElementById("pdf-generate") as HTMLButtonElement
   btn.disabled = true
   btn.textContent = "Generating…"
-  vscode.postMessage({ type: "exportPdfRequest", days: pdfRangeDays })
+  vscode.postMessage({ type: "exportPdfRequest", days: pdfRangeDays, format: exportFormat })
 })

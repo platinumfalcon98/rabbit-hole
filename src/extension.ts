@@ -59,8 +59,9 @@ export function activate(context: vscode.ExtensionContext): void {
       .get<number>("dailyTargetMinutes") ?? 0
     const activeText = formatDuration(global.activeTime)
     statusBar.text = targetMins > 0
-      ? `$(clock) ${activeText} / ${formatDuration(targetMins * 60_000)}`
-      : `$(clock) ${activeText}`
+      ? `🥕 ${activeText} / ${formatDuration(targetMins * 60_000)}`
+      : `🥕 ${activeText}`
+    statusBar.color = tracker.isActivelyTracking ? "#22c55e" : undefined
   }
 
   const refreshMiniPanel = () => {
