@@ -9,7 +9,6 @@ export interface PdfOptions {
   topLanguage: boolean
   aiEvents: boolean
   heatmap: boolean
-  days: 7 | 30 | 90
   projectName: string
   dateRange: { from: string; to: string }
 }

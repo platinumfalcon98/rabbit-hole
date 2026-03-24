@@ -83,9 +83,11 @@ export function handleMessage(
     }
 
     case "exportPdfRequest": {
+      const { start, end } = presetToDates(msg.preset, msg.customStart, msg.customEnd)
+
       const logs = currentProjectIds[0] === "all"
-        ? storage.getAggregateRange(msg.days)
-        : storage.getRange(msg.days, currentProjectIds[0] || undefined)
+        ? storage.getAggregateRangeByDates(start, end)
+        : storage.getRangeByDates(start, end, currentProjectIds[0] || undefined)
 
       const projects = storage.getProjects()
       const pid = currentProjectIds[0] === "all" ? "all"
@@ -93,11 +95,8 @@ export function handleMessage(
       const projectName = pid === "all" ? "All Projects"
         : projects.find(p => p.id === pid)?.name ?? "Rabbit Hole"
 
-      const today = todayStr()
-      const fromDate = new Date()
-      fromDate.setDate(fromDate.getDate() - (msg.days - 1))
-      const from = fromDate.toLocaleDateString(undefined, { month: "numeric", day: "numeric", year: "numeric" })
-      const to   = new Date().toLocaleDateString(undefined, { month: "numeric", day: "numeric", year: "numeric" })
+      const from = new Date(start + "T00:00:00").toLocaleDateString(undefined, { month: "numeric", day: "numeric", year: "numeric" })
+      const to   = new Date(end   + "T00:00:00").toLocaleDateString(undefined, { month: "numeric", day: "numeric", year: "numeric" })
 
       panel.postMessage({ type: "pdfData", logs, projectName, dateRange: { from, to } })
       break

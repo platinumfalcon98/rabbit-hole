@@ -1246,6 +1246,53 @@ body {
   box-shadow: 0 0 0 1px rgba(249, 115, 22, 0.35);
 }
 
+.export-custom-range {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.export-custom-range.hidden {
+  display: none;
+}
+
+.modal-date-input {
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  border: 1px solid var(--vscode-input-border, var(--vscode-dropdown-border));
+  border-radius: 5px;
+  padding: 4px 8px;
+  font-family: var(--vscode-font-family);
+  font-size: 0.83em;
+  flex: 1;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.modal-date-input:focus {
+  outline: none;
+  border-color: #f97316;
+  box-shadow: 0 0 0 1px rgba(249, 115, 22, 0.35);
+}
+
+.export-range-sep {
+  color: var(--vscode-descriptionForeground);
+  font-size: 0.85em;
+  flex-shrink: 0;
+}
+
+.export-range-error {
+  font-size: 0.75em;
+  color: #ef4444;
+  width: 100%;
+}
+
+.export-range-error.hidden {
+  display: none;
+}
+
 .modal-actions {
   display: flex;
   gap: 8px;

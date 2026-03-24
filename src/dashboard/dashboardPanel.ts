@@ -366,49 +366,44 @@ export class DashboardPanel {
       <!-- Export modal -->
       <div id="pdf-modal-overlay" class="modal-overlay hidden">
         <div class="modal">
-          <h2 class="modal-title">Export</h2>
+          <h2 class="modal-title">Export JPG</h2>
 
           <div class="modal-section">
-            <div class="modal-label">Format</div>
-            <div class="toggle-group" id="pdf-format">
-              <button class="toggle-btn active" data-val="pdf">PDF</button>
-              <button class="toggle-btn" data-val="jpg">JPG</button>
-              <button class="toggle-btn" data-val="csv">CSV</button>
-              <button class="toggle-btn" data-val="json">JSON</button>
-            </div>
-          </div>
-
-          <div class="modal-section" id="export-name-section">
             <div class="modal-label">Display Name</div>
             <input type="text" id="export-display-name" class="modal-name-input" placeholder="Project name">
           </div>
 
-          <div id="export-card-options">
-            <div class="modal-section">
-              <div class="modal-label">Date Range</div>
-              <div class="toggle-group" id="pdf-range">
-                <button class="toggle-btn" data-val="7">7 days</button>
-                <button class="toggle-btn active" data-val="30">30 days</button>
-                <button class="toggle-btn" data-val="90">90 days</button>
-              </div>
+          <div class="modal-section">
+            <div class="modal-label">Date Range</div>
+            <div class="toggle-group" id="pdf-range">
+              <button class="toggle-btn active" data-val="today">Today</button>
+              <button class="toggle-btn" data-val="7d">Past Week</button>
+              <button class="toggle-btn" data-val="30d">30 days</button>
+              <button class="toggle-btn" data-val="custom">Custom</button>
             </div>
+            <div id="export-custom-range" class="export-custom-range hidden">
+              <input type="date" id="export-custom-start" class="modal-date-input">
+              <span class="export-range-sep">—</span>
+              <input type="date" id="export-custom-end" class="modal-date-input">
+              <span id="export-range-error" class="export-range-error hidden">Max 90 days</span>
+            </div>
+          </div>
 
-            <div class="modal-section">
-              <div class="modal-label">Include</div>
-              <div class="modal-checks">
-                <label class="modal-check"><input type="checkbox" id="pdf-streak" checked> Streak</label>
-                <label class="modal-check"><input type="checkbox" id="pdf-active-time" checked> Active Time</label>
-                <label class="modal-check"><input type="checkbox" id="pdf-lines-added" checked> Lines Added</label>
-                <label class="modal-check"><input type="checkbox" id="pdf-lines-deleted" checked> Lines Deleted</label>
-                <label class="modal-check"><input type="checkbox" id="pdf-top-lang" checked> Top Language</label>
-                <label class="modal-check"><input type="checkbox" id="pdf-heatmap" checked> Activity Heatmap</label>
-              </div>
+          <div class="modal-section">
+            <div class="modal-label">Include</div>
+            <div class="modal-checks">
+              <label class="modal-check" id="pdf-streak-row"><input type="checkbox" id="pdf-streak" checked> Streak</label>
+              <label class="modal-check"><input type="checkbox" id="pdf-active-time" checked> Active Time</label>
+              <label class="modal-check"><input type="checkbox" id="pdf-lines-added" checked> Lines Added</label>
+              <label class="modal-check"><input type="checkbox" id="pdf-lines-deleted" checked> Lines Deleted</label>
+              <label class="modal-check"><input type="checkbox" id="pdf-top-lang" checked> Top Language</label>
+              <label class="modal-check"><input type="checkbox" id="pdf-heatmap" checked> Activity Heatmap</label>
             </div>
           </div>
 
           <div class="modal-actions">
             <button id="pdf-cancel" class="modal-btn-secondary">Cancel</button>
-            <button id="pdf-generate" class="modal-btn-primary">Generate PDF</button>
+            <button id="pdf-generate" class="modal-btn-primary">Export JPG</button>
           </div>
         </div>
       </div>
