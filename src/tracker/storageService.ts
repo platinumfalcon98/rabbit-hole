@@ -338,7 +338,7 @@ export class StorageService {
       : globalYesterday.activeTime > 0
     const chainSoFar = yesterdayMet ? (globalYesterday.streak || 0) : 0
 
-    const newStreak = todayMet ? chainSoFar + 1 : 0
+    const newStreak = todayMet ? chainSoFar + 1 : chainSoFar
     if (globalToday.streak !== newStreak) {
       globalToday.streak = newStreak
       this.saveGlobalDay(globalToday)

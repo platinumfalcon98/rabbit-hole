@@ -40,6 +40,10 @@ export class ActivityTracker {
     private storage: StorageService
   ) {}
 
+  get isActivelyTracking(): boolean {
+    return this.currentSession !== null && !this.isPaused
+  }
+
   start(): void {
     this.initProjects()
     this.storage.closeStaleSessions()

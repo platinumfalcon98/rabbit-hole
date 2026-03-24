@@ -1,3 +1,60 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-  <path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm0 1.5a8.5 8.5 0 100 17 8.5 8.5 0 000-17zM11.25 7a.75.75 0 011.5 0v5.44l3.28 3.28a.75.75 0 01-1.06 1.06l-3.5-3.5a.75.75 0 01-.22-.53V7z"/>
+<svg width="48" height="34" viewBox="0 0 48 34" fill="none" xmlns="http://www.w3.org/2000/svg">
+<rect y="27.2" width="3.42855" height="3.4" fill="currentColor"/>
+<rect x="30.8574" y="10.2" width="3.42855" height="3.4" fill="currentColor"/>
+<rect x="27.4282" y="10.2" width="3.42855" height="3.4" fill="currentColor"/>
+<rect x="34.2856" y="17" width="3.42855" height="3.4" fill="currentColor"/>
+<rect x="34.2856" y="13.6" width="3.42855" height="3.4" fill="currentColor"/>
+<rect x="23.9995" y="10.2" width="3.42855" height="3.4" fill="currentColor"/>
+<rect x="20.5713" y="10.2" width="3.42855" height="3.4" fill="currentColor"/>
+<path d="M13.7144 13.6H20.5715V17H13.7144V13.6Z" fill="currentColor"/>
+<rect x="13.7144" y="17" width="3.42855" height="3.4" fill="currentColor"/>
+<rect x="10.2856" y="20.4" width="3.42855" height="3.4" fill="currentColor"/>
+<rect x="6.85742" y="23.8" width="3.42855" height="3.4" fill="currentColor"/>
+<rect x="3.42822" y="27.2" width="3.42855" height="3.4" fill="currentColor"/>
+<rect x="30.8574" y="20.4" width="3.42855" height="3.4" fill="currentColor"/>
+<rect x="27.4282" y="23.8" width="3.42855" height="3.4" fill="currentColor"/>
+<path d="M23.9995 27.2H30.8566V30.6H23.9995V27.2Z" fill="currentColor"/>
+<rect x="20.5713" y="27.2" width="3.42855" height="3.4" fill="currentColor"/>
+<rect x="13.7144" y="27.2" width="3.42855" height="3.4" fill="currentColor"/>
+<rect x="6.85742" y="27.2" width="3.42855" height="3.4" fill="currentColor"/>
+<rect x="10.2856" y="27.2" width="3.42855" height="3.4" fill="currentColor"/>
+<rect x="17.1426" y="27.2" width="3.42855" height="3.4" fill="currentColor"/>
+<rect x="10.2856" y="23.8" width="3.42855" height="3.4" fill="currentColor"/>
+<rect x="13.7144" y="23.8" width="3.42855" height="3.4" fill="currentColor"/>
+<rect x="17.1426" y="20.4" width="3.42855" height="3.4" fill="currentColor"/>
+<rect x="13.7144" y="20.4" width="3.42855" height="3.4" fill="currentColor"/>
+<rect x="17.1426" y="23.8" width="3.42855" height="3.4" fill="currentColor"/>
+<rect x="20.5713" y="23.8" width="3.42855" height="3.4" fill="currentColor"/>
+<rect x="17.1426" y="17" width="3.42855" height="3.4" fill="currentColor"/>
+<rect x="20.5713" y="17" width="3.42855" height="3.4" fill="currentColor"/>
+<rect x="20.5713" y="13.6" width="3.42855" height="3.4" fill="currentColor"/>
+<rect x="23.9995" y="17" width="3.42855" height="3.4" fill="currentColor"/>
+<rect x="23.9995" y="20.4" width="3.42855" height="3.4" fill="currentColor"/>
+<rect x="23.9995" y="23.8" width="3.42855" height="3.4" fill="currentColor"/>
+<rect x="20.5713" y="20.4" width="3.42855" height="3.4" fill="currentColor"/>
+<rect x="27.4282" y="20.4" width="3.42855" height="3.4" fill="currentColor"/>
+<rect x="27.4282" y="17" width="3.42855" height="3.4" fill="currentColor"/>
+<rect x="30.8574" y="17" width="3.42855" height="3.4" fill="currentColor"/>
+<rect x="30.8574" y="13.6" width="3.42855" height="3.4" fill="currentColor"/>
+<rect x="27.4282" y="13.6" width="3.42855" height="3.4" fill="currentColor"/>
+<rect x="23.9995" y="13.6" width="3.42855" height="3.4" fill="currentColor"/>
+<rect x="41.1426" y="3.40002" width="3.42855" height="3.4" fill="currentColor"/>
+<rect x="37.7144" y="6.79999" width="3.42855" height="3.4" fill="currentColor"/>
+<rect x="34.2856" y="10.2" width="3.42855" height="3.4" fill="currentColor"/>
+<rect x="37.7144" y="13.6" width="3.42855" height="3.4" fill="currentColor"/>
+<rect x="41.1426" y="13.6" width="3.42855" height="3.4" fill="currentColor"/>
+<rect x="44.5713" y="13.6" width="3.42855" height="3.4" fill="currentColor"/>
+<rect x="30.8574" y="6.79999" width="3.42855" height="3.4" fill="currentColor"/>
+<rect x="30.8574" y="3.40002" width="3.42855" height="3.4" fill="currentColor"/>
+<rect x="30.8574" width="3.42855" height="3.4" fill="currentColor"/>
+<rect x="17.1426" y="10.2" width="3.42855" height="3.4" fill="currentColor"/>
+<path d="M20.5713 6.79999H30.857V10.2H20.5713V6.79999Z" fill="currentColor"/>
+<rect x="10.2856" y="17" width="3.42855" height="3.4" fill="currentColor"/>
+<rect x="6.85742" y="20.4" width="3.42855" height="3.4" fill="currentColor"/>
+<rect x="3.42822" y="23.8" width="3.42855" height="3.4" fill="currentColor"/>
+<path d="M0 30.6H27.4284V34H0V30.6Z" fill="currentColor"/>
+<rect x="30.8574" y="23.8" width="3.42855" height="3.4" fill="currentColor"/>
+<rect x="34.2856" y="20.4" width="3.42855" height="3.4" fill="currentColor"/>
+<path d="M34.2856 13.6H37.7142V20.4H34.2856V13.6Z" fill="currentColor"/>
+<rect x="30.8574" y="10.2" width="3.42855" height="3.4" fill="currentColor"/>
 </svg>
