@@ -1,6 +1,10 @@
 src/
 node_modules/
 .vscode/
+scripts/
+CLAUDE.md
+.gitignore
+tsconfig.json
 **/*.ts
 **/*.map
 **/*.js.map

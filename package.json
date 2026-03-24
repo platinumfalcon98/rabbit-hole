@@ -4,6 +4,11 @@
   "description": "Dev time intelligence — automatic tracking, AI agent attribution, activity dashboard",
   "version": "0.1.0",
   "publisher": "rabbit-hole",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/platinumfalcon98/rabbit-hole.git"
+  },
   "engines": {
     "vscode": "^1.85.0"
   },
