@@ -21,6 +21,8 @@ export interface ProjectMeta {
   name: string
   path: string
   detectionMethod: "git-remote" | "folder-hash" | "user-defined"
+  dailyTargetMinutes?: number   // per-project streak target; unset = any activity counts
+  streak?: number               // current streak for this project (updated every 10s)
 }
 
 export type AgentName =
@@ -52,7 +54,7 @@ export interface DailyLog {
   date: string                              // "YYYY-MM-DD"
   totalTime: number                         // ms including idle
   activeTime: number                        // ms excluding idle
-  streak: number                            // consecutive coding days (global)
+  streak: number                            // global streak on aggregate logs; per-project streak on project logs
   languages: Record<string, LanguageStat>
   agents: Record<AgentName, AgentEvent[]>
   files: FileActivity[]
@@ -78,3 +80,4 @@ export type WebviewMessage =
   | { type: "writePdf"; base64: string; projectName: string }
   | { type: "writeJpg"; base64: string; projectName: string }
   | { type: "updateSetting"; key: string; value: number | boolean | null | Record<string, boolean> }
+  | { type: "updateProjectSetting"; projectId: string; key: "dailyTargetMinutes"; value: number | null }

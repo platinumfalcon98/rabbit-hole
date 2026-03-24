@@ -360,6 +360,12 @@ body {
   text-transform: uppercase;
 }
 
+.streak-scope {
+  color: var(--vscode-descriptionForeground);
+  font-size: 0.8em;
+  font-weight: 500;
+}
+
 .streak-extended {
   color: #22c55e;
   font-weight: 700;
@@ -1018,6 +1024,54 @@ body {
 
 .pstat-val.add { color: rgba(46, 204, 113, 0.9); }
 .pstat-val.del { color: rgba(231, 76, 60, 0.9); }
+
+.project-card-target {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--vscode-editorWidget-border);
+}
+
+.project-target-label {
+  font-family: 'VT323', monospace;
+  font-size: 0.72em;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--vscode-descriptionForeground);
+  white-space: nowrap;
+}
+
+.project-target-unit {
+  font-family: 'VT323', monospace;
+  font-size: 0.72em;
+  color: var(--vscode-descriptionForeground);
+}
+
+.project-target-input {
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  border: 1px solid var(--vscode-input-border, var(--vscode-dropdown-border));
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-family: var(--vscode-font-family);
+  font-size: 0.82em;
+  width: 54px;
+  text-align: right;
+  -moz-appearance: textfield;
+}
+
+.project-target-input::-webkit-inner-spin-button,
+.project-target-input::-webkit-outer-spin-button {
+  opacity: 0.5;
+}
+
+.project-target-input:focus {
+  outline: none;
+  border-color: #f97316;
+  box-shadow: 0 0 0 1px rgba(249, 115, 22, 0.35);
+}
 
 /* ── Settings tab ────────────────────────────────────────────────────────── */
 

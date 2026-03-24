@@ -80,9 +80,14 @@ export class StorageService {
     const projects = this.getProjects()
     const idx = projects.findIndex(p => p.id === meta.id)
     if (idx >= 0) {
-      projects[idx] = meta
+      // Preserve persisted fields that detectProject won't supply
+      projects[idx] = {
+        ...meta,
+        streak: projects[idx].streak ?? 0,
+        dailyTargetMinutes: projects[idx].dailyTargetMinutes,
+      }
     } else {
-      projects.push(meta)
+      projects.push({ ...meta, streak: 0 })
     }
     this.context.globalState.update(PROJECTS_KEY, projects)
   }
@@ -92,9 +97,8 @@ export class StorageService {
   }
 
   getToday(): DailyLog {
-    const log = this.getLog(this.currentProjectId, todayKey())
-    log.streak = this.getGlobalDay(todayKey()).streak
-    return log
+    // streak field in the returned log is the per-project streak (written by updateProjectStreak)
+    return this.getLog(this.currentProjectId, todayKey())
   }
 
   getGlobalToday(): { activeTime: number; streak: number } {
@@ -108,11 +112,7 @@ export class StorageService {
     for (let i = days - 1; i >= 0; i--) {
       const d = new Date()
       d.setDate(d.getDate() - i)
-      const date = dateKey(d)
-      const log = this.getLog(pid, date)
-      // Always use global streak
-      log.streak = this.getGlobalDay(date).streak
-      logs.push(log)
+      logs.push(this.getLog(pid, dateKey(d)))
     }
     return logs
   }
@@ -174,11 +174,8 @@ export class StorageService {
 
   getRangeByDates(startDate: string, endDate: string, projectId?: string): DailyLog[] {
     const pid = projectId ?? this.currentProjectId
-    return this.iterDateRange(startDate, endDate).map(date => {
-      const log = this.getLog(pid, date)
-      log.streak = this.getGlobalDay(date).streak
-      return log
-    })
+    // streak in each log is the per-project streak stored by updateProjectStreak
+    return this.iterDateRange(startDate, endDate).map(date => this.getLog(pid, date))
   }
 
   getAggregateRangeByDates(startDate: string, endDate: string): DailyLog[] {
@@ -343,6 +340,56 @@ export class StorageService {
       globalToday.streak = newStreak
       this.saveGlobalDay(globalToday)
     }
+  }
+
+  updateProjectStreak(projectId: string): void {
+    if (!projectId) return
+    const projects = this.getProjects()
+    const project = projects.find(p => p.id === projectId)
+    if (!project) return
+
+    const targetMs = (project.dailyTargetMinutes !== undefined)
+      ? project.dailyTargetMinutes * 60_000
+      : 0   // 0 = any activity counts
+
+    const todayLog = this.getLog(projectId, todayKey())
+    const todayMet = targetMs > 0
+      ? todayLog.activeTime >= targetMs
+      : todayLog.activeTime > 0
+
+    const yd = new Date()
+    yd.setDate(yd.getDate() - 1)
+    const ydLog = this.getLog(projectId, dateKey(yd))
+    const yesterdayMet = targetMs > 0
+      ? ydLog.activeTime >= targetMs
+      : ydLog.activeTime > 0
+    const chainSoFar = yesterdayMet ? (ydLog.streak ?? 0) : 0
+
+    const newStreak = todayMet ? chainSoFar + 1 : chainSoFar
+
+    // Write streak into today's per-project DailyLog (enables history-based reading)
+    if (todayLog.streak !== newStreak) {
+      todayLog.streak = newStreak
+      this.saveLog(projectId, todayLog)
+    }
+
+    // Also cache on ProjectMeta for quick access in Projects tab
+    if ((project.streak ?? 0) !== newStreak) {
+      project.streak = newStreak
+      this.context.globalState.update(PROJECTS_KEY, projects)
+    }
+  }
+
+  updateProjectTarget(projectId: string, minutes: number | null): void {
+    const projects = this.getProjects()
+    const project = projects.find(p => p.id === projectId)
+    if (!project) return
+    if (minutes === null || minutes === undefined) {
+      delete project.dailyTargetMinutes
+    } else {
+      project.dailyTargetMinutes = minutes
+    }
+    this.context.globalState.update(PROJECTS_KEY, projects)
   }
 
   updateLanguageTime(language: string, ms: number): void {

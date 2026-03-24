@@ -115,6 +115,13 @@ export function handleMessage(
       cfg.update(msg.key, msg.value === null ? undefined : msg.value, vscode.ConfigurationTarget.Global)
       break
     }
+
+    case "updateProjectSetting": {
+      storage.updateProjectTarget(msg.projectId, msg.value)
+      storage.updateProjectStreak(msg.projectId)
+      sendInit(storage, panel)
+      break
+    }
   }
 }
 

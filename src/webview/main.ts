@@ -194,6 +194,18 @@ function handlePresetChange(preset: string): void {
   }
 }
 
+// ── Streak helpers ──────────────────────────────────────────────────────────
+
+function getEffectiveTargetMs(): number {
+  const isSingle = selectedProjectIds.length > 0 && selectedProjectIds[0] !== "all"
+  if (isSingle) {
+    const proj = projects.find(p => p.id === selectedProjectIds[0])
+    if (proj?.dailyTargetMinutes !== undefined) return proj.dailyTargetMinutes * 60_000
+    return 0   // no per-project target — any activity counts, no progress bar
+  }
+  return dailyTargetMs   // global
+}
+
 // ── Stat cards ─────────────────────────────────────────────────────────────
 
 function dateLabel(dateStr: string): string {
@@ -268,20 +280,32 @@ function updateStatCards(logs: DailyLog[]): void {
   }
   if (streakEl) streakEl.textContent = String(lastLog.streak)
 
-  // streak > 0 means today's target was met globally (updateStreak stores 0 until earned)
+  // Update scope label: show project name when single project selected
+  const scopeEl = document.getElementById("streak-scope")
+  if (scopeEl) {
+    const isSingle = selectedProjectIds.length > 0 && selectedProjectIds[0] !== "all"
+    scopeEl.textContent = isSingle
+      ? ` · ${projects.find(p => p.id === selectedProjectIds[0])?.name ?? ""}`
+      : ""
+  }
+
+  const effectiveTargetMs = getEffectiveTargetMs()
   const todayEarned = lastLog.streak > 0
   const pill = document.getElementById("streak-pill")
-  pill?.classList.toggle("streak-at-risk", !todayEarned && dailyTargetMs > 0)
+  pill?.classList.toggle("streak-at-risk", !todayEarned && effectiveTargetMs > 0)
   document.getElementById("streak-extended")?.classList.toggle("hidden", !todayEarned)
 
   if (streakTargetEl) {
-    if (dailyTargetMs > 0) {
+    if (effectiveTargetMs > 0) {
       if (todayEarned) {
         streakTargetEl.textContent = " · ✓"
         streakTargetEl.className = "streak-target-met"
       } else {
         const atRisk = logs[logs.length - 2]?.streak ?? 0
-        const progress = `${formatDuration(lastLog.activeTime)} / ${formatDuration(dailyTargetMs)}`
+        const todayActive = selectedProjectIds.length > 0 && selectedProjectIds[0] !== "all"
+          ? lastLog.activeTime
+          : lastLog.activeTime
+        const progress = `${formatDuration(todayActive)} / ${formatDuration(effectiveTargetMs)}`
         streakTargetEl.textContent = atRisk > 0
           ? ` · ${progress} · ${atRisk}d at risk`
           : ` · ${progress}`
@@ -438,18 +462,26 @@ interface ProjectSummary {
   name: string
   path: string
   activeTime: number
-  streak: number
+  streak: number               // from ProjectMeta — server-computed, target-aware
+  dailyTargetMinutes?: number  // from ProjectMeta
   lastActiveTs: number
 }
 
 function computeProjectSummaries(): ProjectSummary[] {
   const map = new Map<string, ProjectSummary>()
-  const daysMap = new Map<string, Set<string>>()
 
   // Seed from projects registry so we show all even with zero activity
+  // Use server-computed streak and target directly from ProjectMeta
   for (const p of projects) {
-    map.set(p.id, { id: p.id, name: p.name, path: p.path, activeTime: 0, streak: 0, lastActiveTs: projectTimestamps[p.id] ?? 0 })
-    daysMap.set(p.id, new Set())
+    map.set(p.id, {
+      id: p.id,
+      name: p.name,
+      path: p.path,
+      activeTime: 0,
+      streak: p.streak ?? 0,
+      dailyTargetMinutes: p.dailyTargetMinutes,
+      lastActiveTs: projectTimestamps[p.id] ?? 0,
+    })
   }
 
   const fallbackPid = currentProjectId !== "all" ? currentProjectId : (map.size === 1 ? [...map.keys()][0] : null)
@@ -460,28 +492,12 @@ function computeProjectSummaries(): ProjectSummary[] {
       if (!pid) continue
       if (!map.has(pid)) {
         map.set(pid, { id: pid, name: projectName(pid), path: "", activeTime: 0, streak: 0, lastActiveTs: 0 })
-        daysMap.set(pid, new Set())
       }
       const s = map.get(pid)!
       s.activeTime += session.activeTime
       const sessionTs = session.endTime ?? session.startTime
       if (sessionTs > s.lastActiveTs) s.lastActiveTs = sessionTs
-      daysMap.get(pid)!.add(log.date)
     }
-  }
-
-  for (const [pid, days] of daysMap) {
-    const s = map.get(pid)
-    if (!s || days.size === 0) continue
-    const sorted = [...days].sort().reverse()
-    let streak = 1
-    for (let i = 0; i < sorted.length - 1; i++) {
-      const curr = new Date(sorted[i]).getTime()
-      const prev = new Date(sorted[i + 1]).getTime()
-      if (Math.round((curr - prev) / 86_400_000) === 1) streak++
-      else break
-    }
-    s.streak = streak
   }
 
   return [...map.values()].sort((a, b) => b.activeTime - a.activeTime)
@@ -517,15 +533,45 @@ function renderProjectsTab(): void {
       <div class="project-card-path">${shortenPath(p.path, 4)}</div>
       <div class="project-card-stats">
         <span class="pstat"><span class="pstat-label">Active</span> <span class="pstat-val">${formatDuration(p.activeTime)}</span></span>
-        <span class="pstat"><span class="pstat-label">Streak</span> <span class="pstat-val">${p.streak}d</span></span>
+        ${p.streak > 0 ? `<span class="pstat"><span class="pstat-label">Streak</span> <span class="pstat-val">&#x1F525; ${p.streak}d</span></span>` : ""}
+      </div>
+      <div class="project-card-target" title="Per-project daily target for streak">
+        <span class="project-target-label">Daily target</span>
+        <input
+          type="number"
+          class="project-target-input"
+          data-project-id="${p.id}"
+          value="${p.dailyTargetMinutes ?? ""}"
+          min="1" max="1440"
+          placeholder="unset"
+        >
+        <span class="project-target-unit">min</span>
       </div>
     </div>`).join("")
 
-  // Click on a project card to filter
+  // Target inputs: stop click propagation (don't navigate), save on change
+  container.querySelectorAll(".project-target-input").forEach(input => {
+    input.addEventListener("click", e => e.stopPropagation())
+    input.addEventListener("change", e => {
+      e.stopPropagation()
+      const el = e.target as HTMLInputElement
+      const pid = el.dataset.projectId ?? ""
+      const raw = el.value.trim()
+      const value = raw === "" ? null : parseInt(raw)
+      vscode.postMessage({ type: "updateProjectSetting", projectId: pid, key: "dailyTargetMinutes", value })
+    })
+  })
+
+  // Click on card body (not the target input) to filter by project
   container.querySelectorAll(".project-card").forEach(card => {
-    card.addEventListener("click", () => {
+    card.addEventListener("click", e => {
+      if ((e.target as HTMLElement).closest(".project-card-target")) return
       const id = (card as HTMLElement).dataset.id ?? ""
-      vscode.postMessage({ type: "selectProject", projectId: id })
+      selectedProjectIds = [id]
+      pendingSelectedId = id
+      vscode.postMessage({ type: "selectProjects", projectIds: [id] })
+      renderProjectDropdown()
+      updateDropdownLabel()
       switchTab("overview")
     })
   })

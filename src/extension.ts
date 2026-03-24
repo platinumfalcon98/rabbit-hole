@@ -20,6 +20,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
   tracker.start()
   storage.updateStreak()
+  storage.updateProjectStreak(storage.getCurrentProjectId())
 
   // First-run: prompt the user to set a daily target (fires once per install)
   const hasPrompted = context.globalState.get<boolean>("rabbithole:targetPrompted")
@@ -96,6 +97,7 @@ export function activate(context: vscode.ExtensionContext): void {
   // Live update interval — update streak, push to dashboard, refresh status bar & mini panel
   const interval = setInterval(() => {
     storage.updateStreak()
+    storage.updateProjectStreak(storage.getCurrentProjectId())
     refreshStatusBar()
     refreshMiniPanel()
     if (DashboardPanel.currentPanel) {
