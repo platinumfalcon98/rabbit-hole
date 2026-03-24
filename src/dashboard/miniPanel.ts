@@ -187,14 +187,14 @@ export class MiniPanel implements vscode.WebviewViewProvider {
       <span class="del" id="deleted"></span>
     </div>
   </div>
-  <div class="stat">
+  <!-- <div class="stat">
     <div class="stat-label">Top Language</div>
     <div class="stat-value" id="top-lang">—</div>
-  </div>
-  <div class="stat">
+  </div> -->
+ <!-- <div class="stat">
     <div class="stat-label">Sessions</div>
     <div class="stat-value" id="sessions">—</div>
-  </div>
+  </div> -->
   <button class="open-btn" id="open-btn">Open Dashboard &#x2197;</button>
   <script nonce="${n}">
     const vscode = acquireVsCodeApi();

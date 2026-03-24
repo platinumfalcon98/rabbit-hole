@@ -534,6 +534,11 @@ function renderProjectsTab(): void {
 // ── Projects mini widget ────────────────────────────────────────────────────
 
 function renderProjectsMini(): void {
+  const widget = document.getElementById("projects-mini")
+  const isSingleProject = selectedProjectIds.length > 0 && selectedProjectIds[0] !== "all"
+  if (widget) widget.style.display = isSingleProject ? "none" : ""
+  if (isSingleProject) return
+
   const container = document.getElementById("projects-mini-list")
   if (!container) return
 
@@ -632,16 +637,18 @@ window.addEventListener("message", (event: MessageEvent) => {
       break
 
     case "pdfData": {
+      const nameInput = document.getElementById("export-display-name") as HTMLInputElement | null
+      const displayName = nameInput?.value.trim() || msg.projectName
       const options: PdfOptions = {
-        streak:       (document.getElementById("pdf-streak")       as HTMLInputElement).checked,
-        activeTime:   (document.getElementById("pdf-active-time")  as HTMLInputElement).checked,
-        linesAdded:   (document.getElementById("pdf-lines-added")  as HTMLInputElement).checked,
+        streak:       (document.getElementById("pdf-streak")        as HTMLInputElement).checked,
+        activeTime:   (document.getElementById("pdf-active-time")   as HTMLInputElement).checked,
+        linesAdded:   (document.getElementById("pdf-lines-added")   as HTMLInputElement).checked,
         linesDeleted: (document.getElementById("pdf-lines-deleted") as HTMLInputElement).checked,
-        topLanguage:  (document.getElementById("pdf-top-lang")     as HTMLInputElement).checked,
+        topLanguage:  (document.getElementById("pdf-top-lang")      as HTMLInputElement).checked,
         aiEvents:     false,
-        heatmap:      (document.getElementById("pdf-heatmap")      as HTMLInputElement).checked,
-        days: pdfRangeDays,
-        projectName:  msg.projectName,
+        heatmap:      (document.getElementById("pdf-heatmap")       as HTMLInputElement).checked,
+        days:         pdfRangeDays,
+        projectName:  displayName,
         dateRange:    msg.dateRange,
       }
       if (exportFormat === "jpg") {
@@ -649,6 +656,9 @@ window.addEventListener("message", (event: MessageEvent) => {
           const base64 = dataUrl.split(",")[1]
           vscode.postMessage({ type: "writeJpg", base64, projectName: msg.projectName })
           closePdfModal()
+        }).catch(() => {
+          const btn = document.getElementById("pdf-generate") as HTMLButtonElement | null
+          if (btn) { btn.disabled = false; btn.textContent = "Generate JPG" }
         })
       } else {
         const buffer = generatePdf(msg.logs, options)
@@ -773,15 +783,29 @@ document.getElementById("pref-session-expiry")?.addEventListener("change", (e: E
 // ── PDF export modal ────────────────────────────────────────────────────────
 
 let pdfRangeDays: 7 | 30 | 90 = 30
-let exportFormat: "pdf" | "jpg" = "pdf"
+let exportFormat: "pdf" | "jpg" | "csv" | "json" = "pdf"
+
+function exportGenerateLabel(): string {
+  if (exportFormat === "jpg") return "Generate JPG"
+  if (exportFormat === "csv") return "Export CSV"
+  if (exportFormat === "json") return "Export JSON"
+  return "Generate PDF"
+}
 
 function closePdfModal(): void {
   document.getElementById("pdf-modal-overlay")?.classList.add("hidden")
   const btn = document.getElementById("pdf-generate") as HTMLButtonElement | null
-  if (btn) { btn.disabled = false; btn.textContent = exportFormat === "jpg" ? "Generate JPG" : "Generate PDF" }
+  if (btn) { btn.disabled = false; btn.textContent = exportGenerateLabel() }
 }
 
 document.getElementById("export-pdf-btn")?.addEventListener("click", () => {
+  const nameInput = document.getElementById("export-display-name") as HTMLInputElement | null
+  if (nameInput) {
+    const isSingle = selectedProjectIds.length > 0 && selectedProjectIds[0] !== "all"
+    nameInput.value = isSingle
+      ? (projects.find(p => p.id === selectedProjectIds[0])?.name ?? "")
+      : "All Projects"
+  }
   document.getElementById("pdf-modal-overlay")?.classList.remove("hidden")
 })
 
@@ -794,12 +818,17 @@ document.getElementById("pdf-modal-overlay")?.addEventListener("click", (e: Even
 document.getElementById("pdf-format")?.addEventListener("click", (e: Event) => {
   const btn = (e.target as HTMLElement).closest(".toggle-btn") as HTMLElement | null
   if (!btn?.dataset.val) return
-  exportFormat = btn.dataset.val as "pdf" | "jpg"
+  exportFormat = btn.dataset.val as "pdf" | "jpg" | "csv" | "json"
   document.querySelectorAll("#pdf-format .toggle-btn").forEach(b => {
     b.classList.toggle("active", (b as HTMLElement).dataset.val === btn.dataset.val)
   })
+  const isCard = exportFormat === "pdf" || exportFormat === "jpg"
+  const cardOptions = document.getElementById("export-card-options")
+  if (cardOptions) cardOptions.style.display = isCard ? "" : "none"
+  const nameSection = document.getElementById("export-name-section")
+  if (nameSection) nameSection.style.display = isCard ? "" : "none"
   const genBtn = document.getElementById("pdf-generate") as HTMLButtonElement | null
-  if (genBtn) genBtn.textContent = exportFormat === "jpg" ? "Generate JPG" : "Generate PDF"
+  if (genBtn) genBtn.textContent = exportGenerateLabel()
 })
 
 document.getElementById("pdf-range")?.addEventListener("click", (e: Event) => {
@@ -813,6 +842,11 @@ document.getElementById("pdf-range")?.addEventListener("click", (e: Event) => {
 
 document.getElementById("pdf-generate")?.addEventListener("click", () => {
   const btn = document.getElementById("pdf-generate") as HTMLButtonElement
+  if (exportFormat === "csv" || exportFormat === "json") {
+    vscode.postMessage({ type: "export", format: exportFormat })
+    closePdfModal()
+    return
+  }
   btn.disabled = true
   btn.textContent = "Generating…"
   vscode.postMessage({ type: "exportPdfRequest", days: pdfRangeDays, format: exportFormat })

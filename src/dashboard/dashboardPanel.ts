@@ -259,7 +259,7 @@ export class DashboardPanel {
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
             <path d="M8 12L3 7L4.4 5.55L7 8.15V0H9V8.15L11.6 5.55L13 7L8 12ZM2 16C1.45 16 0.979333 15.8043 0.588 15.413C0.196666 15.0217 0.000666667 14.5507 0 14V11H2V14H14V11H16V14C16 14.55 15.8043 15.021 15.413 15.413C15.0217 15.805 14.5507 16.0007 14 16H2Z" fill="currentColor"/>
           </svg>
-          Export Card
+          Export
         </button>
       </div>
 
@@ -363,37 +363,46 @@ export class DashboardPanel {
         </div>
       </div>
 
-      <!-- PDF export modal -->
+      <!-- Export modal -->
       <div id="pdf-modal-overlay" class="modal-overlay hidden">
         <div class="modal">
-          <h2 class="modal-title">Export Card</h2>
+          <h2 class="modal-title">Export</h2>
 
           <div class="modal-section">
             <div class="modal-label">Format</div>
             <div class="toggle-group" id="pdf-format">
               <button class="toggle-btn active" data-val="pdf">PDF</button>
               <button class="toggle-btn" data-val="jpg">JPG</button>
+              <button class="toggle-btn" data-val="csv">CSV</button>
+              <button class="toggle-btn" data-val="json">JSON</button>
             </div>
           </div>
 
-          <div class="modal-section">
-            <div class="modal-label">Date Range</div>
-            <div class="toggle-group" id="pdf-range">
-              <button class="toggle-btn" data-val="7">7 days</button>
-              <button class="toggle-btn active" data-val="30">30 days</button>
-              <button class="toggle-btn" data-val="90">90 days</button>
-            </div>
+          <div class="modal-section" id="export-name-section">
+            <div class="modal-label">Display Name</div>
+            <input type="text" id="export-display-name" class="modal-name-input" placeholder="Project name">
           </div>
 
-          <div class="modal-section">
-            <div class="modal-label">Include</div>
-            <div class="modal-checks">
-              <label class="modal-check"><input type="checkbox" id="pdf-streak" checked> Streak</label>
-              <label class="modal-check"><input type="checkbox" id="pdf-active-time" checked> Active Time</label>
-              <label class="modal-check"><input type="checkbox" id="pdf-lines-added" checked> Lines Added</label>
-              <label class="modal-check"><input type="checkbox" id="pdf-lines-deleted" checked> Lines Deleted</label>
-              <label class="modal-check"><input type="checkbox" id="pdf-top-lang" checked> Top Language</label>
-              <label class="modal-check"><input type="checkbox" id="pdf-heatmap" checked> Activity Heatmap</label>
+          <div id="export-card-options">
+            <div class="modal-section">
+              <div class="modal-label">Date Range</div>
+              <div class="toggle-group" id="pdf-range">
+                <button class="toggle-btn" data-val="7">7 days</button>
+                <button class="toggle-btn active" data-val="30">30 days</button>
+                <button class="toggle-btn" data-val="90">90 days</button>
+              </div>
+            </div>
+
+            <div class="modal-section">
+              <div class="modal-label">Include</div>
+              <div class="modal-checks">
+                <label class="modal-check"><input type="checkbox" id="pdf-streak" checked> Streak</label>
+                <label class="modal-check"><input type="checkbox" id="pdf-active-time" checked> Active Time</label>
+                <label class="modal-check"><input type="checkbox" id="pdf-lines-added" checked> Lines Added</label>
+                <label class="modal-check"><input type="checkbox" id="pdf-lines-deleted" checked> Lines Deleted</label>
+                <label class="modal-check"><input type="checkbox" id="pdf-top-lang" checked> Top Language</label>
+                <label class="modal-check"><input type="checkbox" id="pdf-heatmap" checked> Activity Heatmap</label>
+              </div>
             </div>
           </div>
 
@@ -473,34 +482,36 @@ export class DashboardPanel {
       <div class="tab-panel" id="tab-settings">
         <div class="settings-section">
           <h3 class="settings-section-title">Tracking</h3>
-          <div class="setting-row">
-            <div class="setting-meta">
-              <label class="setting-label" for="pref-daily-target">Daily target</label>
-              <div class="setting-desc">Streak only increments on days meeting this target. Leave empty for any activity.</div>
+          <div class="settings-card">
+            <div class="setting-row">
+              <div class="setting-meta">
+                <label class="setting-label" for="pref-daily-target">Daily target</label>
+                <div class="setting-desc">Streak only increments on days meeting this target. Leave empty for any activity.</div>
+              </div>
+              <div class="setting-control">
+                <input type="number" id="pref-daily-target" class="setting-input" min="0" max="1440" placeholder="unset">
+                <span class="setting-unit">min</span>
+              </div>
             </div>
-            <div class="setting-control">
-              <input type="number" id="pref-daily-target" class="setting-input" min="0" max="1440" placeholder="unset">
-              <span class="setting-unit">min</span>
+            <div class="setting-row">
+              <div class="setting-meta">
+                <label class="setting-label" for="pref-idle-threshold">Idle threshold</label>
+                <div class="setting-desc">Minutes of inactivity before the active timer pauses.</div>
+              </div>
+              <div class="setting-control">
+                <input type="number" id="pref-idle-threshold" class="setting-input" min="1" max="60">
+                <span class="setting-unit">min</span>
+              </div>
             </div>
-          </div>
-          <div class="setting-row">
-            <div class="setting-meta">
-              <label class="setting-label" for="pref-idle-threshold">Idle threshold</label>
-              <div class="setting-desc">Minutes of inactivity before the active timer pauses.</div>
-            </div>
-            <div class="setting-control">
-              <input type="number" id="pref-idle-threshold" class="setting-input" min="1" max="60">
-              <span class="setting-unit">min</span>
-            </div>
-          </div>
-          <div class="setting-row">
-            <div class="setting-meta">
-              <label class="setting-label" for="pref-session-expiry">Session expiry</label>
-              <div class="setting-desc">Minutes away before a paused session closes and a new one starts on return.</div>
-            </div>
-            <div class="setting-control">
-              <input type="number" id="pref-session-expiry" class="setting-input" min="1" max="480">
-              <span class="setting-unit">min</span>
+            <div class="setting-row">
+              <div class="setting-meta">
+                <label class="setting-label" for="pref-session-expiry">Session expiry</label>
+                <div class="setting-desc">Minutes away before a paused session closes and a new one starts on return.</div>
+              </div>
+              <div class="setting-control">
+                <input type="number" id="pref-session-expiry" class="setting-input" min="1" max="480">
+                <span class="setting-unit">min</span>
+              </div>
             </div>
           </div>
         </div>

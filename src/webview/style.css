@@ -26,6 +26,20 @@
   font-style: normal;
 }
 
+@font-face {
+  font-family: 'Quantico';
+  src: url('./fonts/Quantico-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Quantico';
+  src: url('./fonts/Quantico-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+}
+
 * { box-sizing: border-box; }
 
 body {
@@ -1012,27 +1026,33 @@ body {
 }
 
 .settings-section {
-  margin-bottom: 32px;
+  margin-bottom: 28px;
 }
 
 .settings-section-title {
   font-family: 'Electrolize', sans-serif;
-  font-size: 0.9em;
+  font-size: 0.72em;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.07em;
+  letter-spacing: 0.1em;
   color: var(--vscode-descriptionForeground);
-  margin: 0 0 16px 0;
-  padding-bottom: 6px;
-  border-bottom: 1px solid var(--vscode-editorWidget-border);
+  margin: 0 0 8px 2px;
+}
+
+.settings-card {
+  background: color-mix(in srgb, var(--vscode-editorWidget-background), black 20%);
+  border: 1px solid var(--vscode-editorWidget-border);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35), 0 0 24px rgba(249, 115, 22, 0.06);
+  padding: 0 16px;
 }
 
 .setting-row {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 24px;
-  padding: 11px 0;
+  padding: 13px 0;
   border-bottom: 1px solid var(--vscode-editorWidget-border, rgba(128,128,128,0.1));
 }
 
@@ -1061,30 +1081,33 @@ body {
 .setting-control {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   flex-shrink: 0;
 }
 
 .setting-input {
-  background: var(--vscode-input-background);
+  background: color-mix(in srgb, var(--vscode-input-background), black 10%);
   color: var(--vscode-input-foreground);
   border: 1px solid var(--vscode-input-border, var(--vscode-dropdown-border));
-  border-radius: 4px;
-  padding: 4px 8px;
-  font-family: var(--vscode-font-family);
-  font-size: var(--vscode-font-size);
-  width: 72px;
+  border-radius: 5px;
+  padding: 5px 10px;
+  font-family: 'VT323', monospace;
+  font-size: 1.15em;
+  width: 76px;
   text-align: right;
+  transition: border-color 0.12s;
 }
 
 .setting-input:focus {
-  outline: 1px solid var(--vscode-focusBorder);
-  border-color: var(--vscode-focusBorder);
+  outline: none;
+  border-color: #f97316;
+  box-shadow: 0 0 0 1px rgba(249, 115, 22, 0.35);
 }
 
 .setting-unit {
-  font-size: 0.82em;
+  font-size: 0.8em;
   color: var(--vscode-descriptionForeground);
+  min-width: 24px;
 }
 
 .setting-checkbox {
@@ -1202,6 +1225,25 @@ body {
 
 .modal-check input[type="checkbox"] {
   accent-color: #f97316;
+}
+
+.modal-name-input {
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  border: 1px solid var(--vscode-input-border, var(--vscode-dropdown-border));
+  border-radius: 5px;
+  padding: 6px 10px;
+  font-family: var(--vscode-font-family);
+  font-size: 0.88em;
+  width: 100%;
+  box-sizing: border-box;
+  transition: border-color 0.12s;
+}
+
+.modal-name-input:focus {
+  outline: none;
+  border-color: #f97316;
+  box-shadow: 0 0 0 1px rgba(249, 115, 22, 0.35);
 }
 
 .modal-actions {
