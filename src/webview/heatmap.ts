@@ -26,8 +26,59 @@ function isFuture(d: Date, today: Date): boolean {
   return d.getTime() > today.getTime()
 }
 
+function friendlyDate(d: Date, today: Date): string {
+  if (isToday(d, today)) return "Today"
+  const yd = new Date(today)
+  yd.setDate(yd.getDate() - 1)
+  if (dateKey(d) === dateKey(yd)) return "Yesterday"
+  return d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })
+}
+
 export function resize(): void {
   if (storedLogs.length > 0) render(storedLogs)
+}
+
+export function renderActivityStats(logs: DailyLog[], projectName: string): void {
+  const titleEl = document.getElementById("heatmap-title")
+  const subtitleEl = document.getElementById("heatmap-subtitle")
+  if (titleEl) titleEl.textContent = projectName || "Activity"
+  if (subtitleEl) subtitleEl.textContent = "Daily active time · past year"
+
+  const activeDaysEl = document.getElementById("act-active-days")
+  const totalTimeEl = document.getElementById("act-total-time")
+  const longestStreakEl = document.getElementById("act-longest-streak")
+  const bestDayEl = document.getElementById("act-best-day")
+
+  const activeDays = logs.filter(l => l.activeTime > 0).length
+  const totalTime = logs.reduce((s, l) => s + l.activeTime, 0)
+
+  let longestStreak = 0
+  let cur = 0
+  for (const log of logs) {
+    if (log.activeTime > 0) {
+      cur++
+      if (cur > longestStreak) longestStreak = cur
+    } else {
+      cur = 0
+    }
+  }
+
+  let bestDay: DailyLog | null = null
+  for (const log of logs) {
+    if (!bestDay || log.activeTime > bestDay.activeTime) bestDay = log
+  }
+
+  if (activeDaysEl) activeDaysEl.textContent = String(activeDays)
+  if (totalTimeEl) totalTimeEl.textContent = totalTime > 0 ? formatDuration(totalTime) : "—"
+  if (longestStreakEl) longestStreakEl.textContent = longestStreak > 0 ? `${longestStreak}d` : "—"
+  if (bestDayEl && bestDay && bestDay.activeTime > 0) {
+    const d = new Date(bestDay.date + "T00:00:00")
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    bestDayEl.textContent = friendlyDate(d, today)
+  } else if (bestDayEl) {
+    bestDayEl.textContent = "—"
+  }
 }
 
 export function render(logs: DailyLog[]): void {
@@ -41,21 +92,19 @@ export function render(logs: DailyLog[]): void {
     logByDate.set(log.date, log)
   }
 
-  // Always start on a Monday so column boundaries align with calendar weeks
   const today = new Date()
   today.setHours(0, 0, 0, 0)
 
-  const cellSize = 13
+  const cellSize = 14
   const cellPad = 3
   const step = cellSize + cellPad
   const marginLeft = 32
 
-  // Fit as many weeks as the container can hold, between 8 and 52
   const availableWidth = container.clientWidth || 320
   const weeks = Math.min(52, Math.max(8, Math.floor((availableWidth - marginLeft - cellPad) / step)))
   const totalDays = weeks * 7
 
-  const todayDow = (today.getDay() + 6) % 7  // Mon=0 … Sun=6
+  const todayDow = (today.getDay() + 6) % 7
   const currentWeekMonday = new Date(today)
   currentWeekMonday.setDate(today.getDate() - todayDow)
   const startDate = new Date(currentWeekMonday)
@@ -68,8 +117,9 @@ export function render(logs: DailyLog[]): void {
     dates.push(d)
   }
 
-  const marginTop = 24
-  const marginBottom = 8
+  const marginTop = 26
+  const legendHeight = 28
+  const marginBottom = legendHeight + 8
 
   const svgWidth = marginLeft + weeks * step + cellPad
   const svgHeight = marginTop + 7 * step + marginBottom
@@ -79,10 +129,10 @@ export function render(logs: DailyLog[]): void {
     d => logByDate.get(dateKey(d))?.activeTime ?? 0
   ) ?? 1
 
-  // Warm gradient: empty → amber → orange (matches the PDF card accent)
+  // Theme-aware color scale: transparent orange → full orange (works on light and dark themes)
   const colorScale = d3.scaleSequential()
     .domain([0, maxTime])
-    .interpolator(d3.interpolateRgb("#2a2a2a", "#f97316"))
+    .interpolator((t: number) => `rgba(249, 115, 22, ${0.18 + t * 0.82})`)
 
   const emptyColor  = "rgba(128,128,128,0.12)"
   const futureColor = "rgba(128,128,128,0.05)"
@@ -100,28 +150,28 @@ export function render(logs: DailyLog[]): void {
     .enter()
     .append("text")
     .attr("class", "day-label")
-    .attr("x", marginLeft - cellPad - 2)
+    .attr("x", marginLeft - cellPad - 4)
     .attr("y", (_, i) => marginTop + i * step + cellSize - 2)
     .attr("text-anchor", "end")
     .attr("fill", "var(--vscode-descriptionForeground)")
     .text(d => d)
 
-  // Month labels — bold the current month
+  // Month labels — skip if too close to the previous one
   const currentMonth = today.getMonth()
   const monthGroups = d3.timeMonths(startDate, new Date(today.getFullYear(), today.getMonth() + 1, 1))
-  svg.selectAll(".month-label")
-    .data(monthGroups)
-    .enter()
-    .append("text")
-    .attr("class", "month-label")
-    .attr("x", d => {
-      const dayOffset = Math.floor((d.getTime() - startDate.getTime()) / 86_400_000)
-      return marginLeft + Math.floor(dayOffset / 7) * step
-    })
-    .attr("y", marginTop - 6)
-    .attr("fill", "var(--vscode-descriptionForeground)")
-    .attr("font-weight", (d: Date) => d.getMonth() === currentMonth ? "700" : "400")
-    .text((d: Date) => d3.timeFormat("%b")(d))
+  let lastLabelX = -Infinity
+  for (const d of monthGroups) {
+    const dayOffset = Math.floor((d.getTime() - startDate.getTime()) / 86_400_000)
+    const x = marginLeft + Math.floor(dayOffset / 7) * step
+    if (x - lastLabelX < step * 3) continue
+    lastLabelX = x
+    svg.append("text")
+      .attr("x", x)
+      .attr("y", marginTop - 8)
+      .attr("fill", "var(--vscode-descriptionForeground)")
+      .attr("font-weight", d.getMonth() === currentMonth ? "700" : "400")
+      .text(d3.timeFormat("%b")(d))
+  }
 
   // Tooltip
   const tooltip = d3.select(container)
@@ -138,7 +188,6 @@ export function render(logs: DailyLog[]): void {
     .style("z-index", "1000")
     .style("box-shadow", "0 2px 8px rgba(0,0,0,0.3)")
 
-  // Cells
   const cellX = (d: Date) => {
     const dayOffset = Math.floor((d.getTime() - startDate.getTime()) / 86_400_000)
     return marginLeft + Math.floor(dayOffset / 7) * step
@@ -167,13 +216,14 @@ export function render(logs: DailyLog[]): void {
       if (isFuture(d, today)) return
       const key = dateKey(d)
       const t = logByDate.get(key)?.activeTime ?? 0
-      const dow = DAYS[(d.getDay() + 6) % 7]
-      const label = isToday(d, today) ? `<strong>${dow}, ${key}</strong> · today` : `<strong>${dow}, ${key}</strong>`
+      const label = `<strong>${friendlyDate(d, today)}</strong>`
       tooltip
         .style("display", "block")
         .style("left", `${event.clientX + 14}px`)
         .style("top", `${event.clientY - 36}px`)
-        .html(t > 0 ? `${label}<br>${formatDuration(t)} active` : `${label}<br><span style="opacity:0.6">No activity</span>`)
+        .html(t > 0
+          ? `${label}<br>${formatDuration(t)} active`
+          : `${label}<br><span style="opacity:0.5">No activity</span>`)
     })
     .on("mousemove", function(event: MouseEvent) {
       tooltip
@@ -184,7 +234,7 @@ export function render(logs: DailyLog[]): void {
       tooltip.style("display", "none")
     })
 
-  // Today ring — drawn on top as a separate rect with no fill, just stroke
+  // Today ring
   const todayDate = dates.find(d => isToday(d, today))
   if (todayDate) {
     svg.append("rect")
@@ -198,4 +248,45 @@ export function render(logs: DailyLog[]): void {
       .attr("stroke", "var(--vscode-focusBorder, #f97316)")
       .attr("stroke-width", 1.5)
   }
+
+  // Legend — right-aligned below the grid
+  const legendBoxCount = 5
+  const legendBoxSize = 10
+  const legendGap = 3
+  const legendTotalBoxWidth = legendBoxCount * (legendBoxSize + legendGap) - legendGap
+  const legendY = marginTop + 7 * step + 14
+  const legendTextY = legendY + legendBoxSize - 1
+
+  // Measure approximate text width for right-alignment
+  const moreTextWidth = 26
+  const lessTextWidth = 22
+  const legendRightEdge = svgWidth - cellPad
+  const boxesX = legendRightEdge - moreTextWidth - legendGap - legendTotalBoxWidth
+
+  svg.append("text")
+    .attr("x", boxesX - legendGap)
+    .attr("y", legendTextY)
+    .attr("text-anchor", "end")
+    .attr("fill", "var(--vscode-descriptionForeground)")
+    .attr("font-size", "10px")
+    .text("Less")
+
+  for (let i = 0; i < legendBoxCount; i++) {
+    const t = i / (legendBoxCount - 1)
+    const fill = i === 0 ? emptyColor : `rgba(249, 115, 22, ${0.18 + t * 0.82})`
+    svg.append("rect")
+      .attr("x", boxesX + i * (legendBoxSize + legendGap))
+      .attr("y", legendY)
+      .attr("width", legendBoxSize)
+      .attr("height", legendBoxSize)
+      .attr("rx", 2)
+      .attr("fill", fill)
+  }
+
+  svg.append("text")
+    .attr("x", boxesX + legendTotalBoxWidth + legendGap)
+    .attr("y", legendTextY)
+    .attr("fill", "var(--vscode-descriptionForeground)")
+    .attr("font-size", "10px")
+    .text("More")
 }

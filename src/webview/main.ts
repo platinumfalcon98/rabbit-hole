@@ -12,6 +12,7 @@ declare function acquireVsCodeApi(): {
 const vscode = acquireVsCodeApi()
 
 let currentLogs: DailyLog[] = []
+let heatmapLogs: DailyLog[] = []
 let dailyTargetMs = 0
 let currentProjectId = ""
 let projects: ProjectMeta[] = []
@@ -56,11 +57,14 @@ function switchTab(tab: string): void {
   document.querySelectorAll(".tab-panel").forEach(panel => {
     panel.classList.toggle("active", panel.id === `tab-${tab}`)
   })
-  // Show filter bar only on Overview
+  // Show filter bar on Overview and Activity
   document.getElementById("filter-bar")?.classList.toggle("hidden", tab !== "overview")
 
   if (tab === "overview") {
     requestAnimationFrame(() => charts.resizeAll())
+  }
+  if (tab === "activity") {
+    requestAnimationFrame(() => heatmap.render(heatmapLogs))
   }
   if (tab === "projects") {
     renderProjectsTab()
@@ -206,8 +210,41 @@ function handlePresetChange(preset: string): void {
 
 // ── Stat cards ─────────────────────────────────────────────────────────────
 
+function dateLabel(dateStr: string): string {
+  const now = new Date()
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`
+  const yd = new Date(now); yd.setDate(yd.getDate() - 1)
+  const yesterdayStr = `${yd.getFullYear()}-${String(yd.getMonth() + 1).padStart(2, "0")}-${String(yd.getDate()).padStart(2, "0")}`
+  if (dateStr === todayStr) return "Today"
+  if (dateStr === yesterdayStr) return "Yesterday"
+  return dateStr
+}
+
+function updateRangeLabel(): void {
+  const el = document.getElementById("stat-range-label")
+  if (!el) return
+  let label = ""
+  if (currentPreset === "today") {
+    label = "Today"
+  } else if (currentPreset === "7d") {
+    label = "Last 7 days"
+  } else if (currentPreset === "30d") {
+    label = "Last 30 days"
+  } else if (currentPreset === "1y") {
+    label = "Last year"
+  } else if (currentPreset === "custom") {
+    const start = (document.getElementById("custom-start") as HTMLInputElement)?.value
+    const end = (document.getElementById("custom-end") as HTMLInputElement)?.value
+    if (start && end) {
+      label = start === end ? dateLabel(start) : `${dateLabel(start)} – ${dateLabel(end)}`
+    }
+  }
+  el.textContent = label
+}
+
 function updateStatCards(logs: DailyLog[]): void {
   if (logs.length === 0) return
+  updateRangeLabel()
 
   const lastLog = logs[logs.length - 1]
 
@@ -221,9 +258,28 @@ function updateStatCards(logs: DailyLog[]): void {
   const totalAdded = logs.reduce((s, l) => s + l.files.reduce((fs, f) => fs + f.linesAdded, 0), 0)
   const totalDeleted = logs.reduce((s, l) => s + l.files.reduce((fs, f) => fs + f.linesDeleted, 0), 0)
 
-  if (timeEl) timeEl.textContent = formatDuration(totalTime)
-  if (addedEl) addedEl.textContent = String(totalAdded)
-  if (deletedEl) deletedEl.textContent = String(totalDeleted)
+  const isMultiDay = logs.length > 1
+  const activeDays = Math.max(1, logs.filter(l => l.activeTime > 0).length)
+
+  const timeAvgEl = document.getElementById("stat-time-avg")
+  const addedAvgEl = document.getElementById("stat-added-avg")
+  const deletedAvgEl = document.getElementById("stat-deleted-avg")
+
+  if (isMultiDay) {
+    if (timeEl) timeEl.textContent = formatDuration(totalTime)
+    if (addedEl) addedEl.textContent = String(totalAdded)
+    if (deletedEl) deletedEl.textContent = String(totalDeleted)
+    if (timeAvgEl) { timeAvgEl.textContent = `avg ${formatDuration(Math.round(totalTime / activeDays))}/day`; timeAvgEl.classList.remove("hidden") }
+    if (addedAvgEl) { addedAvgEl.textContent = `avg ${Math.round(totalAdded / activeDays)}/day`; addedAvgEl.classList.remove("hidden") }
+    if (deletedAvgEl) { deletedAvgEl.textContent = `avg ${Math.round(totalDeleted / activeDays)}/day`; deletedAvgEl.classList.remove("hidden") }
+  } else {
+    if (timeEl) timeEl.textContent = formatDuration(totalTime)
+    if (addedEl) addedEl.textContent = String(totalAdded)
+    if (deletedEl) deletedEl.textContent = String(totalDeleted)
+    if (timeAvgEl) timeAvgEl.classList.add("hidden")
+    if (addedAvgEl) addedAvgEl.classList.add("hidden")
+    if (deletedAvgEl) deletedAvgEl.classList.add("hidden")
+  }
   if (streakEl) streakEl.textContent = String(lastLog.streak)
 
   // streak > 0 means today's target was met globally (updateStreak stores 0 until earned)
@@ -514,7 +570,11 @@ function renderProjectsMini(): void {
 // ── Full render ────────────────────────────────────────────────────────────
 
 function renderAll(): void {
-  heatmap.render(currentLogs)
+  const heatmapProjectName = selectedProjectIds[0] === "all" || selectedProjectIds.length > 1
+    ? "All Projects"
+    : projects.find(p => p.id === (selectedProjectIds[0] ?? currentProjectId))?.name ?? ""
+  heatmap.render(heatmapLogs)
+  heatmap.renderActivityStats(heatmapLogs, heatmapProjectName)
   charts.renderAll(currentLogs)
   updateStatCards(currentLogs)
   renderSessions(currentLogs)
@@ -542,6 +602,7 @@ window.addEventListener("message", (event: MessageEvent) => {
   switch (msg.type) {
     case "init":
       currentLogs = msg.data
+      heatmapLogs = msg.heatmapData
       projects = msg.projects
       currentProjectId = msg.currentProjectId
       projectTimestamps = msg.projectTimestamps
@@ -558,9 +619,11 @@ window.addEventListener("message", (event: MessageEvent) => {
       if (currentPreset === "today" && singleProject && projectInScope) {
         const todayIdx = currentLogs.findIndex(l => l.date === msg.data.date)
         if (todayIdx >= 0) currentLogs[todayIdx] = msg.data
+        const heatmapTodayIdx = heatmapLogs.findIndex(l => l.date === msg.data.date)
+        if (heatmapTodayIdx >= 0) heatmapLogs[heatmapTodayIdx] = msg.data
         charts.updateToday(msg.data)
         updateStatCards(currentLogs)
-        heatmap.render(currentLogs)
+        heatmap.render(heatmapLogs)
         renderSessions(currentLogs)
         renderFiles(currentLogs)
         renderProjectsMini()

@@ -62,7 +62,7 @@ export interface DailyLog {
 // ── Message Protocol ──────────────────────────────────────────────────────
 
 export type ExtensionMessage =
-  | { type: "init"; data: DailyLog[]; projects: ProjectMeta[]; currentProjectId: string; projectTimestamps: Record<string, number> }
+  | { type: "init"; data: DailyLog[]; heatmapData: DailyLog[]; projects: ProjectMeta[]; currentProjectId: string; projectTimestamps: Record<string, number> }
   | { type: "update"; data: DailyLog; projectId: string }
   | { type: "settings"; agentsEnabled: boolean; dailyTargetMs: number; dailyTargetMinutes: number; idleThresholdMinutes: number; sessionExpiryMinutes: number; agentToggles: Record<string, boolean> }
   | { type: "pdfData"; logs: DailyLog[] }

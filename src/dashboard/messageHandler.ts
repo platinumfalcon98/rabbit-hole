@@ -151,9 +151,23 @@ function sendInit(storage: StorageService, panel: DashboardPanel): void {
     }
   }
 
+  const yearStart = offsetDateStr(-364)
+  const today = todayStr()
+  let heatmapData: DailyLog[]
+  if (currentProjectIds.length === 0) {
+    heatmapData = storage.getRangeByDates(yearStart, today)
+  } else if (currentProjectIds[0] === "all") {
+    heatmapData = storage.getAggregateRangeByDates(yearStart, today)
+  } else if (currentProjectIds.length === 1) {
+    heatmapData = storage.getRangeByDates(yearStart, today, currentProjectIds[0])
+  } else {
+    heatmapData = storage.getMultiProjectRangeByDates(yearStart, today, currentProjectIds)
+  }
+
   panel.postMessage({
     type: "init",
     data,
+    heatmapData,
     projects: storage.getProjects(),
     currentProjectId: resolvedProjectId,
     projectTimestamps,

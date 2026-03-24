@@ -95,6 +95,17 @@ export class DashboardPanel {
           </span>
           <span class="nav-label">Overview</span>
         </button>
+        <button class="nav-item" data-tab="activity">
+          <span class="nav-icon">
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect x="1" y="11" width="2" height="4" rx="0.5" fill="currentColor"/>
+              <rect x="4.5" y="7" width="2" height="8" rx="0.5" fill="currentColor"/>
+              <rect x="8" y="4" width="2" height="11" rx="0.5" fill="currentColor"/>
+              <rect x="11.5" y="8" width="2" height="7" rx="0.5" fill="currentColor"/>
+            </svg>
+          </span>
+          <span class="nav-label">Activity</span>
+        </button>
         <button class="nav-item" data-tab="projects">
           <span class="nav-icon">&#x229E;</span>
           <span class="nav-label">Projects</span>
@@ -120,6 +131,7 @@ export class DashboardPanel {
       </div>
 
       <div id="filter-bar">
+        <div id="stat-range-label" class="stat-range-label"></div>
         <div class="filter-range">
           <button class="filter-btn active" data-preset="today">Today</button>
           <button class="filter-btn" data-preset="7d">7d</button>
@@ -146,20 +158,11 @@ export class DashboardPanel {
       <!-- Overview: full dashboard grid -->
       <div class="tab-panel active" id="tab-overview">
         <div class="stat-group">
-          <div class="stat-item accent-time"><div class="stat-label">Active Time</div><div class="stat-value" id="stat-time">&#x2014;</div></div>
-          <div class="stat-item accent-add"><div class="stat-label">Lines Added</div><div class="stat-value" id="stat-added">&#x2014;</div></div>
-          <div class="stat-item accent-del"><div class="stat-label">Lines Deleted</div><div class="stat-value" id="stat-deleted">&#x2014;</div></div>
+          <div class="stat-item accent-time"><div class="stat-label">Active Time</div><div class="stat-value" id="stat-time">&#x2014;</div><div class="stat-avg hidden" id="stat-time-avg"></div></div>
+          <div class="stat-item accent-add"><div class="stat-label">Lines Added</div><div class="stat-value" id="stat-added">&#x2014;</div><div class="stat-avg hidden" id="stat-added-avg"></div></div>
+          <div class="stat-item accent-del"><div class="stat-label">Lines Deleted</div><div class="stat-value" id="stat-deleted">&#x2014;</div><div class="stat-avg hidden" id="stat-deleted-avg"></div></div>
         </div>
         <div class="overview-grid">
-          <div id="heatmap" class="section-card">
-            <div class="widget-header">
-              <div class="widget-header-info">
-                <div class="widget-title">Activity Heatmap</div>
-                <div class="widget-subtitle">Daily active time</div>
-              </div>
-            </div>
-            <div id="heatmap-canvas"></div>
-          </div>
           <div class="chart-box">
             <div class="widget-header">
               <div class="widget-header-info">
@@ -251,6 +254,40 @@ export class DashboardPanel {
             <button id="pdf-cancel" class="modal-btn-secondary">Cancel</button>
             <button id="pdf-generate" class="modal-btn-primary">Generate PDF</button>
           </div>
+        </div>
+      </div>
+
+      <!-- Activity: heatmap -->
+      <div class="tab-panel" id="tab-activity">
+        <div class="activity-stats-row">
+          <div class="activity-stat">
+            <div class="activity-stat-value" id="act-active-days">—</div>
+            <div class="activity-stat-label">Active days</div>
+          </div>
+          <div class="activity-stat-sep"></div>
+          <div class="activity-stat">
+            <div class="activity-stat-value" id="act-total-time">—</div>
+            <div class="activity-stat-label">Total this year</div>
+          </div>
+          <div class="activity-stat-sep"></div>
+          <div class="activity-stat">
+            <div class="activity-stat-value" id="act-longest-streak">—</div>
+            <div class="activity-stat-label">Longest streak</div>
+          </div>
+          <div class="activity-stat-sep"></div>
+          <div class="activity-stat">
+            <div class="activity-stat-value" id="act-best-day">—</div>
+            <div class="activity-stat-label">Most active day</div>
+          </div>
+        </div>
+        <div id="heatmap" class="section-card">
+          <div class="widget-header">
+            <div class="widget-header-info">
+              <div class="widget-title" id="heatmap-title">Activity</div>
+              <div class="widget-subtitle" id="heatmap-subtitle">Daily active time · past year</div>
+            </div>
+          </div>
+          <div id="heatmap-canvas"></div>
         </div>
       </div>
 
