@@ -18,7 +18,8 @@ let currentProjectId = ""
 let projects: ProjectMeta[] = []
 let projectTimestamps: Record<string, number> = {}
 let currentPreset = "today"
-let selectedProjectIds: string[] = []
+let selectedProjectIds: string[] = []   // [] = all, ["<id>"] = single project
+let pendingSelectedId = ""              // draft while panel is open ("" = all)
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -50,6 +51,8 @@ let activeTab = "overview"
 let projectSort: "time" | "last" | "name" = "time"
 
 function switchTab(tab: string): void {
+  closeProjectPanel("proj-dropdown-panel", false)
+  closeProjectPanel("act-proj-dropdown-panel", false)
   activeTab = tab
   document.querySelectorAll(".nav-item").forEach(btn => {
     btn.classList.toggle("active", (btn as HTMLElement).dataset.tab === tab)
@@ -84,116 +87,97 @@ document.addEventListener("click", e => {
   if ((e.target as HTMLElement).closest("#sidebar-toggle")) {
     document.getElementById("sidebar")?.classList.toggle("collapsed")
   }
-  // Close project dropdown when clicking outside it
-  if (!(e.target as HTMLElement).closest("#project-filter")) {
-    document.getElementById("proj-dropdown-panel")?.classList.add("hidden")
+  // Close project dropdowns when clicking outside them
+  if (!(e.target as HTMLElement).closest("#project-filter") && !(e.target as HTMLElement).closest("#act-project-filter")) {
+    closeProjectPanel("proj-dropdown-panel", false)
+    closeProjectPanel("act-proj-dropdown-panel", false)
   }
 })
 
 // ── Filter bar ─────────────────────────────────────────────────────────────
 
-function renderProjectDropdown(): void {
-  const panel = document.getElementById("proj-dropdown-panel")
-  if (!panel) return
+const DROPDOWN_PAIRS: [string, string, string][] = [
+  // [panelId, labelId, btnId]
+  ["proj-dropdown-panel",     "proj-filter-label",     "proj-filter-btn"],
+  ["act-proj-dropdown-panel", "act-proj-filter-label", "act-proj-filter-btn"],
+]
 
-  const isChecked = (id: string): boolean => {
-    if (id === "all") return selectedProjectIds[0] === "all"
-    if (selectedProjectIds[0] === "all") return true
-    if (selectedProjectIds.length === 0) return id === currentProjectId
-    return selectedProjectIds.includes(id)
-  }
-
+function buildProjectListHtml(selectedId: string, namePrefix: string): string {
   let html = `<label class="proj-dropdown-item">
-      <input type="checkbox" data-id="all" ${isChecked("all") ? "checked" : ""}>
+      <input type="radio" name="${namePrefix}" value="" ${selectedId === "" ? "checked" : ""}>
       <span>All projects</span>
     </label>
     <div class="proj-dropdown-divider"></div>`
-
   html += projects.map(p => `
     <label class="proj-dropdown-item">
-      <input type="checkbox" data-id="${p.id}" ${isChecked(p.id) ? "checked" : ""}>
+      <input type="radio" name="${namePrefix}" value="${p.id}" ${selectedId === p.id ? "checked" : ""}>
       <span>${p.name}</span>
     </label>`).join("")
+  return html
+}
 
-  panel.innerHTML = html
-
-  panel.querySelectorAll("input[type='checkbox']").forEach(cb => {
-    cb.addEventListener("change", () => {
-      const input = cb as HTMLInputElement
-      handleProjectDropdownChange(input.dataset.id!, input.checked)
+function renderProjectDropdown(): void {
+  const selectedId = selectedProjectIds[0] ?? ""
+  const names = ["proj-select", "act-proj-select"]
+  DROPDOWN_PAIRS.forEach(([panelId], i) => {
+    const panel = document.getElementById(panelId)
+    const list = panel?.querySelector(".proj-panel-list")
+    if (!list) return
+    list.innerHTML = buildProjectListHtml(selectedId, names[i])
+    list.querySelectorAll("input[type='radio']").forEach(rb => {
+      rb.addEventListener("change", () => {
+        pendingSelectedId = (rb as HTMLInputElement).value
+      })
     })
   })
-
   updateDropdownLabel()
 }
 
-function syncDropdownCheckboxes(): void {
-  const panel = document.getElementById("proj-dropdown-panel")
-  if (!panel) return
-  const allMode = selectedProjectIds[0] === "all"
-  panel.querySelectorAll("input[type='checkbox']").forEach(cb => {
-    const input = cb as HTMLInputElement
-    const id = input.dataset.id!
-    if (id === "all") {
-      input.checked = allMode
-    } else if (allMode) {
-      input.checked = true
-    } else if (selectedProjectIds.length === 0) {
-      input.checked = id === currentProjectId
-    } else {
-      input.checked = selectedProjectIds.includes(id)
-    }
+function syncDropdownRadios(): void {
+  const names = ["proj-select", "act-proj-select"]
+  DROPDOWN_PAIRS.forEach(([panelId], i) => {
+    const panel = document.getElementById(panelId)
+    if (!panel) return
+    panel.querySelectorAll(`input[name="${names[i]}"]`).forEach(rb => {
+      (rb as HTMLInputElement).checked = (rb as HTMLInputElement).value === pendingSelectedId
+    })
   })
 }
 
-function handleProjectDropdownChange(id: string, checked: boolean): void {
-  if (id === "all") {
-    selectedProjectIds = checked ? ["all"] : []
+function openProjectPanel(panelId: string): void {
+  pendingSelectedId = selectedProjectIds[0] ?? ""
+  const panel = document.getElementById(panelId)
+  panel?.classList.remove("hidden")
+  syncDropdownRadios()
+}
+
+function closeProjectPanel(panelId: string, commit: boolean): void {
+  const panel = document.getElementById(panelId)
+  if (!panel || panel.classList.contains("hidden")) return
+  panel.classList.add("hidden")
+  if (commit) {
+    selectedProjectIds = pendingSelectedId === "" ? [] : [pendingSelectedId]
+    vscode.postMessage({ type: "selectProjects", projectIds: selectedProjectIds })
+    updateDropdownLabel()
   } else {
-    // Expand "all" mode to the full explicit list before mutating
-    const effective = selectedProjectIds[0] === "all"
-      ? projects.map(p => p.id)
-      : selectedProjectIds.length === 0
-        ? [currentProjectId]
-        : [...selectedProjectIds]
-
-    if (checked && !effective.includes(id)) {
-      selectedProjectIds = [...effective, id]
-    } else if (!checked) {
-      const next = effective.filter(x => x !== id)
-      selectedProjectIds = next.length > 0 ? next : []
-    }
+    pendingSelectedId = selectedProjectIds[0] ?? ""
+    syncDropdownRadios()
   }
-
-  syncDropdownCheckboxes()
-  updateDropdownLabel()
-  vscode.postMessage({ type: "selectProjects", projectIds: selectedProjectIds })
 }
 
 function updateDropdownLabel(): void {
-  const label = document.getElementById("proj-filter-label")
-  const btn = document.getElementById("proj-filter-btn")
-  if (!label) return
+  const selectedId = selectedProjectIds[0] ?? ""
+  const text = selectedId === ""
+    ? "All Projects"
+    : projects.find(p => p.id === selectedId)?.name ?? selectedId
+  const isActive = selectedId !== ""
 
-  const allMode = selectedProjectIds[0] === "all"
-  const implicitCurrent = selectedProjectIds.length === 0
-
-  let text: string
-  if (allMode) {
-    text = "Choose Project"
-  } else if (implicitCurrent) {
-    text = projects.find(p => p.id === currentProjectId)?.name ?? "Choose Project"
-  } else if (selectedProjectIds.length === 1) {
-    text = projects.find(p => p.id === selectedProjectIds[0])?.name ?? selectedProjectIds[0]
-  } else {
-    text = `${selectedProjectIds.length} projects`
-  }
-
-  label.textContent = text
-
-  // Button shows accent colour when not on the implicit default (single current project)
-  const isDefault = implicitCurrent || (selectedProjectIds.length === 1 && selectedProjectIds[0] === currentProjectId)
-  btn?.classList.toggle("active", !isDefault)
+  DROPDOWN_PAIRS.forEach(([, labelId, btnId]) => {
+    const label = document.getElementById(labelId)
+    const btn = document.getElementById(btnId)
+    if (label) label.textContent = text
+    btn?.classList.toggle("active", isActive)
+  })
 }
 
 function handlePresetChange(preset: string): void {
@@ -570,9 +554,9 @@ function renderProjectsMini(): void {
 // ── Full render ────────────────────────────────────────────────────────────
 
 function renderAll(): void {
-  const heatmapProjectName = selectedProjectIds[0] === "all" || selectedProjectIds.length > 1
+  const heatmapProjectName = selectedProjectIds.length === 0
     ? "All Projects"
-    : projects.find(p => p.id === (selectedProjectIds[0] ?? currentProjectId))?.name ?? ""
+    : projects.find(p => p.id === selectedProjectIds[0])?.name ?? ""
   heatmap.render(heatmapLogs)
   heatmap.renderActivityStats(heatmapLogs, heatmapProjectName)
   charts.renderAll(currentLogs)
@@ -611,11 +595,10 @@ window.addEventListener("message", (event: MessageEvent) => {
       break
 
     case "update": {
-      const singleProject = selectedProjectIds.length === 0
-        || (selectedProjectIds.length === 1 && selectedProjectIds[0] !== "all")
       const projectInScope = selectedProjectIds.length === 0
         ? msg.projectId === currentProjectId
-        : selectedProjectIds.includes(msg.projectId)
+        : selectedProjectIds[0] === msg.projectId
+      const singleProject = true
       if (currentPreset === "today" && singleProject && projectInScope) {
         const todayIdx = currentLogs.findIndex(l => l.date === msg.data.date)
         if (todayIdx >= 0) currentLogs[todayIdx] = msg.data
@@ -679,10 +662,41 @@ function trySubmitCustomRange(): void {
 document.getElementById("custom-start")?.addEventListener("change", trySubmitCustomRange)
 document.getElementById("custom-end")?.addEventListener("change", trySubmitCustomRange)
 
-// Project dropdown toggle
+// Project dropdown toggles
 document.getElementById("proj-filter-btn")?.addEventListener("click", (e: Event) => {
   e.stopPropagation()
-  document.getElementById("proj-dropdown-panel")?.classList.toggle("hidden")
+  const panel = document.getElementById("proj-dropdown-panel")
+  if (panel?.classList.contains("hidden")) {
+    openProjectPanel("proj-dropdown-panel")
+  } else {
+    closeProjectPanel("proj-dropdown-panel", false)
+  }
+})
+document.getElementById("act-proj-filter-btn")?.addEventListener("click", (e: Event) => {
+  e.stopPropagation()
+  const panel = document.getElementById("act-proj-dropdown-panel")
+  if (panel?.classList.contains("hidden")) {
+    openProjectPanel("act-proj-dropdown-panel")
+  } else {
+    closeProjectPanel("act-proj-dropdown-panel", false)
+  }
+})
+
+// Apply buttons inside each panel
+document.querySelectorAll(".proj-panel-apply").forEach(btn => {
+  btn.addEventListener("click", (e: Event) => {
+    e.stopPropagation()
+    const panel = (e.target as HTMLElement).closest(".proj-dropdown-panel") as HTMLElement | null
+    if (panel) closeProjectPanel(panel.id, true)
+  })
+})
+
+// Escape closes any open panel without committing
+document.addEventListener("keydown", (e: KeyboardEvent) => {
+  if (e.key === "Escape") {
+    closeProjectPanel("proj-dropdown-panel", false)
+    closeProjectPanel("act-proj-dropdown-panel", false)
+  }
 })
 
 // Sessions sort toggle

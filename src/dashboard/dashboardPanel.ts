@@ -149,9 +149,15 @@ export class DashboardPanel {
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
               <path d="M1 2.5h10L7.5 6.5v4l-3-1.5V6.5L1 2.5Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
             </svg>
-            <span id="proj-filter-label">Choose Project</span>
+            <span id="proj-filter-label">All Projects</span>
           </button>
-          <div id="proj-dropdown-panel" class="proj-dropdown-panel hidden"></div>
+          <div id="proj-dropdown-panel" class="proj-dropdown-panel hidden">
+            <div class="proj-panel-header">Select project</div>
+            <div class="proj-panel-list"></div>
+            <div class="proj-panel-footer">
+              <button class="proj-panel-apply">Apply</button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -259,6 +265,23 @@ export class DashboardPanel {
 
       <!-- Activity: heatmap -->
       <div class="tab-panel" id="tab-activity">
+        <div class="activity-tab-header">
+          <div id="act-project-filter" class="proj-filter">
+            <button id="act-proj-filter-btn" class="proj-filter-btn">
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <path d="M1 2.5h10L7.5 6.5v4l-3-1.5V6.5L1 2.5Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
+              </svg>
+              <span id="act-proj-filter-label">All Projects</span>
+            </button>
+            <div id="act-proj-dropdown-panel" class="proj-dropdown-panel hidden">
+              <div class="proj-panel-header">Select project</div>
+              <div class="proj-panel-list"></div>
+              <div class="proj-panel-footer">
+                <button class="proj-panel-apply">Apply</button>
+              </div>
+            </div>
+          </div>
+        </div>
         <div class="activity-summary section-card">
           <div class="activity-stats-row">
             <div class="activity-stat">

@@ -117,7 +117,7 @@ body {
   align-items: center;
   gap: 6px;
   padding: 3px 11px;
-  border-radius: 12px;
+  border-radius: 6px;
   border: 1px solid var(--vscode-editorWidget-border);
   background: transparent;
   color: var(--vscode-editor-foreground);
@@ -142,16 +142,55 @@ body {
   position: absolute;
   top: calc(100% + 6px);
   right: 0;
-  min-width: 190px;
-  max-height: 260px;
-  overflow-y: auto;
+  min-width: 220px;
   background: var(--vscode-editorWidget-background);
   border: 1px solid var(--vscode-editorWidget-border);
   border-radius: 8px;
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
   z-index: 50;
-  padding: 4px 0;
+  display: flex;
+  flex-direction: column;
 }
+
+.proj-panel-header {
+  font-size: 0.75em;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--vscode-descriptionForeground);
+  padding: 10px 12px 6px;
+  border-bottom: 1px solid var(--vscode-editorWidget-border);
+  flex-shrink: 0;
+}
+
+.proj-panel-list {
+  overflow-y: auto;
+  flex: 1;
+  padding: 4px 0;
+  max-height: 200px;
+}
+
+.proj-panel-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: 8px 12px;
+  border-top: 1px solid var(--vscode-editorWidget-border);
+  flex-shrink: 0;
+}
+
+.proj-panel-apply {
+  background: #f97316;
+  color: #fff;
+  border: none;
+  border-radius: 5px;
+  padding: 4px 14px;
+  cursor: pointer;
+  font-family: var(--vscode-font-family);
+  font-size: 0.82em;
+  transition: opacity 0.1s;
+}
+
+.proj-panel-apply:hover { opacity: 0.88; }
 
 .proj-dropdown-item {
   display: flex;
@@ -168,7 +207,7 @@ body {
   background: var(--vscode-list-hoverBackground);
 }
 
-.proj-dropdown-item input[type="checkbox"] {
+.proj-dropdown-item input[type="radio"] {
   accent-color: #f97316;
   width: 13px;
   height: 13px;
@@ -506,6 +545,12 @@ body {
 }
 
 /* ── Activity tab ────────────────────────────────────────────────────────── */
+
+.activity-tab-header {
+  display: flex;
+  justify-content: flex-end;
+  padding: 8px 0 10px;
+}
 
 .activity-summary {
   margin-bottom: 12px;
