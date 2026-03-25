@@ -181,7 +181,7 @@ export class MiniPanel implements vscode.WebviewViewProvider {
     <div class="stat-value" id="time">—</div>
   </div>
   <div class="stat">
-    <div class="stat-label">Lines</div>
+    <div class="stat-label">Line Changes Today</div>
     <div class="stat-value">
       <span class="add" id="added">—</span>
       <span class="del" id="deleted"></span>

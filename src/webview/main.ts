@@ -159,7 +159,7 @@ function closeProjectPanel(panelId: string, commit: boolean): void {
   panel.classList.add("hidden")
   if (commit) {
     selectedProjectIds = pendingSelectedId === "" ? [] : [pendingSelectedId]
-    vscode.postMessage({ type: "selectProjects", projectIds: selectedProjectIds })
+    vscode.postMessage({ type: "selectProjects", projectIds: selectedProjectIds.length === 0 ? ["all"] : selectedProjectIds })
     updateDropdownLabel()
   } else {
     pendingSelectedId = selectedProjectIds[0] ?? ""
@@ -306,7 +306,8 @@ function updateStatCards(logs: DailyLog[]): void {
   }
 
   const effectiveTargetMs = getEffectiveTargetMs()
-  const todayEarned = lastLog.streak > 0
+  const yesterdayStreak = logs[logs.length - 2]?.streak ?? 0
+  const todayEarned = lastLog.streak > yesterdayStreak
   const pill = document.getElementById("streak-pill")
   pill?.classList.toggle("streak-at-risk", !todayEarned && effectiveTargetMs > 0)
   document.getElementById("streak-extended")?.classList.toggle("hidden", !todayEarned)
@@ -559,22 +560,39 @@ function renderProjectsTab(): void {
           data-project-id="${p.id}"
           value="${p.dailyTargetMinutes ?? ""}"
           min="1" max="1440"
-          placeholder="unset"
+          placeholder="global (${Math.round(dailyTargetMs / 60_000) || 5}m)"
         >
         <span class="project-target-unit">min</span>
+        <button class="project-target-apply" data-project-id="${p.id}" disabled>Apply Changes</button>
       </div>
     </div>`).join("")
 
-  // Target inputs: stop click propagation (don't navigate), save on change
+  // Target inputs: stop click propagation, enable Apply button on change
   container.querySelectorAll(".project-target-input").forEach(input => {
-    input.addEventListener("click", e => e.stopPropagation())
-    input.addEventListener("change", e => {
+    const el = input as HTMLInputElement
+    el.addEventListener("click", e => e.stopPropagation())
+    el.addEventListener("input", e => {
       e.stopPropagation()
-      const el = e.target as HTMLInputElement
       const pid = el.dataset.projectId ?? ""
-      const raw = el.value.trim()
+      const btn = container.querySelector<HTMLButtonElement>(`.project-target-apply[data-project-id="${pid}"]`)
+      if (btn) btn.disabled = false
+    })
+  })
+
+  // Apply Changes buttons: save target and re-disable
+  container.querySelectorAll(".project-target-apply").forEach(btn => {
+    btn.addEventListener("click", e => {
+      e.stopPropagation()
+      const pid = (btn as HTMLButtonElement).dataset.projectId ?? ""
+      const input = container.querySelector<HTMLInputElement>(`.project-target-input[data-project-id="${pid}"]`)
+      if (!input) return
+      const raw = input.value.trim()
       const value = raw === "" ? null : parseInt(raw)
       vscode.postMessage({ type: "updateProjectSetting", projectId: pid, key: "dailyTargetMinutes", value })
+      const b = btn as HTMLButtonElement
+      b.textContent = "Saved ✓"
+      b.disabled = true
+      setTimeout(() => { b.textContent = "Apply Changes" }, 1500)
     })
   })
 
@@ -671,11 +689,18 @@ window.addEventListener("message", (event: MessageEvent) => {
       break
 
     case "update": {
-      const projectInScope = selectedProjectIds.length === 0
-        ? msg.projectId === currentProjectId
-        : selectedProjectIds[0] === msg.projectId
-      const singleProject = true
-      if (currentPreset === "today" && singleProject && projectInScope) {
+      if (selectedProjectIds.length === 0) {
+        // All Projects view: patch today's global activeTime and streak
+        const todayIdx = currentLogs.findIndex(l => l.date === msg.data.date)
+        if (todayIdx >= 0) {
+          currentLogs[todayIdx].activeTime = msg.globalToday.activeTime
+          currentLogs[todayIdx].streak = msg.globalToday.streak
+        }
+        const heatmapTodayIdx = heatmapLogs.findIndex(l => l.date === msg.data.date)
+        if (heatmapTodayIdx >= 0) heatmapLogs[heatmapTodayIdx].activeTime = msg.globalToday.activeTime
+        updateStatCards(currentLogs)
+        heatmap.render(heatmapLogs)
+      } else if (currentPreset === "today" && selectedProjectIds[0] === msg.projectId) {
         const todayIdx = currentLogs.findIndex(l => l.date === msg.data.date)
         if (todayIdx >= 0) currentLogs[todayIdx] = msg.data
         const heatmapTodayIdx = heatmapLogs.findIndex(l => l.date === msg.data.date)

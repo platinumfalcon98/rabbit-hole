@@ -348,9 +348,10 @@ export class StorageService {
     const project = projects.find(p => p.id === projectId)
     if (!project) return
 
-    const targetMs = (project.dailyTargetMinutes !== undefined)
-      ? project.dailyTargetMinutes * 60_000
-      : 0   // 0 = any activity counts
+    const effectiveMinutes = project.dailyTargetMinutes !== undefined
+      ? project.dailyTargetMinutes
+      : vscode.workspace.getConfiguration("rabbithole").get<number>("dailyTargetMinutes") ?? 0
+    const targetMs = effectiveMinutes * 60_000
 
     const todayLog = this.getLog(projectId, todayKey())
     const todayMet = targetMs > 0

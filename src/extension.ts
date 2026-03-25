@@ -68,6 +68,9 @@ export function activate(context: vscode.ExtensionContext): void {
   const refreshMiniPanel = () => {
     const global = storage.getGlobalToday()
     const today = storage.getToday()
+    const todayKey = new Date().toISOString().slice(0, 10)
+    const aggregate = storage.getAggregateRangeByDates(todayKey, todayKey)
+    const aggToday = aggregate[0]
     const langEntries = Object.entries(today.languages)
     const topLang = langEntries.length > 0
       ? langEntries.reduce((a, b) => a[1].time >= b[1].time ? a : b)[0]
@@ -75,8 +78,8 @@ export function activate(context: vscode.ExtensionContext): void {
     miniPanel.update({
       activeTime: global.activeTime,
       streak: global.streak,
-      linesAdded: today.files.reduce((s, f) => s + f.linesAdded, 0),
-      linesDeleted: today.files.reduce((s, f) => s + f.linesDeleted, 0),
+      linesAdded: aggToday?.files.reduce((s, f) => s + f.linesAdded, 0) ?? 0,
+      linesDeleted: aggToday?.files.reduce((s, f) => s + f.linesDeleted, 0) ?? 0,
       topLanguage: topLang,
       sessionCount: today.sessions.length,
       isTracking: tracker.isActivelyTracking,
@@ -105,6 +108,7 @@ export function activate(context: vscode.ExtensionContext): void {
         type: "update",
         data: storage.getToday(),
         projectId: storage.getCurrentProjectId(),
+        globalToday: storage.getGlobalToday(),
       })
     }
   }, 10_000)

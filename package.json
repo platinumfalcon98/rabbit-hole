@@ -69,6 +69,7 @@
         },
         "rabbithole.dailyTargetMinutes": {
           "type": "number",
+          "default": 5,
           "description": "Daily active-coding target in minutes. Streak only increments on days where you meet this target. Leave unset to count any activity."
         },
         "rabbithole.agents": {
