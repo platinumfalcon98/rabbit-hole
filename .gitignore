@@ -3,5 +3,7 @@ node_modules/
 *.vsix
 *.js.map
 .DS_Store
-CLAUDE.md 
+CLAUDE.md
 rabbit-hole-prompt.md
+LOGBOOK.md
+DOCS_PREP.md

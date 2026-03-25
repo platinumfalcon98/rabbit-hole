@@ -245,7 +245,9 @@ export class ActivityTracker {
     this.activeIntervalStart = now
     this.activeTimeAccumulated = 0
     this.isPaused = false
-    this.languageCurrent = this.lastLanguage
+    const activeLang = vscode.window.activeTextEditor?.document.languageId ?? this.lastLanguage
+    this.languageCurrent = activeLang
+    this.lastLanguage = activeLang
     this.languageIntervalStart = now
     this.currentSession = {
       id: uuidSimple(),
