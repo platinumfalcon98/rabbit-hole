@@ -404,7 +404,7 @@ function updateStatCards(logs: DailyLog[]): void {
   const totalDeleted = logs.reduce((s, l) => s + l.files.reduce((fs, f) => fs + f.linesDeleted, 0), 0)
 
   const isMultiDay = logs.length > 1
-  const activeDays = Math.max(1, logs.filter(l => l.activeTime > 0).length)
+  const activeDays = Math.max(1, logs.length)
 
   const timeAvgEl = document.getElementById("stat-time-avg")
   const addedAvgEl = document.getElementById("stat-added-avg")
