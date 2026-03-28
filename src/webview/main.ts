@@ -294,7 +294,12 @@ function updateStatCards(logs: DailyLog[]): void {
     if (addedAvgEl) addedAvgEl.classList.add("hidden")
     if (deletedAvgEl) deletedAvgEl.classList.add("hidden")
   }
-  if (streakEl) streakEl.textContent = String(lastLog.streak)
+  if (streakEl) {
+    const streakStr = String(lastLog.streak)
+    streakEl.textContent = streakStr
+    // Responsive font-size scaling for Press Start 2P — wide pixel font needs to shrink at 2+ digits
+    streakEl.style.fontSize = streakStr.length >= 3 ? "1.6em" : streakStr.length === 2 ? "2em" : "2.5em"
+  }
 
   // Update scope label: show project name when single project selected
   const scopeEl = document.getElementById("streak-scope")
@@ -850,19 +855,36 @@ function populateSettings(msg: SettingsMsg): void {
   if (sessionExp)   sessionExp.value   = String(msg.sessionExpiryMinutes)
 }
 
+function flashSaved(el: HTMLInputElement): void {
+  el.classList.remove("saved")
+  // Force reflow so removing+adding the class re-triggers the animation
+  void el.offsetWidth
+  el.classList.add("saved")
+}
+
 document.getElementById("pref-daily-target")?.addEventListener("change", (e: Event) => {
-  const raw = (e.target as HTMLInputElement).value.trim()
+  const input = e.target as HTMLInputElement
+  const raw = input.value.trim()
   vscode.postMessage({ type: "updateSetting", key: "dailyTargetMinutes", value: raw === "" ? null : parseInt(raw) })
+  flashSaved(input)
 })
 
 document.getElementById("pref-idle-threshold")?.addEventListener("change", (e: Event) => {
-  const val = parseInt((e.target as HTMLInputElement).value)
-  if (!isNaN(val) && val > 0) vscode.postMessage({ type: "updateSetting", key: "idleThresholdMinutes", value: val })
+  const input = e.target as HTMLInputElement
+  const val = parseInt(input.value)
+  if (!isNaN(val) && val > 0) {
+    vscode.postMessage({ type: "updateSetting", key: "idleThresholdMinutes", value: val })
+    flashSaved(input)
+  }
 })
 
 document.getElementById("pref-session-expiry")?.addEventListener("change", (e: Event) => {
-  const val = parseInt((e.target as HTMLInputElement).value)
-  if (!isNaN(val) && val > 0) vscode.postMessage({ type: "updateSetting", key: "sessionExpiryMinutes", value: val })
+  const input = e.target as HTMLInputElement
+  const val = parseInt(input.value)
+  if (!isNaN(val) && val > 0) {
+    vscode.postMessage({ type: "updateSetting", key: "sessionExpiryMinutes", value: val })
+    flashSaved(input)
+  }
 })
 
 // ── Export modal (JPG) ──────────────────────────────────────────────────────

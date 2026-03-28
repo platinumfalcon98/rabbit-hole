@@ -42,6 +42,26 @@
 
 * { box-sizing: border-box; }
 
+/* ── Global focus-visible ring (keyboard accessibility) ─────────────────── */
+/* Suppresses the default browser outline, then re-adds it only for keyboard
+   navigation via :focus-visible. This keeps mouse use clean while remaining
+   WCAG AA compliant for keyboard users. */
+
+:focus { outline: none; }
+
+:focus-visible {
+  outline: 2px solid #f97316;
+  outline-offset: 2px;
+}
+
+/* Tighter offset for inline elements like toggle buttons */
+.toggle-btn:focus-visible,
+.filter-btn:focus-visible,
+.proj-filter-btn:focus-visible,
+.nav-item:focus-visible {
+  outline-offset: -1px;
+}
+
 body {
   background: var(--vscode-editor-background);
   color: var(--vscode-editor-foreground);
@@ -288,6 +308,7 @@ body {
   padding: 24px 0 20px;
   flex-wrap: wrap;
   flex-shrink: 0;
+  min-width: 0;
 }
 
 #header-logo {
@@ -345,8 +366,10 @@ body {
   font-family: 'Press Start 2P', monospace;
   font-weight: 700;
   color: #fff;
+  /* Digit scaling is applied inline from main.ts; this sets the fallback */
   font-size: 2.5em;
   line-height: 1;
+  transition: font-size 0.15s ease;
 }
 
 #streak-pill.streak-at-risk #streak-count {
@@ -468,6 +491,17 @@ body {
 @keyframes tabFadeIn {
   from { opacity: 0; transform: translateY(5px); }
   to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Used to confirm a setting was saved — brief green border flash */
+@keyframes savedFlash {
+  0%   { border-color: #22c55e; box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.4); }
+  70%  { border-color: #22c55e; box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.4); }
+  100% { border-color: var(--vscode-input-border, var(--vscode-dropdown-border)); box-shadow: none; }
+}
+
+.setting-input.saved {
+  animation: savedFlash 1.2s ease forwards;
 }
 
 .tab-panel.active {
@@ -671,9 +705,9 @@ body {
 }
 
 .activity-stat-label {
-  font-family: 'VT323', monospace;
-  font-size: 0.7em;
-  font-weight: 500;
+  font-family: 'Electrolize', sans-serif;
+  font-size: 0.72em;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.07em;
   color: var(--vscode-descriptionForeground);
@@ -866,12 +900,15 @@ body {
 }
 
 .sessions-show-more {
-  padding: 5px 0 5px 12px;
+  padding: 8px 0 8px 12px;
   font-size: 0.8em;
   color: var(--vscode-descriptionForeground);
   cursor: pointer;
   opacity: 0.7;
-  transition: opacity 0.1s;
+  transition: opacity 0.1s, color 0.1s;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
 }
 
 .sessions-show-more:hover {
@@ -962,7 +999,7 @@ body {
 
 .project-card:hover {
   border-left-color: #f97316;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35), 0 0 20px rgba(249, 115, 22, 0.12);
 }
 
 .project-card-header {
