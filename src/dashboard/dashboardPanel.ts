@@ -265,21 +265,44 @@ export class DashboardPanel {
 
       <div id="filter-bar">
         <div id="stat-range-label" class="stat-range-label"></div>
-        <div class="filter-range">
-          <button class="filter-btn active" data-preset="today">Today</button>
-          <button class="filter-btn" data-preset="7d">7d</button>
-          <button class="filter-btn" data-preset="30d">30d</button>
-          <button class="filter-btn" data-preset="1y">1Y</button>
-          <button class="filter-btn" data-preset="date">Date</button>
-          <button class="filter-btn" data-preset="custom">Range</button>
-        </div>
-        <div id="single-date-range" class="hidden">
-          <input type="date" id="single-date">
-        </div>
-        <div id="custom-range" class="hidden">
-          <input type="date" id="custom-start">
-          <span class="custom-range-sep">&#x2013;</span>
-          <input type="date" id="custom-end">
+        <div class="date-controls">
+          <div class="date-preset-wrapper">
+            <select id="date-preset-select" class="date-preset-select" aria-label="Date range preset">
+              <option value="today">Today</option>
+              <option value="yesterday">Yesterday</option>
+              <option value="7d">This Week (7 days)</option>
+              <option value="30d">This Month (30 days)</option>
+              <option value="custom" hidden></option>
+            </select>
+          </div>
+          <button id="calendar-btn" class="calendar-btn" aria-label="Pick custom date range" title="Custom date range">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <rect x="1" y="2.5" width="12" height="10.5" rx="1.5" stroke="currentColor" stroke-width="1.3"/>
+              <path d="M1 5.5h12" stroke="currentColor" stroke-width="1.3"/>
+              <path d="M4 1v3M10 1v3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+              <rect x="3.5" y="7" width="2" height="2" rx="0.4" fill="currentColor"/>
+              <rect x="6.5" y="7" width="2" height="2" rx="0.4" fill="currentColor"/>
+              <rect x="6.5" y="10" width="2" height="2" rx="0.4" fill="currentColor"/>
+              <rect x="9.5" y="7" width="2" height="2" rx="0.4" fill="currentColor"/>
+            </svg>
+          </button>
+          <!-- Calendar popover -->
+          <div id="calendar-popover" class="calendar-popover hidden" role="dialog" aria-label="Date range picker" aria-modal="true">
+            <div class="cal-mode-toggle">
+              <button class="cal-mode-btn active" id="cal-mode-single" data-mode="single">Single Day</button>
+              <button class="cal-mode-btn" id="cal-mode-range" data-mode="range">Date Range</button>
+            </div>
+            <div class="cal-header">
+              <button class="cal-nav-btn" id="cal-prev" aria-label="Previous month">&#8249;</button>
+              <span class="cal-month-label" id="cal-month-label"></span>
+              <button class="cal-nav-btn" id="cal-next" aria-label="Next month">&#8250;</button>
+            </div>
+            <div class="cal-grid" id="cal-grid" role="grid"></div>
+            <div class="cal-footer">
+              <span class="cal-selection-hint" id="cal-hint"></span>
+              <button class="cal-apply-btn" id="cal-apply" disabled>Apply</button>
+            </div>
+          </div>
         </div>
         <div id="project-filter" class="proj-filter">
           <button id="proj-filter-btn" class="proj-filter-btn">

@@ -94,6 +94,11 @@ document.addEventListener("click", e => {
     closeProjectPanel("proj-dropdown-panel", false)
     closeProjectPanel("act-proj-dropdown-panel", false)
   }
+  // Close calendar popover when clicking outside it
+  if (!(e.target as HTMLElement).closest(".date-controls")) {
+    const popover = document.getElementById("calendar-popover")
+    if (popover && !popover.classList.contains("hidden")) closeCalendar()
+  }
 })
 
 // ── Filter bar ─────────────────────────────────────────────────────────────
@@ -187,24 +192,149 @@ function todayDateStr(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
 }
 
+function yesterdayDateStr(): string {
+  const d = new Date()
+  d.setDate(d.getDate() - 1)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+}
+
+// ── Calendar popover state ──────────────────────────────────────────────────
+
+let calViewYear = 0
+let calViewMonth = 0  // 0-based
+let calRangeStart: string | null = null   // "YYYY-MM-DD"
+let calRangeEnd: string | null = null     // "YYYY-MM-DD"
+let calPickStep: 0 | 1 | 2 = 0           // 0=closed/idle, 1=awaiting end, 2=complete
+let calPickMode: "single" | "range" = "single"
+
+function fmtDateStr(y: number, m: number, d: number): string {
+  return `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`
+}
+
+function calRenderGrid(): void {
+  const grid = document.getElementById("cal-grid")
+  if (!grid) return
+
+  const monthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"]
+  const label = document.getElementById("cal-month-label")
+  if (label) label.textContent = `${monthNames[calViewMonth]} ${calViewYear}`
+
+  const today = todayDateStr()
+  const firstDay = new Date(calViewYear, calViewMonth, 1).getDay() // 0=Sun
+  const daysInMonth = new Date(calViewYear, calViewMonth + 1, 0).getDate()
+
+  // Normalise range so start <= end for highlighting
+  const rStart = calRangeStart && calRangeEnd
+    ? (calRangeStart <= calRangeEnd ? calRangeStart : calRangeEnd)
+    : calRangeStart
+  const rEnd = calRangeStart && calRangeEnd
+    ? (calRangeStart <= calRangeEnd ? calRangeEnd : calRangeStart)
+    : calRangeStart
+
+  let html = ""
+  const days = ["Su","Mo","Tu","We","Th","Fr","Sa"]
+  for (const d of days) html += `<span class="cal-dow">${d}</span>`
+
+  // Leading empty cells
+  for (let i = 0; i < firstDay; i++) html += `<span class="cal-day cal-day-empty"></span>`
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    const ds = fmtDateStr(calViewYear, calViewMonth, d)
+    const isFuture = ds > today
+    const isToday = ds === today
+    const isStart = ds === rStart
+    const isEnd = ds === rEnd
+    const inRange = rStart && rEnd && ds > rStart && ds < rEnd
+    const isSelected = isStart || isEnd
+
+    let cls = "cal-day"
+    if (isFuture) cls += " cal-day-future"
+    if (isToday) cls += " cal-day-today"
+    if (isSelected) cls += " cal-day-selected"
+    if (inRange) cls += " cal-day-in-range"
+    if (isStart && rEnd && rStart !== rEnd) cls += " cal-day-range-start"
+    if (isEnd && rStart && rStart !== rEnd) cls += " cal-day-range-end"
+
+    html += `<span class="${cls}" data-date="${ds}">${d}</span>`
+  }
+
+  grid.innerHTML = html
+
+  // Apply button state
+  const applyBtn = document.getElementById("cal-apply") as HTMLButtonElement | null
+  const hint = document.getElementById("cal-hint")
+  if (calPickStep === 1) {
+    if (applyBtn) applyBtn.disabled = true
+    if (hint) hint.textContent = calPickMode === "single" ? "Pick a day" : calRangeStart ? `Start: ${formatCalLabel(calRangeStart)} — pick end date` : "Pick start date"
+  } else if (calPickStep === 2 && calRangeStart && calRangeEnd) {
+    if (applyBtn) applyBtn.disabled = false
+    const s = calRangeStart <= calRangeEnd ? calRangeStart : calRangeEnd
+    const e = calRangeStart <= calRangeEnd ? calRangeEnd : calRangeStart
+    if (hint) hint.textContent = s === e ? formatCalLabel(s) : `${formatCalLabel(s)} – ${formatCalLabel(e)}`
+  } else {
+    if (applyBtn) applyBtn.disabled = true
+    if (hint) hint.textContent = "Click a date to start selection"
+  }
+}
+
+function formatCalLabel(ds: string): string {
+  const [, m, d] = ds.split("-").map(Number)
+  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
+  return `${months[m - 1]} ${d}`
+}
+
+function openCalendar(): void {
+  calPickStep = 1
+  calRangeStart = null
+  calRangeEnd = null
+  calPickMode = "single"
+  // Sync mode toggle buttons
+  document.getElementById("cal-mode-single")?.classList.add("active")
+  document.getElementById("cal-mode-range")?.classList.remove("active")
+  const today = new Date()
+  calViewYear = today.getFullYear()
+  calViewMonth = today.getMonth()
+  calRenderGrid()
+  document.getElementById("calendar-popover")?.classList.remove("hidden")
+  document.getElementById("calendar-btn")?.classList.add("active")
+}
+
+function closeCalendar(): void {
+  document.getElementById("calendar-popover")?.classList.add("hidden")
+  document.getElementById("calendar-btn")?.classList.remove("active")
+  calPickStep = 0
+}
+
+function applyCalendarRange(): void {
+  if (!calRangeStart || !calRangeEnd) return
+  const start = calRangeStart <= calRangeEnd ? calRangeStart : calRangeEnd
+  const end   = calRangeStart <= calRangeEnd ? calRangeEnd   : calRangeStart
+  currentPreset = "custom"
+  const sel = document.getElementById("date-preset-select") as HTMLSelectElement | null
+  if (sel) {
+    const customOpt = sel.querySelector<HTMLOptionElement>("option[value='custom']")
+    const label = start === end ? formatCalLabel(start) : `${formatCalLabel(start)} – ${formatCalLabel(end)}`
+    if (customOpt) customOpt.textContent = label
+    sel.value = "custom"
+    sel.classList.add("custom-active")
+  }
+  vscode.postMessage({ type: "requestRange", preset: "custom", customStart: start, customEnd: end })
+  updateRangeLabel()
+  closeCalendar()
+}
+
 function handlePresetChange(preset: string): void {
   currentPreset = preset
-  document.querySelectorAll(".filter-btn").forEach(b =>
-    b.classList.toggle("active", (b as HTMLElement).dataset.preset === preset)
-  )
-  document.getElementById("single-date-range")?.classList.toggle("hidden", preset !== "date")
-  document.getElementById("custom-range")?.classList.toggle("hidden", preset !== "custom")
+  const sel = document.getElementById("date-preset-select") as HTMLSelectElement | null
+  if (sel) sel.classList.remove("custom-active")
 
-  if (preset === "date") {
-    const input = document.getElementById("single-date") as HTMLInputElement | null
-    if (input) {
-      if (!input.value) input.value = todayDateStr()
-      input.max = todayDateStr()
-      vscode.postMessage({ type: "requestRange", preset: "custom", customStart: input.value, customEnd: input.value })
-    }
-  } else if (preset !== "custom") {
+  if (preset === "yesterday") {
+    const d = yesterdayDateStr()
+    vscode.postMessage({ type: "requestRange", preset: "custom", customStart: d, customEnd: d })
+  } else {
     vscode.postMessage({ type: "requestRange", preset: preset as import("../shared/types").RangePreset })
   }
+  updateRangeLabel()
 }
 
 // ── Streak helpers ──────────────────────────────────────────────────────────
@@ -237,20 +367,19 @@ function updateRangeLabel(): void {
   let label = ""
   if (currentPreset === "today") {
     label = "Today"
+  } else if (currentPreset === "yesterday") {
+    label = "Yesterday"
   } else if (currentPreset === "7d") {
-    label = "Last 7 days"
+    label = "This Week"
   } else if (currentPreset === "30d") {
-    label = "Last 30 days"
+    label = "This Month"
   } else if (currentPreset === "1y") {
     label = "Last year"
-  } else if (currentPreset === "date") {
-    const date = (document.getElementById("single-date") as HTMLInputElement)?.value
-    if (date) label = dateLabel(date)
   } else if (currentPreset === "custom") {
-    const start = (document.getElementById("custom-start") as HTMLInputElement)?.value
-    const end = (document.getElementById("custom-end") as HTMLInputElement)?.value
-    if (start && end) {
-      label = start === end ? dateLabel(start) : `${dateLabel(start)} – ${dateLabel(end)}`
+    if (calRangeStart && calRangeEnd) {
+      const start = calRangeStart <= calRangeEnd ? calRangeStart : calRangeEnd
+      const end   = calRangeStart <= calRangeEnd ? calRangeEnd   : calRangeStart
+      label = start === end ? formatCalLabel(start) : `${formatCalLabel(start)} – ${formatCalLabel(end)}`
     }
   }
   el.textContent = label
@@ -756,30 +885,90 @@ window.addEventListener("message", (event: MessageEvent) => {
   }
 })
 
-// Filter bar — range preset buttons
-document.getElementById("filter-bar")?.addEventListener("click", (e: Event) => {
-  const btn = (e.target as HTMLElement).closest(".filter-btn") as HTMLElement | null
-  if (!btn?.dataset.preset) return
-  handlePresetChange(btn.dataset.preset)
+// Date preset dropdown
+document.getElementById("date-preset-select")?.addEventListener("change", (e: Event) => {
+  const sel = e.target as HTMLSelectElement
+  handlePresetChange(sel.value)
 })
 
-// Filter bar — single date picker
-document.getElementById("single-date")?.addEventListener("change", (e: Event) => {
-  const date = (e.target as HTMLInputElement).value
-  if (date) vscode.postMessage({ type: "requestRange", preset: "custom", customStart: date, customEnd: date })
-  updateRangeLabel()
+// Calendar mode toggle (Single Day / Date Range)
+document.getElementById("cal-mode-single")?.addEventListener("click", (e: Event) => {
+  e.stopPropagation()
+  if (calPickMode === "single") return
+  calPickMode = "single"
+  calRangeStart = null
+  calRangeEnd = null
+  calPickStep = 1
+  document.getElementById("cal-mode-single")?.classList.add("active")
+  document.getElementById("cal-mode-range")?.classList.remove("active")
+  calRenderGrid()
+})
+document.getElementById("cal-mode-range")?.addEventListener("click", (e: Event) => {
+  e.stopPropagation()
+  if (calPickMode === "range") return
+  calPickMode = "range"
+  calRangeStart = null
+  calRangeEnd = null
+  calPickStep = 1
+  document.getElementById("cal-mode-range")?.classList.add("active")
+  document.getElementById("cal-mode-single")?.classList.remove("active")
+  calRenderGrid()
 })
 
-// Filter bar — custom date range
-function trySubmitCustomRange(): void {
-  const start = (document.getElementById("custom-start") as HTMLInputElement)?.value
-  const end = (document.getElementById("custom-end") as HTMLInputElement)?.value
-  if (start && end && start <= end) {
-    vscode.postMessage({ type: "requestRange", preset: "custom", customStart: start, customEnd: end })
+// Calendar button — toggle popover
+document.getElementById("calendar-btn")?.addEventListener("click", (e: Event) => {
+  e.stopPropagation()
+  const popover = document.getElementById("calendar-popover")
+  if (popover?.classList.contains("hidden")) {
+    openCalendar()
+  } else {
+    closeCalendar()
   }
-}
-document.getElementById("custom-start")?.addEventListener("change", trySubmitCustomRange)
-document.getElementById("custom-end")?.addEventListener("change", trySubmitCustomRange)
+})
+
+// Calendar grid — day cell clicks
+document.getElementById("cal-grid")?.addEventListener("click", (e: Event) => {
+  e.stopPropagation() // calRenderGrid() replaces innerHTML, detaching the target — stop before document handler sees a detached element and closes the popover
+  const cell = (e.target as HTMLElement).closest(".cal-day") as HTMLElement | null
+  if (!cell || cell.classList.contains("cal-day-empty") || cell.classList.contains("cal-day-future")) return
+  const ds = cell.dataset.date
+  if (!ds) return
+
+  if (calPickMode === "single") {
+    calRangeStart = ds
+    calRangeEnd = ds
+    calPickStep = 2
+    calRenderGrid()
+    applyCalendarRange()
+    return
+  }
+  // Range mode: two-click flow
+  if (calPickStep === 1) {
+    calRangeStart = ds
+    calRangeEnd = null
+    calPickStep = 2
+  } else {
+    calRangeEnd = ds
+  }
+  calRenderGrid()
+})
+
+// Calendar navigation
+document.getElementById("cal-prev")?.addEventListener("click", () => {
+  calViewMonth--
+  if (calViewMonth < 0) { calViewMonth = 11; calViewYear-- }
+  calRenderGrid()
+})
+document.getElementById("cal-next")?.addEventListener("click", () => {
+  calViewMonth++
+  if (calViewMonth > 11) { calViewMonth = 0; calViewYear++ }
+  calRenderGrid()
+})
+
+// Calendar Apply
+document.getElementById("cal-apply")?.addEventListener("click", () => {
+  applyCalendarRange()
+})
 
 // Project dropdown toggles
 document.getElementById("proj-filter-btn")?.addEventListener("click", (e: Event) => {
@@ -815,6 +1004,7 @@ document.addEventListener("keydown", (e: KeyboardEvent) => {
   if (e.key === "Escape") {
     closeProjectPanel("proj-dropdown-panel", false)
     closeProjectPanel("act-proj-dropdown-panel", false)
+    closeCalendar()
   }
 })
 
