@@ -446,9 +446,16 @@ body {
   height: 26px;
   min-width: 0;
   transition: border-color 0.1s, background 0.1s;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23888' stroke-width='1.4' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 8px center;
+}
+
+.date-preset-chevron {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  color: var(--vscode-descriptionForeground);
+  opacity: 0.7;
 }
 
 .date-preset-select:hover {
