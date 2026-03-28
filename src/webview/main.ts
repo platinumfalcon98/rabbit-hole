@@ -442,8 +442,9 @@ function updateStatCards(logs: DailyLog[]): void {
   }
 
   const effectiveTargetMs = getEffectiveTargetMs()
-  const yesterdayStreak = logs[logs.length - 2]?.streak ?? 0
-  const todayEarned = lastLog.streak > yesterdayStreak
+  const todayEarned = effectiveTargetMs > 0
+    ? lastLog.activeTime >= effectiveTargetMs
+    : lastLog.activeTime > 0
   const pill = document.getElementById("streak-pill")
   pill?.classList.toggle("hidden", currentPreset !== "today")
   pill?.classList.toggle("streak-at-risk", !todayEarned && effectiveTargetMs > 0)
@@ -455,13 +456,10 @@ function updateStatCards(logs: DailyLog[]): void {
         streakTargetEl.textContent = " · ✓"
         streakTargetEl.className = "streak-target-met"
       } else {
-        const atRisk = logs[logs.length - 2]?.streak ?? 0
-        const todayActive = selectedProjectIds.length > 0 && selectedProjectIds[0] !== "all"
-          ? lastLog.activeTime
-          : lastLog.activeTime
-        const progress = `${formatDuration(todayActive)} / ${formatDuration(effectiveTargetMs)}`
+        const atRisk = lastLog.streak
+        const progress = `${formatDuration(lastLog.activeTime)} / ${formatDuration(effectiveTargetMs)}`
         streakTargetEl.textContent = atRisk > 0
-          ? ` · ${progress} · ${atRisk}d at risk`
+          ? ` · ${progress} · Streak at risk`
           : ` · ${progress}`
         streakTargetEl.className = "streak-target-pending"
       }
@@ -863,17 +861,10 @@ window.addEventListener("message", (event: MessageEvent) => {
     case "pdfData": {
       const nameInput = document.getElementById("export-display-name") as HTMLInputElement | null
       const displayName = nameInput?.value.trim() || msg.projectName
-      const streakRow = document.getElementById("pdf-streak-row")
       const options: PdfOptions = {
-        streak:       streakRow?.style.display !== "none" && (document.getElementById("pdf-streak") as HTMLInputElement).checked,
-        activeTime:   (document.getElementById("pdf-active-time")   as HTMLInputElement).checked,
-        linesAdded:   (document.getElementById("pdf-lines-added")   as HTMLInputElement).checked,
-        linesDeleted: (document.getElementById("pdf-lines-deleted") as HTMLInputElement).checked,
-        topLanguage:  (document.getElementById("pdf-top-lang")      as HTMLInputElement).checked,
-        aiEvents:     false,
-        heatmap:      (document.getElementById("pdf-heatmap")       as HTMLInputElement).checked,
-        projectName:  displayName,
-        dateRange:    msg.dateRange,
+        projectName: displayName,
+        dateRange:   msg.dateRange,
+        isToday:     true,
       }
       generateJpg(msg.logs, options).then(dataUrl => {
         const base64 = dataUrl.split(",")[1]
@@ -1082,24 +1073,13 @@ document.getElementById("pref-session-expiry")?.addEventListener("change", (e: E
 
 // ── Export modal (JPG) ──────────────────────────────────────────────────────
 
-let exportPreset: "today" | "7d" | "30d" | "date" | "custom" = "today"
-let exportCustomStart = ""
-let exportCustomEnd = ""
-
 function closePdfModal(): void {
   document.getElementById("pdf-modal-overlay")?.classList.add("hidden")
   const btn = document.getElementById("pdf-generate") as HTMLButtonElement | null
   if (btn) { btn.disabled = false; btn.textContent = "Export JPG" }
 }
 
-function getExportMaxDate(): string {
-  // Max allowed date for the export date pickers (today)
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
-}
-
 document.getElementById("export-pdf-btn")?.addEventListener("click", () => {
-  // Auto-fill display name
   const nameInput = document.getElementById("export-display-name") as HTMLInputElement | null
   if (nameInput) {
     const isSingle = selectedProjectIds.length > 0 && selectedProjectIds[0] !== "all"
@@ -1107,36 +1087,6 @@ document.getElementById("export-pdf-btn")?.addEventListener("click", () => {
       ? (projects.find(p => p.id === selectedProjectIds[0])?.name ?? "")
       : "All Projects"
   }
-
-  // Auto-select "today" preset and reset all date inputs
-  exportPreset = "today"
-  exportCustomStart = ""
-  exportCustomEnd = ""
-  document.querySelectorAll("#pdf-range .toggle-btn").forEach(b => {
-    b.classList.toggle("active", (b as HTMLElement).dataset.val === "today")
-  })
-  document.getElementById("export-single-date-range")?.classList.add("hidden")
-  document.getElementById("export-custom-range")?.classList.add("hidden")
-  document.getElementById("export-range-error")?.classList.add("hidden")
-
-  // Initialise date inputs with sane defaults (today)
-  const today = getExportMaxDate()
-  const singleInput = document.getElementById("export-single-date") as HTMLInputElement | null
-  const startInput  = document.getElementById("export-custom-start") as HTMLInputElement | null
-  const endInput    = document.getElementById("export-custom-end")   as HTMLInputElement | null
-  if (singleInput) { singleInput.value = today; singleInput.max = today }
-  if (startInput)  { startInput.value  = today; startInput.max  = today }
-  if (endInput)    { endInput.value    = today; endInput.max    = today }
-
-  // Show/hide streak option based on current streak
-  const latestStreak = currentLogs.length > 0 ? currentLogs[currentLogs.length - 1].streak : 0
-  const isAllProjects = selectedProjectIds.length === 0 || selectedProjectIds[0] === "all"
-  const showStreak = isAllProjects || latestStreak >= 1
-  const streakRow  = document.getElementById("pdf-streak-row")
-  const streakChk  = document.getElementById("pdf-streak") as HTMLInputElement | null
-  if (streakRow) streakRow.style.display = showStreak ? "" : "none"
-  if (streakChk) streakChk.checked = showStreak
-
   document.getElementById("pdf-modal-overlay")?.classList.remove("hidden")
 })
 
@@ -1146,68 +1096,9 @@ document.getElementById("pdf-modal-overlay")?.addEventListener("click", (e: Even
   if (e.target === document.getElementById("pdf-modal-overlay")) closePdfModal()
 })
 
-document.getElementById("pdf-range")?.addEventListener("click", (e: Event) => {
-  const btn = (e.target as HTMLElement).closest(".toggle-btn") as HTMLElement | null
-  if (!btn?.dataset.val) return
-  exportPreset = btn.dataset.val as "today" | "7d" | "30d" | "date" | "custom"
-  document.querySelectorAll("#pdf-range .toggle-btn").forEach(b => {
-    b.classList.toggle("active", (b as HTMLElement).dataset.val === btn.dataset.val)
-  })
-  document.getElementById("export-single-date-range")?.classList.toggle("hidden", exportPreset !== "date")
-  document.getElementById("export-custom-range")?.classList.toggle("hidden", exportPreset !== "custom")
-  if (exportPreset !== "custom") document.getElementById("export-range-error")?.classList.add("hidden")
-})
-
-document.getElementById("export-single-date")?.addEventListener("change", (e: Event) => {
-  const date = (e.target as HTMLInputElement).value
-  if (date) {
-    exportCustomStart = date
-    exportCustomEnd = date
-  }
-})
-
-function validateExportCustomRange(): boolean {
-  if (!exportCustomStart || !exportCustomEnd) return false
-  if (exportCustomStart > exportCustomEnd) return false
-  const diffDays = (new Date(exportCustomEnd).getTime() - new Date(exportCustomStart).getTime()) / 86_400_000
-  return diffDays <= 90
-}
-
-document.getElementById("export-custom-start")?.addEventListener("change", (e: Event) => {
-  exportCustomStart = (e.target as HTMLInputElement).value
-  // Keep end date at least equal to start, and cap max range at 90 days
-  const endInput = document.getElementById("export-custom-end") as HTMLInputElement | null
-  if (endInput) {
-    if (endInput.value < exportCustomStart) endInput.value = exportCustomStart
-    exportCustomEnd = endInput.value
-  }
-  const rangeError = document.getElementById("export-range-error")
-  if (rangeError) rangeError.classList.toggle("hidden", validateExportCustomRange() || !exportCustomStart || !exportCustomEnd)
-})
-
-document.getElementById("export-custom-end")?.addEventListener("change", (e: Event) => {
-  exportCustomEnd = (e.target as HTMLInputElement).value
-  const valid = validateExportCustomRange()
-  const rangeError = document.getElementById("export-range-error")
-  if (rangeError) rangeError.classList.toggle("hidden", valid || !exportCustomStart || !exportCustomEnd)
-})
-
 document.getElementById("pdf-generate")?.addEventListener("click", () => {
   const btn = document.getElementById("pdf-generate") as HTMLButtonElement
-  if (exportPreset === "custom" && !validateExportCustomRange()) return
-  if (exportPreset === "date") {
-    const date = (document.getElementById("export-single-date") as HTMLInputElement | null)?.value
-    if (!date) return
-    exportCustomStart = date
-    exportCustomEnd = date
-  }
   btn.disabled = true
   btn.textContent = "Generating…"
-  const isCustomLike = exportPreset === "custom" || exportPreset === "date"
-  vscode.postMessage({
-    type: "exportPdfRequest",
-    preset: isCustomLike ? "custom" : exportPreset,
-    customStart: isCustomLike ? exportCustomStart : undefined,
-    customEnd:   isCustomLike ? exportCustomEnd   : undefined,
-  })
+  vscode.postMessage({ type: "exportPdfRequest", preset: "today" })
 })

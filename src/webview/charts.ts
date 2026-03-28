@@ -27,6 +27,7 @@ Chart.register(
 let linesChart: Chart | null = null
 let langChart: Chart | null = null
 let resizeObservers: ResizeObserver[] = []
+let langResizeObs: ResizeObserver | null = null
 
 // Lang panel state — persists across range changes and 30s updates
 let langMetric: "time" | "lines" = "time"
@@ -56,6 +57,7 @@ function aggregateLangs(logs: DailyLog[]): LangData[] {
 }
 
 function formatDuration(ms: number): string {
+  if (ms <= 0) return "—"
   const totalMinutes = Math.floor(ms / 60_000)
   const hours = Math.floor(totalMinutes / 60)
   const minutes = totalMinutes % 60
@@ -75,6 +77,8 @@ const labelColor = () =>
 function destroyAll(): void {
   resizeObservers.forEach(o => o.disconnect())
   resizeObservers = []
+  langResizeObs?.disconnect()
+  langResizeObs = null
   linesChart?.destroy()
   langChart?.destroy()
   linesChart = null
@@ -213,7 +217,11 @@ function renderLangPanel(logs: DailyLog[]): void {
     },
   })
 
-  if (canvas.parentElement) watchResize(canvas.parentElement, () => langChart?.resize())
+  if (canvas.parentElement) {
+    langResizeObs?.disconnect()
+    langResizeObs = new ResizeObserver(() => langChart?.resize())
+    langResizeObs.observe(canvas.parentElement)
+  }
 
   // Legend table — always shows time + lines regardless of metric toggle
   if (legendEl) {

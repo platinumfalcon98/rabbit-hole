@@ -29,6 +29,7 @@ export class DashboardPanel {
         ],
       }
     )
+    panel.iconPath = vscode.Uri.joinPath(context.extensionUri, "resources", "rabbithole-icon.svg")
 
     DashboardPanel.currentPanel = new DashboardPanel(panel, context.extensionUri)
   }
@@ -399,41 +400,10 @@ export class DashboardPanel {
           <h2 class="modal-title">Export JPG</h2>
 
           <div class="modal-section">
-            <div class="modal-label">Display Name</div>
+            <div class="modal-label">Project Name</div>
             <input type="text" id="export-display-name" class="modal-name-input" placeholder="Project name">
           </div>
 
-          <div class="modal-section">
-            <div class="modal-label">Date Range</div>
-            <div class="toggle-group" id="pdf-range">
-              <button class="toggle-btn active" data-val="today">Today</button>
-              <button class="toggle-btn" data-val="7d">Past Week</button>
-              <button class="toggle-btn" data-val="30d">30 days</button>
-              <button class="toggle-btn" data-val="date">Date</button>
-              <button class="toggle-btn" data-val="custom">Range</button>
-            </div>
-            <div id="export-single-date-range" class="export-custom-range hidden">
-              <input type="date" id="export-single-date" class="modal-date-input">
-            </div>
-            <div id="export-custom-range" class="export-custom-range hidden">
-              <input type="date" id="export-custom-start" class="modal-date-input">
-              <span class="export-range-sep">—</span>
-              <input type="date" id="export-custom-end" class="modal-date-input">
-              <span id="export-range-error" class="export-range-error hidden">Max 90 days</span>
-            </div>
-          </div>
-
-          <div class="modal-section">
-            <div class="modal-label">Include</div>
-            <div class="modal-checks">
-              <label class="modal-check" id="pdf-streak-row"><input type="checkbox" id="pdf-streak" checked> Streak</label>
-              <label class="modal-check"><input type="checkbox" id="pdf-active-time" checked> Active Time</label>
-              <label class="modal-check"><input type="checkbox" id="pdf-lines-added" checked> Lines Added</label>
-              <label class="modal-check"><input type="checkbox" id="pdf-lines-deleted" checked> Lines Deleted</label>
-              <label class="modal-check"><input type="checkbox" id="pdf-top-lang" checked> Top Language</label>
-              <label class="modal-check"><input type="checkbox" id="pdf-heatmap" checked> Activity Heatmap</label>
-            </div>
-          </div>
 
           <div class="modal-actions">
             <button id="pdf-cancel" class="modal-btn-secondary">Cancel</button>

@@ -105,7 +105,7 @@ function drawLogoCanvas(
   }
 }
 
-// ── Calendar heatmap ──────────────────────────────────────────────────────────
+// ── Heatmap (GitHub-style: weeks as columns, Mon–Sun rows) ───────────────────
 
 function drawCalendarHeatmap(
   ctx: CanvasRenderingContext2D,
@@ -115,121 +115,70 @@ function drawCalendarHeatmap(
   s: (v: number) => number,
   MUTED: string
 ): number {
-  if (logs.length === 0) return startY
-
   const logByDate = new Map<string, number>()
   for (const log of logs) logByDate.set(log.date, log.activeTime)
   const maxActive = Math.max(...logs.map(l => l.activeTime), 1)
 
-  const sorted = [...logs].sort((a, b) => a.date.localeCompare(b.date))
-  const rangeStart = new Date(sorted[0].date + "T00:00:00")
-  const rangeEnd   = new Date(sorted[sorted.length - 1].date + "T00:00:00")
+  const today = new Date(); today.setHours(0, 0, 0, 0)
+  const todayDow = (today.getDay() + 6) % 7  // Mon=0
+  const weekMonday = new Date(today); weekMonday.setDate(today.getDate() - todayDow)
 
-  // Collect months in range
-  const months: { year: number; month: number }[] = []
-  const cur = new Date(rangeStart.getFullYear(), rangeStart.getMonth(), 1)
-  while (cur <= rangeEnd) {
-    months.push({ year: cur.getFullYear(), month: cur.getMonth() })
-    cur.setMonth(cur.getMonth() + 1)
-  }
+  const weeks = 5
+  const gridStart = new Date(weekMonday); gridStart.setDate(weekMonday.getDate() - (weeks - 1) * 7)
 
-  const monthGap   = s(10)
-  const numMonths  = months.length
-  const cellGap    = s(2)
-  // Cell size based on available width for the most months we'll ever show (3)
-  const maxMonthW  = (W - s(56) - 2 * monthGap) / 3
-  const cellSize   = Math.min(s(16), Math.floor((maxMonthW - 6 * cellGap) / 7))
-  const step       = cellSize + cellGap
-  const monthW     = 7 * cellSize + 6 * cellGap   // actual content width per month
-  const totalW     = numMonths * monthW + (numMonths - 1) * monthGap
-  const startX     = (W - totalW) / 2             // center the whole group
+  const cellSize = s(15)
+  const cellGap  = s(3.5)
+  const step     = cellSize + cellGap
+  const labelW   = s(26)
+  const totalGridW = weeks * step - cellGap
+  const gridX    = (W - labelW - totalGridW) / 2 + labelW
 
-  // DOW header labels (Mon…Sun)
-  const DOW = ["M", "T", "W", "T", "F", "S", "S"]
-  const headerH = s(11)   // month name
-  const dowH    = s(10)   // day-of-week row
-
-  // Max rows needed across all months (for uniform height)
-  let maxRows = 0
-  for (const { year, month } of months) {
-    const firstDow  = (new Date(year, month, 1).getDay() + 6) % 7
-    const daysInMon = new Date(year, month + 1, 0).getDate()
-    maxRows = Math.max(maxRows, Math.ceil((firstDow + daysInMon) / 7))
-  }
-
-  const blockH = headerH + dowH + maxRows * step
-
-  months.forEach(({ year, month }, mi) => {
-    const mx = startX + mi * (monthW + monthGap)
-    const my = startY
-
-    // Month + year label
-    const label = new Date(year, month, 1)
-      .toLocaleDateString(undefined, { month: "long", year: "numeric" })
-    ctx.fillStyle = MUTED
-    ctx.font = `bold ${s(7.5)}px 'Electrolize', sans-serif`
-    ctx.textAlign = "center"
-    ctx.fillText(label.toUpperCase(), mx + monthW / 2, my + s(8))
-
-    // DOW headers
-    ctx.font = `${s(6.5)}px 'Electrolize', sans-serif`
-    ctx.fillStyle = MUTED
-    for (let d = 0; d < 7; d++) {
-      ctx.textAlign = "center"
-      ctx.fillText(DOW[d], mx + d * step + cellSize / 2, my + headerH + s(7))
+  // Day-of-week labels
+  const DOW_LABELS = ["Mon", "", "Wed", "", "Fri", "", "Sun"]
+  ctx.font = `${s(7)}px 'Electrolize', sans-serif`
+  ctx.fillStyle = MUTED
+  ctx.textAlign = "right"
+  for (let d = 0; d < 7; d++) {
+    if (DOW_LABELS[d]) {
+      ctx.fillText(DOW_LABELS[d], gridX - s(4), startY + d * step + cellSize - s(1))
     }
+  }
 
-    // Day cells
-    const firstDow  = (new Date(year, month, 1).getDay() + 6) % 7
-    const daysInMon = new Date(year, month + 1, 0).getDate()
-    const cellTop   = my + headerH + dowH
-
-    for (let day = 1; day <= daysInMon; day++) {
-      const dow     = (new Date(year, month, day).getDay() + 6) % 7
-      const weekIdx = Math.floor((firstDow + day - 1) / 7)
-      const cx      = mx + dow * step
-      const cy      = cellTop + weekIdx * step
-
-      const dateKey = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`
-      const dayDate = new Date(year, month, day)
-      const inRange = dayDate >= rangeStart && dayDate <= rangeEnd
-      const active  = logByDate.get(dateKey) ?? 0
-
-      if (!inRange) {
-        ctx.fillStyle = "rgba(128,128,128,0.06)"
-      } else if (active === 0) {
-        ctx.fillStyle = "rgba(128,128,128,0.18)"
-      } else {
-        const t = active / maxActive
-        ctx.fillStyle = `rgba(249,115,22,${(0.18 + t * 0.82).toFixed(2)})`
-      }
-
-      roundRect(ctx, cx, cy, cellSize, cellSize, s(2))
+  // Cells
+  for (let w = 0; w < weeks; w++) {
+    for (let d = 0; d < 7; d++) {
+      const cell = new Date(gridStart); cell.setDate(gridStart.getDate() + w * 7 + d)
+      if (cell > today) continue
+      const key = `${cell.getFullYear()}-${String(cell.getMonth()+1).padStart(2,"0")}-${String(cell.getDate()).padStart(2,"0")}`
+      const active = logByDate.get(key) ?? 0
+      const t = active / maxActive
+      ctx.fillStyle = active === 0
+        ? "rgba(128,128,128,0.18)"
+        : `rgba(249,115,22,${(0.18 + t * 0.82).toFixed(2)})`
+      roundRect(ctx, gridX + w * step, startY + d * step, cellSize, cellSize, s(2))
       ctx.fill()
     }
-  })
+  }
 
-  // Legend (right-aligned to calendar group)
-  const legendY   = startY + blockH + s(6)
-  const boxSize   = s(7)
-  const boxGap    = s(3)
-  const boxCount  = 5
-  const legendW   = boxCount * (boxSize + boxGap) - boxGap
-  const boxStartX = startX + totalW - legendW - s(22)
+  // Legend
+  const legendY  = startY + 7 * step + s(4)
+  const boxSize  = s(7)
+  const boxGap   = s(3)
+  const boxCount = 5
+  const legendW  = boxCount * (boxSize + boxGap) - boxGap
+  const boxX     = gridX + totalGridW - legendW
 
   ctx.font = `${s(6.5)}px 'Electrolize', sans-serif`
   ctx.fillStyle = MUTED
   ctx.textAlign = "right"
-  ctx.fillText("Less", boxStartX - s(3), legendY + boxSize - s(1))
+  ctx.fillText("Less", boxX - s(3), legendY + boxSize - s(1))
   ctx.textAlign = "left"
-  ctx.fillText("More", boxStartX + legendW + s(3), legendY + boxSize - s(1))
+  ctx.fillText("More", boxX + legendW + s(3), legendY + boxSize - s(1))
 
   for (let i = 0; i < boxCount; i++) {
     const t = i / (boxCount - 1)
-    ctx.fillStyle = i === 0
-      ? "rgba(128,128,128,0.18)"
-      : `rgba(249,115,22,${(0.18 + t * 0.82).toFixed(2)})`
-    roundRect(ctx, boxStartX + i * (boxSize + boxGap), legendY, boxSize, boxSize, s(1.5))
+    ctx.fillStyle = i === 0 ? "rgba(128,128,128,0.18)" : `rgba(249,115,22,${(0.18 + t * 0.82).toFixed(2)})`
+    roundRect(ctx, boxX + i * (boxSize + boxGap), legendY, boxSize, boxSize, s(1.5))
     ctx.fill()
   }
 
@@ -250,8 +199,8 @@ function drawStatGrid(
   const margin = s(28)
   const gap = s(10)
   const colW = (W - margin * 2 - gap) / 2
-  const cellH = s(58)
-  const rowGap = s(10)
+  const cellH = s(64)
+  const rowGap = s(12)
 
   items.forEach((item, i) => {
     const col = i % 2
@@ -264,13 +213,13 @@ function drawStatGrid(
     ctx.fill()
 
     ctx.fillStyle = item.color
-    ctx.font = `bold ${s(20)}px 'Quantico', sans-serif`
+    ctx.font = `bold ${s(22)}px 'Quantico', sans-serif`
     ctx.textAlign = "left"
-    ctx.fillText(item.value, x + s(12), y + s(28))
+    ctx.fillText(item.value, x + s(12), y + s(32))
 
     ctx.fillStyle = MUTED
-    ctx.font = `${s(8)}px 'Quantico', sans-serif`
-    ctx.fillText(item.label, x + s(12), y + s(45))
+    ctx.font = `${s(9)}px 'Quantico', sans-serif`
+    ctx.fillText(item.label, x + s(12), y + s(50))
   })
 
   const rows = Math.ceil(items.length / 2)
@@ -282,7 +231,7 @@ function drawStatGrid(
 export async function generateJpg(logs: DailyLog[], options: PdfOptions): Promise<string> {
   await document.fonts.ready
 
-  const SCALE = 2
+  const SCALE = 3
   const W = 420 * SCALE
   const H = 620 * SCALE
   const s = (v: number) => v * SCALE
@@ -308,70 +257,41 @@ export async function generateJpg(logs: DailyLog[], options: PdfOptions): Promis
   ctx.fillStyle = ACCENT
   ctx.fillRect(0, 0, W, s(5))
 
-  // ── Header: logo + "RABBIT HOLE" ─────────────────────────────────────────
+  const today = new Date(); today.setHours(0,0,0,0)
+  const todayKey = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,"0")}-${String(today.getDate()).padStart(2,"0")}`
+  const stats = computeStats(logs.filter(l => l.date === todayKey))
 
-  const logoH = s(26)
-  const logoW = logoH * (48 / 34)   // maintain aspect ratio → logoScale = logoH/34
-  const logoScale = logoH / 34
-  const brandFontSize = s(15)
-  ctx.font = `bold ${brandFontSize}px 'Electrolize', sans-serif`
-  const textW = ctx.measureText("RABBIT HOLE").width
-  const gap = s(8)
-  const groupW = logoW + gap + textW
-  const groupX = (W - groupW) / 2
-  const headerCenterY = s(30)
+  // ── Project name (vertically centered in header section) ─────────────────
 
-  // Logo drawn as rects (no image loading — avoids CSP)
-  drawLogoCanvas(ctx, groupX, headerCenterY - logoH / 2, logoScale)
-
-  // Brand text
-  ctx.fillStyle = ACCENT
-  ctx.font = `bold ${brandFontSize}px 'Electrolize', sans-serif`
-  ctx.textAlign = "left"
-  ctx.textBaseline = "middle"
-  ctx.fillText("RABBIT HOLE", groupX + logoW + gap, headerCenterY)
-  ctx.textBaseline = "alphabetic"
-
-  // ── Subtitle ──────────────────────────────────────────────────────────────
-
-  let yPos = s(54)
-  const rangeLabel = `ACTIVITY FROM ${options.dateRange.from} TO ${options.dateRange.to}`
-  ctx.fillStyle = TEXT
-  ctx.font = `bold ${s(10)}px 'Quantico', sans-serif`
-  ctx.textAlign = "center"
-  ctx.fillText(rangeLabel, W / 2, yPos)
-  yPos += s(20)
-
-  // ── Project name ─────────────────────────────────────────────────────────
-
-  const stats = computeStats(logs)
+  const headerSectionH = s(46)          // px — from accent bar base to divider
+  const headerDividerY = s(5) + headerSectionH
+  const headerTextY    = s(5) + headerSectionH / 2 + s(10)  // baseline centered
 
   ctx.fillStyle = TEXT
-  ctx.font = `bold ${s(13)}px 'Quantico', sans-serif`
+  ctx.font = `bold ${s(20)}px 'Quantico', sans-serif`
   ctx.textAlign = "center"
-  ctx.fillText(options.projectName.toUpperCase(), W / 2, yPos)
-  yPos += s(20)
+  ctx.fillText(options.projectName.toUpperCase(), W / 2, headerTextY)
 
-  // Divider
   ctx.strokeStyle = SURFACE
   ctx.lineWidth = s(1)
   ctx.beginPath()
-  ctx.moveTo(s(28), yPos)
-  ctx.lineTo(W - s(28), yPos)
+  ctx.moveTo(s(28), headerDividerY)
+  ctx.lineTo(W - s(28), headerDividerY)
   ctx.stroke()
-  yPos += s(16)
+
+  let yPos = headerDividerY + s(18)
 
   // ── Streak hero ───────────────────────────────────────────────────────────
 
-  if (options.streak) {
+  if (options.isToday) {
     ctx.fillStyle = ACCENT
-    ctx.font = `bold ${s(64)}px 'Press Start 2P', monospace`
+    ctx.font = `bold ${s(72)}px 'Press Start 2P', monospace`
     ctx.textAlign = "center"
-    ctx.fillText(String(stats.streak), W / 2, yPos + s(56))
+    ctx.fillText(String(stats.streak), W / 2, yPos + s(62))
 
-    ctx.font = `bold ${s(13)}px 'Quantico', sans-serif`
-    ctx.fillText(`🔥 Day Streak`, W / 2, yPos + s(80))
-    yPos += s(100)
+    ctx.font = `bold ${s(14)}px 'Quantico', sans-serif`
+    ctx.fillText("Day Streak", W / 2, yPos + s(80))
+    yPos += s(98)
 
     // Divider
     ctx.strokeStyle = SURFACE
@@ -380,24 +300,22 @@ export async function generateJpg(logs: DailyLog[], options: PdfOptions): Promis
     ctx.moveTo(s(28), yPos)
     ctx.lineTo(W - s(28), yPos)
     ctx.stroke()
-    yPos += s(16)
+    yPos += s(18)
   }
 
   // ── Stats grid ────────────────────────────────────────────────────────────
 
-  const statItems: { label: string; value: string; color: string }[] = []
-  if (options.activeTime)   statItems.push({ label: "ACTIVE TIME",   value: formatDuration(stats.totalActiveTime),  color: TEXT })
-  if (options.linesAdded)   statItems.push({ label: "LINES ADDED",   value: `+${stats.totalLinesAdded}`,            color: GREEN })
-  if (options.linesDeleted) statItems.push({ label: "LINES DELETED", value: `-${stats.totalLinesDeleted}`,          color: RED })
-  if (options.topLanguage)  statItems.push({ label: "TOP LANGUAGE",  value: stats.topLanguage,                      color: TEXT })
-
-  if (statItems.length > 0) {
-    yPos = drawStatGrid(ctx, statItems, yPos, W, s, SURFACE, MUTED) + s(20)
-  }
+  const statItems: { label: string; value: string; color: string }[] = [
+    { label: "ACTIVE TIME",   value: formatDuration(stats.totalActiveTime), color: TEXT },
+    { label: "LINES ADDED",   value: `+${stats.totalLinesAdded}`,           color: GREEN },
+    { label: "LINES DELETED", value: `-${stats.totalLinesDeleted}`,         color: RED },
+    { label: "TOP LANGUAGE",  value: stats.topLanguage,                     color: TEXT },
+  ]
+  yPos = drawStatGrid(ctx, statItems, yPos, W, s, SURFACE, MUTED) + s(24)
 
   // ── Heatmap ───────────────────────────────────────────────────────────────
 
-  if (options.heatmap && logs.length > 0) {
+  if (logs.length > 0) {
     ctx.fillStyle = MUTED
     ctx.font = `${s(7.5)}px 'Electrolize', sans-serif`
     ctx.textAlign = "center"
@@ -412,10 +330,27 @@ export async function generateJpg(logs: DailyLog[], options: PdfOptions): Promis
   const now = new Date()
   const dateStr = now.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })
   const timeStr = now.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })
-  ctx.fillStyle = MUTED
+  const footerPrefix = `Generated ${dateStr} at ${timeStr}  ·  `
+  const footerSuffix = `Rabbit Hole`
+
   ctx.font = `${s(7.5)}px 'Electrolize', sans-serif`
-  ctx.textAlign = "center"
-  ctx.fillText(`Generated ${dateStr} at ${timeStr}  ·  Rabbit Hole`, W / 2, H - s(18))
+  const prefixW = ctx.measureText(footerPrefix).width
+  const suffixW = ctx.measureText(footerSuffix).width
+  const footerLogoScale = s(8) / 34   // logo ~8px logical tall
+  const footerLogoW = 48 * footerLogoScale
+  const footerGap = s(4)
+  const groupW = prefixW + footerLogoW + footerGap + suffixW
+  const groupX = (W - groupW) / 2
+  const footerY = H - s(18)
+
+  ctx.fillStyle = MUTED
+  ctx.textAlign = "left"
+  ctx.fillText(footerPrefix, groupX, footerY)
+
+  drawLogoCanvas(ctx, groupX + prefixW, footerY - s(7), footerLogoScale)
+
+  ctx.fillStyle = TEXT
+  ctx.fillText(footerSuffix, groupX + prefixW + footerLogoW + footerGap, footerY)
 
   return canvas.toDataURL("image/jpeg", 0.93)
 }

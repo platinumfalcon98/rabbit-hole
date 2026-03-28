@@ -7,6 +7,7 @@ const DAY_LABELS = ["Mon", "", "Wed", "", "Fri", "", ""]
 let storedLogs: DailyLog[] = []
 
 function formatDuration(ms: number): string {
+  if (ms <= 0) return "—"
   const totalMinutes = Math.floor(ms / 60_000)
   const hours = Math.floor(totalMinutes / 60)
   const minutes = totalMinutes % 60

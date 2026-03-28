@@ -2,15 +2,9 @@ import { jsPDF } from "jspdf"
 import { DailyLog } from "../shared/types"
 
 export interface PdfOptions {
-  streak: boolean
-  activeTime: boolean
-  linesAdded: boolean
-  linesDeleted: boolean
-  topLanguage: boolean
-  aiEvents: boolean
-  heatmap: boolean
   projectName: string
   dateRange: { from: string; to: string }
+  isToday: boolean
 }
 
 export { computeStats }
@@ -139,119 +133,72 @@ function renderCalendarHeatmap(
   W: number,
   MUTED: string
 ): number {
-  if (logs.length === 0) return startY
-
   const logByDate = new Map<string, number>()
   for (const log of logs) logByDate.set(log.date, log.activeTime)
   const maxActive = Math.max(...logs.map(l => l.activeTime), 1)
 
-  const sorted = [...logs].sort((a, b) => a.date.localeCompare(b.date))
-  const rangeStart = new Date(sorted[0].date + "T00:00:00")
-  const rangeEnd   = new Date(sorted[sorted.length - 1].date + "T00:00:00")
+  const today = new Date(); today.setHours(0, 0, 0, 0)
+  const todayDow = (today.getDay() + 6) % 7
+  const weekMonday = new Date(today); weekMonday.setDate(today.getDate() - todayDow)
 
-  // Collect months in range
-  const months: { year: number; month: number }[] = []
-  const cur = new Date(rangeStart.getFullYear(), rangeStart.getMonth(), 1)
-  while (cur <= rangeEnd) {
-    months.push({ year: cur.getFullYear(), month: cur.getMonth() })
-    cur.setMonth(cur.getMonth() + 1)
-  }
+  const weeks = 5
+  const gridStart = new Date(weekMonday); gridStart.setDate(weekMonday.getDate() - (weeks - 1) * 7)
 
-  const monthGap   = 9
-  const numMonths  = months.length
-  const cellGap    = 1.5
-  const maxMonthW  = (W - 56 - 2 * monthGap) / 3
-  const cellSize   = Math.min(14, Math.floor((maxMonthW - 6 * cellGap) / 7))
-  const step       = cellSize + cellGap
-  const monthW     = 7 * cellSize + 6 * cellGap
-  const totalW     = numMonths * monthW + (numMonths - 1) * monthGap
-  const startX     = (W - totalW) / 2
-
-  const DOW = ["M", "T", "W", "T", "F", "S", "S"]
-  const headerH = 10
-  const dowH    = 9
+  const cellSize = 13
+  const cellGap  = 2.5
+  const step     = cellSize + cellGap
+  const labelW   = 22
+  const totalGridW = weeks * step - cellGap
+  const gridX    = (W - labelW - totalGridW) / 2 + labelW
 
   const [ar, ag, ab] = [0xf9, 0x73, 0x16]
   const [sr, sg, sb] = [0x1e, 0x29, 0x3b]
 
-  let maxRows = 0
-  for (const { year, month } of months) {
-    const firstDow  = (new Date(year, month, 1).getDay() + 6) % 7
-    const daysInMon = new Date(year, month + 1, 0).getDate()
-    maxRows = Math.max(maxRows, Math.ceil((firstDow + daysInMon) / 7))
-  }
-  const blockH = headerH + dowH + maxRows * step
-
-  months.forEach(({ year, month }, mi) => {
-    const mx = startX + mi * (monthW + monthGap)
-    const my = startY
-
-    // Month label
-    const label = new Date(year, month, 1)
-      .toLocaleDateString(undefined, { month: "long", year: "numeric" })
-    doc.setFont("helvetica", "bold")
-    doc.setFontSize(6)
-    setText(doc, MUTED)
-    doc.text(label.toUpperCase(), mx + monthW / 2, my + 7, { align: "center" })
-
-    // DOW headers
-    doc.setFont("helvetica", "normal")
-    doc.setFontSize(5.5)
-    for (let d = 0; d < 7; d++) {
-      doc.text(DOW[d], mx + d * step + cellSize / 2, my + headerH + 7, { align: "center" })
+  const DOW_LABELS = ["Mon", "", "Wed", "", "Fri", "", "Sun"]
+  doc.setFont("helvetica", "normal")
+  doc.setFontSize(5.5)
+  setText(doc, MUTED)
+  for (let d = 0; d < 7; d++) {
+    if (DOW_LABELS[d]) {
+      doc.text(DOW_LABELS[d], gridX - 3, startY + d * step + cellSize - 1, { align: "right" })
     }
+  }
 
-    // Day cells
-    const firstDow  = (new Date(year, month, 1).getDay() + 6) % 7
-    const daysInMon = new Date(year, month + 1, 0).getDate()
-    const cellTop   = my + headerH + dowH
-
-    for (let day = 1; day <= daysInMon; day++) {
-      const dow     = (new Date(year, month, day).getDay() + 6) % 7
-      const weekIdx = Math.floor((firstDow + day - 1) / 7)
-      const cx      = mx + dow * step
-      const cy      = cellTop + weekIdx * step
-
-      const dateKey = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`
-      const dayDate = new Date(year, month, day)
-      const inRange = dayDate >= rangeStart && dayDate <= rangeEnd
-      const active  = logByDate.get(dateKey) ?? 0
-
-      if (!inRange) {
-        doc.setFillColor(20, 30, 48)
-      } else if (active === 0) {
+  for (let w = 0; w < weeks; w++) {
+    for (let d = 0; d < 7; d++) {
+      const cell = new Date(gridStart); cell.setDate(gridStart.getDate() + w * 7 + d)
+      if (cell > today) continue
+      const key = `${cell.getFullYear()}-${String(cell.getMonth()+1).padStart(2,"0")}-${String(cell.getDate()).padStart(2,"0")}`
+      const active = logByDate.get(key) ?? 0
+      if (active === 0) {
         doc.setFillColor(40, 52, 70)
       } else {
-        const t = active / maxActive
-        const alpha = 0.18 + t * 0.82
+        const alpha = 0.18 + (active / maxActive) * 0.82
         doc.setFillColor(
           Math.round(sr + alpha * (ar - sr)),
           Math.round(sg + alpha * (ag - sg)),
           Math.round(sb + alpha * (ab - sb))
         )
       }
-
-      doc.roundedRect(cx, cy, cellSize, cellSize, 1, 1, "F")
+      doc.roundedRect(gridX + w * step, startY + d * step, cellSize, cellSize, 1, 1, "F")
     }
-  })
+  }
 
-  // Legend
-  const legendY   = startY + blockH + 5
-  const boxSize   = 5.5
-  const boxGap    = 2.5
-  const boxCount  = 5
-  const legendW   = boxCount * (boxSize + boxGap) - boxGap
-  const boxStartX = startX + totalW - legendW - 20
+  const legendY  = startY + 7 * step + 4
+  const boxSize  = 5
+  const boxGap   = 2.5
+  const boxCount = 5
+  const legendW  = boxCount * (boxSize + boxGap) - boxGap
+  const boxX     = gridX + totalGridW - legendW
 
   doc.setFont("helvetica", "normal")
   doc.setFontSize(5)
   setText(doc, MUTED)
-  doc.text("Less", boxStartX - 2, legendY + boxSize, { align: "right" })
-  doc.text("More", boxStartX + legendW + 2, legendY + boxSize)
+  doc.text("Less", boxX - 2, legendY + boxSize, { align: "right" })
+  doc.text("More", boxX + legendW + 2, legendY + boxSize)
 
   for (let i = 0; i < boxCount; i++) {
-    const t = i / (boxCount - 1)
-    const alpha = 0.18 + t * 0.82
+    const alpha = 0.18 + (i / (boxCount - 1)) * 0.82
     if (i === 0) {
       doc.setFillColor(40, 52, 70)
     } else {
@@ -261,7 +208,7 @@ function renderCalendarHeatmap(
         Math.round(sb + alpha * (ab - sb))
       )
     }
-    doc.roundedRect(boxStartX + i * (boxSize + boxGap), legendY, boxSize, boxSize, 0.8, 0.8, "F")
+    doc.roundedRect(boxX + i * (boxSize + boxGap), legendY, boxSize, boxSize, 0.8, 0.8, "F")
   }
 
   return legendY + boxSize
@@ -332,57 +279,30 @@ export function generatePdf(logs: DailyLog[], options: PdfOptions): ArrayBuffer 
   setFill(doc, ACCENT)
   doc.rect(0, 0, W, 5, "F")
 
-  // ── Header: logo + "RABBIT HOLE" ─────────────────────────────────────────
+  const today = new Date(); today.setHours(0,0,0,0)
+  const todayKey = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,"0")}-${String(today.getDate()).padStart(2,"0")}`
+  const stats = computeStats(logs.filter(l => l.date === todayKey))
 
-  const logoScale = 0.62           // 48×34 → ~29.8×21.1
-  const logoW = 48 * logoScale
-  const logoH = 34 * logoScale
-  const brandFontSize = 13
+  // ── Project name (vertically centered in header section) ─────────────────
+
+  const headerSectionH = 40           // pt — from accent bar base to divider
+  const headerDividerY = 5 + headerSectionH
+  const headerTextY    = 5 + headerSectionH / 2 + 6   // baseline centered in section
 
   doc.setFont("helvetica", "bold")
-  doc.setFontSize(brandFontSize)
-  const textW = doc.getTextWidth("RABBIT HOLE")
-  const headerGap = 7
-  const groupW = logoW + headerGap + textW
-  const groupX = (W - groupW) / 2
-  const headerCenterY = 29
-
-  drawLogoRects(doc, groupX, headerCenterY - logoH / 2, logoScale)
-
-  setText(doc, ACCENT)
-  doc.setFont("helvetica", "bold")
-  doc.setFontSize(brandFontSize)
-  doc.text("RABBIT HOLE", groupX + logoW + headerGap, headerCenterY + brandFontSize * 0.35)
-
-  // ── Subtitle ──────────────────────────────────────────────────────────────
-
-  let yPos = 52
-  const rangeLabel = `ACTIVITY FROM ${options.dateRange.from} TO ${options.dateRange.to}`
-  doc.setFont("helvetica", "bold")
-  doc.setFontSize(9)
+  doc.setFontSize(16)
   setText(doc, TEXT)
-  doc.text(rangeLabel, W / 2, yPos, { align: "center" })
-  yPos += 18
+  doc.text(options.projectName.toUpperCase(), W / 2, headerTextY, { align: "center" })
 
-  // ── Project name ─────────────────────────────────────────────────────────
-
-  doc.setFont("helvetica", "bold")
-  doc.setFontSize(12)
-  setText(doc, TEXT)
-  doc.text(options.projectName.toUpperCase(), W / 2, yPos, { align: "center" })
-  yPos += 12
-
-  // Divider
   setDraw(doc, SURFACE)
   doc.setLineWidth(1)
-  doc.line(28, yPos, W - 28, yPos)
-  yPos += 14
+  doc.line(28, headerDividerY, W - 28, headerDividerY)
+
+  let yPos = headerDividerY + 14
 
   // ── Streak hero ───────────────────────────────────────────────────────────
 
-  const stats = computeStats(logs)
-
-  if (options.streak) {
+  if (options.isToday) {
     doc.setFont("courier", "bold")
     doc.setFontSize(60)
     setText(doc, ACCENT)
@@ -391,9 +311,9 @@ export function generatePdf(logs: DailyLog[], options: PdfOptions): ArrayBuffer 
     doc.setFont("helvetica", "bold")
     doc.setFontSize(11)
     setText(doc, MUTED)
-    doc.text("Day Streak", W / 2, yPos + 72, { align: "center" })
+    doc.text("Day Streak", W / 2, yPos + 65, { align: "center" })
 
-    yPos += 92
+    yPos += 84
 
     setDraw(doc, SURFACE)
     doc.setLineWidth(1)
@@ -403,19 +323,18 @@ export function generatePdf(logs: DailyLog[], options: PdfOptions): ArrayBuffer 
 
   // ── Stats grid ────────────────────────────────────────────────────────────
 
-  const statItems: StatItem[] = []
-  if (options.activeTime)   statItems.push({ label: "ACTIVE TIME",   value: formatDuration(stats.totalActiveTime),  color: TEXT })
-  if (options.linesAdded)   statItems.push({ label: "LINES ADDED",   value: `+${stats.totalLinesAdded}`,            color: GREEN })
-  if (options.linesDeleted) statItems.push({ label: "LINES DELETED", value: `-${stats.totalLinesDeleted}`,          color: RED })
-  if (options.topLanguage)  statItems.push({ label: "TOP LANGUAGE",  value: stats.topLanguage,                      color: TEXT })
+  const statItems: StatItem[] = [
+    { label: "ACTIVE TIME",   value: formatDuration(stats.totalActiveTime), color: TEXT },
+    { label: "LINES ADDED",   value: `+${stats.totalLinesAdded}`,           color: GREEN },
+    { label: "LINES DELETED", value: `-${stats.totalLinesDeleted}`,         color: RED },
+    { label: "TOP LANGUAGE",  value: stats.topLanguage,                     color: TEXT },
+  ]
 
-  if (statItems.length > 0) {
-    yPos = renderStatGrid(doc, statItems, yPos, W, { surface: SURFACE, text: TEXT, muted: MUTED }) + 18
-  }
+  yPos = renderStatGrid(doc, statItems, yPos, W, { surface: SURFACE, text: TEXT, muted: MUTED }) + 18
 
   // ── Heatmap ───────────────────────────────────────────────────────────────
 
-  if (options.heatmap && logs.length > 0) {
+  if (logs.length > 0) {
     doc.setFont("helvetica", "normal")
     doc.setFontSize(7)
     setText(doc, MUTED)
@@ -430,10 +349,26 @@ export function generatePdf(logs: DailyLog[], options: PdfOptions): ArrayBuffer 
   const now = new Date()
   const dateStr = now.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })
   const timeStr = now.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })
+  const footerPrefix = `Generated ${dateStr} at ${timeStr}  ·  `
+  const footerSuffix = `Rabbit Hole`
+
   doc.setFont("helvetica", "normal")
   doc.setFontSize(7)
   setText(doc, MUTED)
-  doc.text(`Generated ${dateStr} at ${timeStr}  ·  Rabbit Hole`, W / 2, H - 16, { align: "center" })
+
+  const footerLogoScale = 7 / 34      // logo ~7pt tall
+  const footerLogoW = 48 * footerLogoScale
+  const footerGap = 2.5
+  const prefixW = doc.getTextWidth(footerPrefix)
+  const suffixW = doc.getTextWidth(footerSuffix)
+  const footerGroupW = prefixW + footerLogoW + footerGap + suffixW
+  const footerGroupX = (W - footerGroupW) / 2
+  const footerY = H - 16
+
+  doc.text(footerPrefix, footerGroupX, footerY)
+  drawLogoRects(doc, footerGroupX + prefixW, footerY - 6, footerLogoScale)
+  setText(doc, TEXT)
+  doc.text(footerSuffix, footerGroupX + prefixW + footerLogoW + footerGap, footerY)
 
   return doc.output("arraybuffer") as ArrayBuffer
 }
