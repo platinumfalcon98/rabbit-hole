@@ -310,6 +310,7 @@ function applyCalendarRange(): void {
   const start = calRangeStart <= calRangeEnd ? calRangeStart : calRangeEnd
   const end   = calRangeStart <= calRangeEnd ? calRangeEnd   : calRangeStart
   currentPreset = "custom"
+  document.getElementById("streak-pill")?.classList.add("hidden")
   const sel = document.getElementById("date-preset-select") as HTMLSelectElement | null
   if (sel) {
     const customOpt = sel.querySelector<HTMLOptionElement>("option[value='custom']")
@@ -325,6 +326,7 @@ function applyCalendarRange(): void {
 
 function handlePresetChange(preset: string): void {
   currentPreset = preset
+  document.getElementById("streak-pill")?.classList.toggle("hidden", preset !== "today")
   const sel = document.getElementById("date-preset-select") as HTMLSelectElement | null
   if (sel) sel.classList.remove("custom-active")
 
@@ -443,6 +445,7 @@ function updateStatCards(logs: DailyLog[]): void {
   const yesterdayStreak = logs[logs.length - 2]?.streak ?? 0
   const todayEarned = lastLog.streak > yesterdayStreak
   const pill = document.getElementById("streak-pill")
+  pill?.classList.toggle("hidden", currentPreset !== "today")
   pill?.classList.toggle("streak-at-risk", !todayEarned && effectiveTargetMs > 0)
   document.getElementById("streak-extended")?.classList.toggle("hidden", !todayEarned)
 
