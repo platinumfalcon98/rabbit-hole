@@ -177,6 +177,10 @@ export class DashboardPanel {
           <span class="nav-label">Projects</span>
         </button>
         <div class="nav-spacer"></div>
+        <div id="projects-mini" class="sidebar-projects-mini">
+          <div class="sidebar-projects-mini-title">TODAY</div>
+          <div id="projects-mini-list"></div>
+        </div>
         <div class="nav-divider"></div>
         <button class="nav-item" data-tab="settings">
           <span class="nav-icon">
@@ -358,6 +362,17 @@ export class DashboardPanel {
             <canvas id="lang-chart"></canvas>
             <div id="lang-legend"></div>
           </div>
+          <div class="chart-box activity-chart-box full-width">
+            <div class="widget-header">
+              <div class="widget-header-info">
+                <div class="widget-title">ACTIVE TIME</div>
+                <div class="widget-subtitle" id="activity-chart-subtitle">Daily active time</div>
+              </div>
+            </div>
+            <div class="activity-chart-wrap">
+              <canvas id="activity-chart"></canvas>
+            </div>
+          </div>
           <div id="sessions-panel" class="section-card">
             <div class="widget-header">
               <div class="widget-header-info">
@@ -381,15 +396,6 @@ export class DashboardPanel {
               </div>
             </div>
             <div id="files-list"></div>
-          </div>
-          <div id="projects-mini" class="section-card full-width">
-            <div class="widget-header">
-              <div class="widget-header-info">
-                <div class="widget-title">PROJECTS</div>
-                <div class="widget-subtitle">Active projects by coding time</div>
-              </div>
-            </div>
-            <div id="projects-mini-list"></div>
           </div>
         </div>
       </div>
@@ -463,6 +469,18 @@ export class DashboardPanel {
               <div class="activity-stat-value" id="act-best-day">—</div>
               <div class="activity-stat-label">Most active day</div>
             </div>
+          </div>
+        </div>
+        <div id="project-pie-box" class="chart-box hidden">
+          <div class="widget-header">
+            <div class="widget-header-info">
+              <div class="widget-title">PROJECTS</div>
+              <div class="widget-subtitle">Active time split across projects</div>
+            </div>
+          </div>
+          <div class="activity-charts-row">
+            <canvas id="project-pie-chart"></canvas>
+            <div id="project-pie-legend"></div>
           </div>
         </div>
         <div id="heatmap" class="section-card">

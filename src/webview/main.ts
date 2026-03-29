@@ -70,7 +70,10 @@ function switchTab(tab: string): void {
     requestAnimationFrame(() => charts.resizeAll())
   }
   if (tab === "activity") {
-    requestAnimationFrame(() => heatmap.render(heatmapLogs))
+    requestAnimationFrame(() => {
+      heatmap.render(heatmapLogs)
+      charts.resizeAll()
+    })
   }
   if (tab === "projects") {
     renderProjectsTab()
@@ -472,6 +475,8 @@ function updateStatCards(logs: DailyLog[]): void {
 
 // ── Files ──────────────────────────────────────────────────────────────────
 
+let lastRenderedFilesKey = ""
+
 function aggregateFiles(logs: DailyLog[]) {
   const map = new Map<string, { path: string; language: string; linesAdded: number; linesDeleted: number; projectId?: string }>()
   for (const log of logs) {
@@ -494,6 +499,10 @@ function aggregateFiles(logs: DailyLog[]) {
 function renderFiles(logs: DailyLog[]): void {
   const container = document.getElementById("files-list")
   if (!container) return
+
+  const cacheKey = logs.map(l => `${l.date}:${l.files.length}`).join("|")
+  if (cacheKey === lastRenderedFilesKey) return
+  lastRenderedFilesKey = cacheKey
 
   const files = aggregateFiles(logs)
   if (files.length === 0) {
@@ -518,6 +527,7 @@ function renderFiles(logs: DailyLog[]): void {
 const SESSIONS_COLLAPSED = 3
 const expandedSessionDates = new Set<string>()
 let sessionSortOrder: "desc" | "asc" = "desc"
+let lastRenderedSessionsKey = ""
 
 function buildSessionRow(session: import("../shared/types").ActivitySession, isAggregate: boolean, ongoingId: string | null): HTMLElement {
   const row = document.createElement("div")
@@ -538,6 +548,11 @@ function buildSessionRow(session: import("../shared/types").ActivitySession, isA
 function renderSessions(logs: DailyLog[]): void {
   const container = document.getElementById("sessions-list")
   if (!container) return
+
+  const cacheKey = logs.map(l => `${l.date}:${l.sessions.length}`).join("|")
+  if (cacheKey === lastRenderedSessionsKey) return
+  lastRenderedSessionsKey = cacheKey
+
   container.innerHTML = ""
 
   const now = new Date()
@@ -595,6 +610,8 @@ function renderSessions(logs: DailyLog[]): void {
 }
 
 // ── Projects tab ───────────────────────────────────────────────────────────
+
+let projectCardsListenerBound = false
 
 function timeAgo(ts: number): string {
   const diff = Date.now() - ts
@@ -696,48 +713,59 @@ function renderProjectsTab(): void {
       </div>
     </div>`).join("")
 
-  // Target inputs: stop click propagation, enable Apply button on change
-  container.querySelectorAll(".project-target-input").forEach(input => {
-    const el = input as HTMLInputElement
-    el.addEventListener("click", e => e.stopPropagation())
-    el.addEventListener("input", e => {
+  // All project card interactions use delegated listeners on the container.
+  // The container element persists across renderProjectsTab() calls so we
+  // attach once; subsequent renders just replace innerHTML without re-binding.
+  if (!projectCardsListenerBound) {
+    projectCardsListenerBound = true
+
+    container.addEventListener("click", e => {
+      const target = e.target as HTMLElement
+
+      // Stop propagation from input/stepper clicks reaching the card handler
+      if (target.closest(".project-target-input")) {
+        e.stopPropagation()
+        return
+      }
+
+      // Apply Changes button
+      const applyBtn = target.closest(".project-target-apply") as HTMLButtonElement | null
+      if (applyBtn) {
+        e.stopPropagation()
+        const pid = applyBtn.dataset.projectId ?? ""
+        const input = container.querySelector<HTMLInputElement>(`.project-target-input[data-project-id="${pid}"]`)
+        if (!input) return
+        const raw = input.value.trim()
+        const value = raw === "" ? null : parseInt(raw)
+        vscode.postMessage({ type: "updateProjectSetting", projectId: pid, key: "dailyTargetMinutes", value })
+        applyBtn.textContent = "Saved ✓"
+        applyBtn.disabled = true
+        setTimeout(() => { applyBtn.textContent = "Apply Changes" }, 1500)
+        return
+      }
+
+      // Click on card body to filter by project
+      const card = target.closest(".project-card") as HTMLElement | null
+      if (card && !target.closest(".project-card-target")) {
+        const id = card.dataset.id ?? ""
+        selectedProjectIds = [id]
+        pendingSelectedId = id
+        vscode.postMessage({ type: "selectProjects", projectIds: [id] })
+        renderProjectDropdown()
+        updateDropdownLabel()
+        switchTab("overview")
+      }
+    })
+
+    container.addEventListener("input", e => {
+      const input = (e.target as HTMLElement).closest(".project-target-input") as HTMLInputElement | null
+      if (!input) return
       e.stopPropagation()
-      const pid = el.dataset.projectId ?? ""
+      const pid = input.dataset.projectId ?? ""
       const btn = container.querySelector<HTMLButtonElement>(`.project-target-apply[data-project-id="${pid}"]`)
       if (btn) btn.disabled = false
     })
-  })
-
-  // Apply Changes buttons: save target and re-disable
-  container.querySelectorAll(".project-target-apply").forEach(btn => {
-    btn.addEventListener("click", e => {
-      e.stopPropagation()
-      const pid = (btn as HTMLButtonElement).dataset.projectId ?? ""
-      const input = container.querySelector<HTMLInputElement>(`.project-target-input[data-project-id="${pid}"]`)
-      if (!input) return
-      const raw = input.value.trim()
-      const value = raw === "" ? null : parseInt(raw)
-      vscode.postMessage({ type: "updateProjectSetting", projectId: pid, key: "dailyTargetMinutes", value })
-      const b = btn as HTMLButtonElement
-      b.textContent = "Saved ✓"
-      b.disabled = true
-      setTimeout(() => { b.textContent = "Apply Changes" }, 1500)
-    })
-  })
-
-  // Click on card body (not the target input) to filter by project
-  container.querySelectorAll(".project-card").forEach(card => {
-    card.addEventListener("click", e => {
-      if ((e.target as HTMLElement).closest(".project-card-target")) return
-      const id = (card as HTMLElement).dataset.id ?? ""
-      selectedProjectIds = [id]
-      pendingSelectedId = id
-      vscode.postMessage({ type: "selectProjects", projectIds: [id] })
-      renderProjectDropdown()
-      updateDropdownLabel()
-      switchTab("overview")
-    })
-  })
+  }
 }
 
 // ── Projects mini widget ────────────────────────────────────────────────────
@@ -768,15 +796,53 @@ function renderProjectsMini(): void {
   })
 }
 
+// ── Activity tab charts ────────────────────────────────────────────────────
+
+function projectNameMap(): Record<string, string> {
+  const map: Record<string, string> = {}
+  for (const p of projects) map[p.id] = p.name
+  return map
+}
+
+function renderActivityCharts(): void {
+  const today = todayDateStr()
+
+  // Always show at least 7 days — use heatmapLogs tail when selection is < 7 days
+  let chartLogs = currentLogs
+  let shortRange = currentLogs.length <= 7
+  if (currentLogs.length < 7) {
+    chartLogs = heatmapLogs.slice(-7)
+    shortRange = true
+  }
+
+  charts.renderActivityChart(chartLogs, shortRange, today)
+
+  const isAllProjects = selectedProjectIds.length === 0
+  if (isAllProjects) {
+    charts.renderProjectPie(currentLogs, projectNameMap())
+  } else {
+    document.getElementById("project-pie-box")?.classList.add("hidden")
+  }
+
+  const subtitleEl = document.getElementById("activity-chart-subtitle")
+  if (subtitleEl) {
+    subtitleEl.textContent = shortRange ? "Active time per day" : "Active time trend"
+  }
+}
+
 // ── Full render ────────────────────────────────────────────────────────────
 
 function renderAll(): void {
   const heatmapProjectName = selectedProjectIds.length === 0
     ? "All Projects"
     : projects.find(p => p.id === selectedProjectIds[0])?.name ?? ""
+  // Invalidate list caches so a full re-render always happens on range/project change
+  lastRenderedSessionsKey = ""
+  lastRenderedFilesKey = ""
   heatmap.render(heatmapLogs)
   heatmap.renderActivityStats(heatmapLogs, heatmapProjectName)
   charts.renderAll(currentLogs)
+  renderActivityCharts()
   updateStatCards(currentLogs)
   renderSessions(currentLogs)
   renderFiles(currentLogs)
@@ -1006,6 +1072,7 @@ document.getElementById("sessions-sort")?.addEventListener("click", (e: Event) =
     b.classList.toggle("active", b === btn)
   )
   expandedSessionDates.clear()
+  lastRenderedSessionsKey = ""
   renderSessions(currentLogs)
 })
 

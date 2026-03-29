@@ -172,6 +172,26 @@ body {
   margin: 4px 12px;
 }
 
+.sidebar-projects-mini {
+  padding: 8px 12px 4px;
+  overflow: hidden;
+  transition: opacity 0.2s;
+}
+
+.sidebar-projects-mini-title {
+  font-family: 'Electrolize', sans-serif;
+  font-size: 0.7em;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--vscode-descriptionForeground);
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+#sidebar.collapsed .sidebar-projects-mini {
+  display: none;
+}
+
 .nav-label {
   font-family: 'Electrolize', sans-serif;
   font-size: 1.1em;
@@ -818,11 +838,11 @@ body {
 .projects-mini-row {
   display: flex;
   align-items: center;
-  padding: 6px 0;
+  padding: 4px 0;
   border-bottom: 1px solid var(--vscode-editorWidget-border, rgba(128,128,128,0.1));
-  font-size: 0.9em;
+  font-size: 0.82em;
   cursor: pointer;
-  gap: 8px;
+  gap: 6px;
 }
 
 .projects-mini-row:last-child {
@@ -1841,6 +1861,48 @@ body {
 .modal-btn-primary:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+/* ── Activity tab charts ─────────────────────────────────────────────────── */
+
+.activity-chart-box {
+  margin-bottom: 12px;
+}
+
+.activity-chart-wrap {
+  position: relative;
+  height: 200px;
+}
+
+.activity-chart-wrap canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* Project pie + legend side by side */
+.activity-charts-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.activity-charts-row canvas {
+  width: 180px !important;
+  height: 180px !important;
+  flex-shrink: 0;
+}
+
+#project-pie-legend {
+  flex: 1;
+  min-width: 160px;
+}
+
+#project-pie-box {
+  margin-bottom: 12px;
 }
 
 /* ── Empty states ────────────────────────────────────────────────────────── */

@@ -75,6 +75,16 @@ export function activate(context: vscode.ExtensionContext): void {
     const topLang = langEntries.length > 0
       ? langEntries.reduce((a, b) => a[1].time >= b[1].time ? a : b)[0]
       : ""
+    const projects = storage.getProjects()
+    const projectActiveTimes: Record<string, number> = {}
+    const projectNames: Record<string, string> = {}
+    for (const p of projects) {
+      const pLog = storage.getRangeByDates(todayKey, todayKey, p.id)[0]
+      if (pLog && pLog.activeTime > 0) {
+        projectActiveTimes[p.id] = pLog.activeTime
+        projectNames[p.id] = p.name
+      }
+    }
     miniPanel.update({
       activeTime: global.activeTime,
       streak: global.streak,
@@ -83,6 +93,8 @@ export function activate(context: vscode.ExtensionContext): void {
       topLanguage: topLang,
       sessionCount: today.sessions.length,
       isTracking: tracker.isActivelyTracking,
+      projectActiveTimes,
+      projectNames,
     })
   }
 
