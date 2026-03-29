@@ -4,6 +4,32 @@ Running record of what was built and when, ordered newest first.
 
 ---
 
+## 2026-03-29
+
+**Projects tab overhaul**
+- Sort toggle replaced with a dropdown matching the date selector design
+- Per-project daily target input now uses custom filled chevron stepper buttons (±5 min); same stepper added to all settings inputs (idle threshold, session expiry)
+- Fixed bug: project cards always showed 0m active time for non-selected projects — now uses server-computed aggregate active times so all projects reflect today's real usage
+- "Active" label renamed to "Active Today"; stat labels and values switched to Funnel Sans, made larger
+- Daily target label on project card: Quantico font, white, larger
+- Funnel Sans font added (regular + bold, downloaded locally)
+
+**Export card (JPG + PDF)**
+- Pixel carrot logo moved to footer, inline left of "Rabbit Hole" text
+- "Rabbit Hole" text in footer is now white
+- Project name vertically centered in header section
+- Export always shows today's data; date selection removed from modal
+- GitHub-style 5-week heatmap on card
+- JPG output at 3× resolution (1260×1860px) for crisp mobile display; larger fonts and cell sizes throughout
+- Carrot SVG reused as the extension panel tab icon
+
+**Streak fixes**
+- Streak pill no longer shows "extended" state before today's target is met (was comparing against a missing yesterday entry; now checks `activeTime` directly)
+- "Streak at risk" sub-label copy
+- Stats averages now divide by full selected range including zero-activity days
+
+---
+
 ## 2026-03-25 — v0.2.0
 
 **Export date picker + single-day filter**
