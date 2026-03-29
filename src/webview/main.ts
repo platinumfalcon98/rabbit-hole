@@ -1036,29 +1036,37 @@ function flashSaved(el: HTMLInputElement): void {
   el.classList.add("saved")
 }
 
-document.getElementById("pref-daily-target")?.addEventListener("change", (e: Event) => {
-  const input = e.target as HTMLInputElement
-  const raw = input.value.trim()
-  vscode.postMessage({ type: "updateSetting", key: "dailyTargetMinutes", value: raw === "" ? null : parseInt(raw) })
-  flashSaved(input)
+// Enable Apply button when a settings input changes
+;["pref-daily-target", "pref-idle-threshold", "pref-session-expiry"].forEach(id => {
+  document.getElementById(id)?.addEventListener("input", () => {
+    const btn = document.querySelector<HTMLButtonElement>(`.setting-apply[data-for="${id}"]`)
+    if (btn) btn.disabled = false
+  })
 })
 
-document.getElementById("pref-idle-threshold")?.addEventListener("change", (e: Event) => {
-  const input = e.target as HTMLInputElement
-  const val = parseInt(input.value)
-  if (!isNaN(val) && val > 0) {
+// Settings Apply buttons
+document.addEventListener("click", (e: Event) => {
+  const btn = (e.target as HTMLElement).closest(".setting-apply") as HTMLButtonElement | null
+  if (!btn || btn.disabled) return
+  const inputId = btn.dataset.for ?? ""
+  const input = document.getElementById(inputId) as HTMLInputElement | null
+  if (!input) return
+
+  if (inputId === "pref-daily-target") {
+    const raw = input.value.trim()
+    vscode.postMessage({ type: "updateSetting", key: "dailyTargetMinutes", value: raw === "" ? null : parseInt(raw) })
+  } else if (inputId === "pref-idle-threshold") {
+    const val = parseInt(input.value)
+    if (isNaN(val) || val <= 0) return
     vscode.postMessage({ type: "updateSetting", key: "idleThresholdMinutes", value: val })
-    flashSaved(input)
-  }
-})
-
-document.getElementById("pref-session-expiry")?.addEventListener("change", (e: Event) => {
-  const input = e.target as HTMLInputElement
-  const val = parseInt(input.value)
-  if (!isNaN(val) && val > 0) {
+  } else if (inputId === "pref-session-expiry") {
+    const val = parseInt(input.value)
+    if (isNaN(val) || val <= 0) return
     vscode.postMessage({ type: "updateSetting", key: "sessionExpiryMinutes", value: val })
-    flashSaved(input)
   }
+
+  flashSaved(input)
+  btn.disabled = true
 })
 
 // Stepper buttons for number inputs
@@ -1090,15 +1098,49 @@ function closePdfModal(): void {
   if (btn) { btn.disabled = false; btn.textContent = "Export JPG" }
 }
 
-document.getElementById("export-pdf-btn")?.addEventListener("click", () => {
+function syncExportName(): void {
+  const sel = document.getElementById("export-project-select") as HTMLSelectElement | null
   const nameInput = document.getElementById("export-display-name") as HTMLInputElement | null
-  if (nameInput) {
-    const isSingle = selectedProjectIds.length > 0 && selectedProjectIds[0] !== "all"
-    nameInput.value = isSingle
-      ? (projects.find(p => p.id === selectedProjectIds[0])?.name ?? "")
-      : "All Projects"
+  if (!sel || !nameInput) return
+  const pid = sel.value
+  const raw = pid === "all" ? "All Projects" : (projects.find(p => p.id === pid)?.name ?? "")
+  nameInput.value = raw.length > 20 ? raw.slice(0, 17) + "..." : raw
+}
+
+document.getElementById("export-project-select")?.addEventListener("change", syncExportName)
+
+document.getElementById("export-pdf-btn")?.addEventListener("click", () => {
+  const sel = document.getElementById("export-project-select") as HTMLSelectElement | null
+  if (sel) {
+    sel.innerHTML = ""
+    const allOpt = document.createElement("option")
+    allOpt.value = "all"
+    allOpt.textContent = "All Projects"
+    sel.appendChild(allOpt)
+    for (const p of projects) {
+      const opt = document.createElement("option")
+      opt.value = p.id
+      opt.textContent = p.name
+      sel.appendChild(opt)
+    }
+    const current = selectedProjectIds.length > 0 ? selectedProjectIds[0] : "all"
+    sel.value = current
   }
+  syncExportName()
   document.getElementById("pdf-modal-overlay")?.classList.remove("hidden")
+})
+
+const exportNameInput = document.getElementById("export-display-name") as HTMLInputElement | null
+const exportNameHint  = document.getElementById("export-name-hint")
+const exportNameCount = document.getElementById("export-name-count")
+
+exportNameInput?.addEventListener("focus", () => {
+  exportNameHint?.classList.remove("hidden")
+  if (exportNameCount) exportNameCount.textContent = String(exportNameInput?.value.length ?? 0)
+})
+exportNameInput?.addEventListener("blur", () => exportNameHint?.classList.add("hidden"))
+exportNameInput?.addEventListener("input", () => {
+  if (exportNameCount) exportNameCount.textContent = String(exportNameInput?.value.length ?? 0)
 })
 
 document.getElementById("pdf-cancel")?.addEventListener("click", closePdfModal)
@@ -1111,5 +1153,6 @@ document.getElementById("pdf-generate")?.addEventListener("click", () => {
   const btn = document.getElementById("pdf-generate") as HTMLButtonElement
   btn.disabled = true
   btn.textContent = "Generating…"
-  vscode.postMessage({ type: "exportPdfRequest", preset: "today" })
+  const sel = document.getElementById("export-project-select") as HTMLSelectElement | null
+  vscode.postMessage({ type: "exportPdfRequest", preset: "today", exportProjectId: sel?.value ?? "all" })
 })

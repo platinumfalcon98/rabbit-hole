@@ -54,14 +54,8 @@ export function renderActivityStats(logs: DailyLog[], projectName: string): void
   const totalTime = logs.reduce((s, l) => s + l.activeTime, 0)
 
   let longestStreak = 0
-  let cur = 0
   for (const log of logs) {
-    if (log.activeTime > 0) {
-      cur++
-      if (cur > longestStreak) longestStreak = cur
-    } else {
-      cur = 0
-    }
+    if ((log.streak ?? 0) > longestStreak) longestStreak = log.streak ?? 0
   }
 
   let bestDay: DailyLog | null = null

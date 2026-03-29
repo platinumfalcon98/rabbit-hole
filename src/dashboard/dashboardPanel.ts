@@ -260,7 +260,7 @@ export class DashboardPanel {
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
             <path d="M8 12L3 7L4.4 5.55L7 8.15V0H9V8.15L11.6 5.55L13 7L8 12ZM2 16C1.45 16 0.979333 15.8043 0.588 15.413C0.196666 15.0217 0.000666667 14.5507 0 14V11H2V14H14V11H16V14C16 14.55 15.8043 15.021 15.413 15.413C15.0217 15.805 14.5507 16.0007 14 16H2Z" fill="currentColor"/>
           </svg>
-          Export
+          Today's Report
         </button>
       </div>
 
@@ -397,11 +397,22 @@ export class DashboardPanel {
       <!-- Export modal -->
       <div id="pdf-modal-overlay" class="modal-overlay hidden">
         <div class="modal">
-          <h2 class="modal-title">Export JPG</h2>
+          <h2 class="modal-title">EXPORT STAT CARD</h2>
 
           <div class="modal-section">
-            <div class="modal-label">Project Name</div>
-            <input type="text" id="export-display-name" class="modal-name-input" placeholder="Project name">
+            <div class="modal-label">Project Selected</div>
+            <div class="date-preset-wrapper">
+              <select id="export-project-select" class="date-preset-select"></select>
+              <svg class="date-preset-chevron" width="10" height="6" viewBox="0 0 10 6" fill="none" aria-hidden="true">
+                <path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </div>
+          </div>
+
+          <div class="modal-section">
+            <div class="modal-label">Display Name</div>
+            <input type="text" id="export-display-name" class="modal-name-input" placeholder="Project name" maxlength="20">
+            <div id="export-name-hint" class="input-hint hidden">Max 20 characters &nbsp;·&nbsp; <span id="export-name-count">0</span> / 20</div>
           </div>
 
 
@@ -506,6 +517,7 @@ export class DashboardPanel {
                   </div>
                 </div>
                 <span class="setting-unit">min</span>
+                <button class="setting-apply" data-for="pref-daily-target" disabled>Apply</button>
               </div>
             </div>
             <div class="setting-row">
@@ -526,6 +538,7 @@ export class DashboardPanel {
                   </div>
                 </div>
                 <span class="setting-unit">min</span>
+                <button class="setting-apply" data-for="pref-idle-threshold" disabled>Apply</button>
               </div>
             </div>
             <div class="setting-row">
@@ -546,6 +559,7 @@ export class DashboardPanel {
                   </div>
                 </div>
                 <span class="setting-unit">min</span>
+                <button class="setting-apply" data-for="pref-session-expiry" disabled>Apply</button>
               </div>
             </div>
           </div>

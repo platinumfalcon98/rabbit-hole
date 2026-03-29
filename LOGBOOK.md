@@ -28,6 +28,13 @@ Running record of what was built and when, ordered newest first.
 - "Streak at risk" sub-label copy
 - Stats averages now divide by full selected range including zero-activity days
 
+**Settings page**
+- Apply Changes button added per setting row; inputs no longer auto-save on change
+- Idle threshold and session expiry labels switched to Funnel Sans 1.3em white, matching daily target label
+
+**Activity tab**
+- Longest Streak stat card now reads from stored `DailyLog.streak` values (same source as the streak pill) instead of recalculating from scratch — target changes no longer retroactively affect historical streak counts
+
 ---
 
 ## 2026-03-25 — v0.2.0

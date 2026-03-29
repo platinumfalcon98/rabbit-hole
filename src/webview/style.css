@@ -1472,16 +1472,39 @@ body {
 }
 
 .setting-label {
-  font-size: 0.9em;
+  font-family: 'Funnel Sans', sans-serif;
+  font-size: 1.3em;
   font-weight: 500;
+  color: var(--vscode-editor-foreground);
   display: block;
   margin-bottom: 2px;
 }
 
-.setting-label[for="pref-daily-target"] {
-  font-family: 'Funnel Sans', sans-serif;
-  font-size: 1.3em;
-  color: var(--vscode-editor-foreground);
+.setting-apply {
+  padding: 3px 10px;
+  font-family: var(--vscode-font-family);
+  font-size: 0.75em;
+  border-radius: 4px;
+  border: 1px solid var(--vscode-editorWidget-border);
+  cursor: pointer;
+  background: transparent;
+  color: var(--vscode-descriptionForeground);
+  transition: color 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+
+.setting-apply:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.setting-apply:not(:disabled) {
+  color: #f97316;
+  border-color: #f97316;
+}
+
+.setting-apply:not(:disabled):hover {
+  background: rgba(249, 115, 22, 0.1);
 }
 
 .setting-desc {
@@ -1666,6 +1689,14 @@ body {
   gap: 8px;
 }
 
+.modal-section .date-preset-wrapper {
+  width: 100%;
+}
+
+.modal-section .date-preset-select {
+  width: 100%;
+}
+
 .modal-label {
   font-size: 0.75em;
   text-transform: uppercase;
@@ -1710,6 +1741,16 @@ body {
   outline: none;
   border-color: #f97316;
   box-shadow: 0 0 0 1px rgba(249, 115, 22, 0.35);
+}
+
+.input-hint {
+  font-size: 0.72em;
+  color: var(--vscode-descriptionForeground);
+  opacity: 0.8;
+}
+
+.input-hint.hidden {
+  display: none;
 }
 
 .export-custom-range {

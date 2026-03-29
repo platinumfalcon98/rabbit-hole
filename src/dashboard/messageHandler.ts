@@ -85,14 +85,14 @@ export function handleMessage(
     case "exportPdfRequest": {
       const { start, end } = presetToDates(msg.preset, msg.customStart, msg.customEnd)
 
+      const exportPid = msg.exportProjectId ?? currentProjectIds[0] ?? "all"
       const heatmapStart = offsetDateStr(-29)
-      const logs = currentProjectIds[0] === "all"
+      const logs = exportPid === "all"
         ? storage.getAggregateRangeByDates(heatmapStart, end)
-        : storage.getRangeByDates(heatmapStart, end, currentProjectIds[0] || undefined)
+        : storage.getRangeByDates(heatmapStart, end, exportPid)
 
       const projects = storage.getProjects()
-      const pid = currentProjectIds[0] === "all" ? "all"
-        : currentProjectIds[0] ?? storage.getCurrentProjectId()
+      const pid = exportPid
       const projectName = pid === "all" ? "All Projects"
         : projects.find(p => p.id === pid)?.name ?? "Rabbit Hole"
 

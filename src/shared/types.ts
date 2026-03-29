@@ -76,7 +76,7 @@ export type WebviewMessage =
   | { type: "requestRange"; preset: RangePreset; customStart?: string; customEnd?: string }
   | { type: "selectProjects"; projectIds: string[] }
   | { type: "export"; format: "csv" | "json" }
-  | { type: "exportPdfRequest"; preset: "today" | "7d" | "30d" | "custom"; customStart?: string; customEnd?: string }
+  | { type: "exportPdfRequest"; preset: "today" | "7d" | "30d" | "custom"; customStart?: string; customEnd?: string; exportProjectId?: string }
   | { type: "writePdf"; base64: string; projectName: string }
   | { type: "writeJpg"; base64: string; projectName: string }
   | { type: "updateSetting"; key: string; value: number | boolean | null | Record<string, boolean> }
