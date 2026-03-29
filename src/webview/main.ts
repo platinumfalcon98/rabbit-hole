@@ -18,6 +18,7 @@ let dailyTargetMs = 0
 let currentProjectId = ""
 let projects: ProjectMeta[] = []
 let projectTimestamps: Record<string, number> = {}
+let projectActiveTimes: Record<string, number> = {}
 let currentPreset = "today"
 let selectedProjectIds: string[] = []   // [] = all, ["<id>"] = single project
 let pendingSelectedId = ""              // draft while panel is open ("" = all)
@@ -622,34 +623,17 @@ interface ProjectSummary {
 function computeProjectSummaries(): ProjectSummary[] {
   const map = new Map<string, ProjectSummary>()
 
-  // Seed from projects registry so we show all even with zero activity
-  // Use server-computed streak and target directly from ProjectMeta
+  // Seed from projects registry — use server-provided today's active times per project
   for (const p of projects) {
     map.set(p.id, {
       id: p.id,
       name: p.name,
       path: p.path,
-      activeTime: 0,
+      activeTime: projectActiveTimes[p.id] ?? 0,
       streak: p.streak ?? 0,
       dailyTargetMinutes: p.dailyTargetMinutes,
       lastActiveTs: projectTimestamps[p.id] ?? 0,
     })
-  }
-
-  const fallbackPid = currentProjectId !== "all" ? currentProjectId : (map.size === 1 ? [...map.keys()][0] : null)
-
-  for (const log of currentLogs) {
-    for (const session of log.sessions) {
-      const pid = session.projectId ?? fallbackPid
-      if (!pid) continue
-      if (!map.has(pid)) {
-        map.set(pid, { id: pid, name: projectName(pid), path: "", activeTime: 0, streak: 0, lastActiveTs: 0 })
-      }
-      const s = map.get(pid)!
-      s.activeTime += session.activeTime
-      const sessionTs = session.endTime ?? session.startTime
-      if (sessionTs > s.lastActiveTs) s.lastActiveTs = sessionTs
-    }
   }
 
   return [...map.values()].sort((a, b) => b.activeTime - a.activeTime)
@@ -684,19 +668,29 @@ function renderProjectsTab(): void {
       </div>
       <div class="project-card-path">${shortenPath(p.path, 4)}</div>
       <div class="project-card-stats">
-        <span class="pstat"><span class="pstat-label">Active</span> <span class="pstat-val">${formatDuration(p.activeTime)}</span></span>
+        <span class="pstat"><span class="pstat-label">Active Today</span> <span class="pstat-val">${formatDuration(p.activeTime)}</span></span>
         ${p.streak > 0 ? `<span class="pstat"><span class="pstat-label">Streak</span> <span class="pstat-val">&#x1F525; ${p.streak}d</span></span>` : ""}
       </div>
       <div class="project-card-target" title="Per-project daily target for streak">
         <span class="project-target-label">Daily target</span>
-        <input
-          type="number"
-          class="project-target-input"
-          data-project-id="${p.id}"
-          value="${p.dailyTargetMinutes ?? ""}"
-          min="1" max="1440"
-          placeholder="global (${Math.round(dailyTargetMs / 60_000) || 5}m)"
-        >
+        <div class="stepper-wrapper">
+          <input
+            type="number"
+            class="project-target-input"
+            data-project-id="${p.id}"
+            value="${p.dailyTargetMinutes ?? ""}"
+            min="1" max="1440" step="5"
+            placeholder="global (${Math.round(dailyTargetMs / 60_000) || 5}m)"
+          >
+          <div class="stepper-btns">
+            <button class="stepper-btn" tabindex="-1" aria-label="Increase" data-dir="up">
+              <svg width="8" height="5" viewBox="0 0 8 5" fill="currentColor"><polygon points="4,0 8,5 0,5"/></svg>
+            </button>
+            <button class="stepper-btn" tabindex="-1" aria-label="Decrease" data-dir="down">
+              <svg width="8" height="5" viewBox="0 0 8 5" fill="currentColor"><polygon points="0,0 8,0 4,5"/></svg>
+            </button>
+          </div>
+        </div>
         <span class="project-target-unit">min</span>
         <button class="project-target-apply" data-project-id="${p.id}" disabled>Apply Changes</button>
       </div>
@@ -813,6 +807,7 @@ window.addEventListener("message", (event: MessageEvent) => {
       projects = msg.projects
       currentProjectId = msg.currentProjectId
       projectTimestamps = msg.projectTimestamps
+      projectActiveTimes = msg.projectActiveTimes
       if (!initializedProject && currentProjectId && currentProjectId !== "all") {
         initializedProject = true
         selectedProjectIds = [currentProjectId]
@@ -1014,14 +1009,9 @@ document.getElementById("sessions-sort")?.addEventListener("click", (e: Event) =
   renderSessions(currentLogs)
 })
 
-// Sort toggle
-document.getElementById("sort-toggle")?.addEventListener("click", (e: Event) => {
-  const btn = (e.target as HTMLElement).closest(".toggle-btn") as HTMLElement | null
-  if (!btn?.dataset.val) return
-  projectSort = btn.dataset.val as "time" | "last" | "name"
-  document.querySelectorAll("#sort-toggle .toggle-btn").forEach(b =>
-    b.classList.toggle("active", b === btn)
-  )
+// Sort dropdown
+document.getElementById("sort-select")?.addEventListener("change", (e: Event) => {
+  projectSort = (e.target as HTMLSelectElement).value as "time" | "last" | "name"
   renderProjectsTab()
 })
 
@@ -1069,6 +1059,27 @@ document.getElementById("pref-session-expiry")?.addEventListener("change", (e: E
     vscode.postMessage({ type: "updateSetting", key: "sessionExpiryMinutes", value: val })
     flashSaved(input)
   }
+})
+
+// Stepper buttons for number inputs
+document.addEventListener("click", (e: Event) => {
+  const btn = (e.target as HTMLElement).closest(".stepper-btn") as HTMLElement | null
+  if (!btn) return
+  const input = (
+    (btn.dataset.for ? document.getElementById(btn.dataset.for) : null) ??
+    btn.closest(".stepper-wrapper")?.querySelector("input")
+  ) as HTMLInputElement | null
+  if (!input) return
+  const step = parseFloat(input.step) || 1
+  const min  = input.min !== "" ? parseFloat(input.min) : -Infinity
+  const max  = input.max !== "" ? parseFloat(input.max) :  Infinity
+  const cur  = input.value !== "" ? parseFloat(input.value) : (min !== -Infinity ? min : 0)
+  const next = btn.dataset.dir === "up"
+    ? Math.min(max, cur + step)
+    : Math.max(min, cur - step)
+  input.value = String(next)
+  input.dispatchEvent(new Event("input", { bubbles: true }))
+  input.dispatchEvent(new Event("change", { bubbles: true }))
 })
 
 // ── Export modal (JPG) ──────────────────────────────────────────────────────

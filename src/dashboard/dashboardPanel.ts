@@ -468,10 +468,16 @@ export class DashboardPanel {
       <!-- Projects: summary cards -->
       <div class="tab-panel" id="tab-projects">
         <div class="projects-tab-header">
-          <div class="toggle-group" id="sort-toggle">
-            <button class="toggle-btn active" data-val="time">Active Time</button>
-            <button class="toggle-btn" data-val="last">Last Active</button>
-            <button class="toggle-btn" data-val="name">Name</button>
+          <span class="sort-label">Sort by:</span>
+          <div class="date-preset-wrapper">
+            <select id="sort-select" class="date-preset-select" aria-label="Sort projects by">
+              <option value="time">Active Time</option>
+              <option value="last">Last Active</option>
+              <option value="name">Name</option>
+            </select>
+            <svg class="date-preset-chevron" width="10" height="6" viewBox="0 0 10 6" fill="none" aria-hidden="true">
+              <path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
           </div>
         </div>
         <div id="project-cards"></div>
@@ -488,7 +494,17 @@ export class DashboardPanel {
                 <div class="setting-desc">Global streak target across all projects. Leave empty for any activity. Set per-project targets on the Projects tab.</div>
               </div>
               <div class="setting-control">
-                <input type="number" id="pref-daily-target" class="setting-input" min="0" max="1440" placeholder="unset">
+                <div class="stepper-wrapper">
+                  <input type="number" id="pref-daily-target" class="setting-input" min="0" max="1440" step="5" placeholder="unset">
+                  <div class="stepper-btns">
+                    <button class="stepper-btn" data-for="pref-daily-target" data-dir="up" tabindex="-1" aria-label="Increase">
+                      <svg width="8" height="5" viewBox="0 0 8 5" fill="currentColor"><polygon points="4,0 8,5 0,5"/></svg>
+                    </button>
+                    <button class="stepper-btn" data-for="pref-daily-target" data-dir="down" tabindex="-1" aria-label="Decrease">
+                      <svg width="8" height="5" viewBox="0 0 8 5" fill="currentColor"><polygon points="0,0 8,0 4,5"/></svg>
+                    </button>
+                  </div>
+                </div>
                 <span class="setting-unit">min</span>
               </div>
             </div>
@@ -498,7 +514,17 @@ export class DashboardPanel {
                 <div class="setting-desc">Minutes of inactivity before the active timer pauses.</div>
               </div>
               <div class="setting-control">
-                <input type="number" id="pref-idle-threshold" class="setting-input" min="1" max="60">
+                <div class="stepper-wrapper">
+                  <input type="number" id="pref-idle-threshold" class="setting-input" min="1" max="60" step="1">
+                  <div class="stepper-btns">
+                    <button class="stepper-btn" data-for="pref-idle-threshold" data-dir="up" tabindex="-1" aria-label="Increase">
+                      <svg width="8" height="5" viewBox="0 0 8 5" fill="currentColor"><polygon points="4,0 8,5 0,5"/></svg>
+                    </button>
+                    <button class="stepper-btn" data-for="pref-idle-threshold" data-dir="down" tabindex="-1" aria-label="Decrease">
+                      <svg width="8" height="5" viewBox="0 0 8 5" fill="currentColor"><polygon points="0,0 8,0 4,5"/></svg>
+                    </button>
+                  </div>
+                </div>
                 <span class="setting-unit">min</span>
               </div>
             </div>
@@ -508,7 +534,17 @@ export class DashboardPanel {
                 <div class="setting-desc">Minutes away before a paused session closes and a new one starts on return.</div>
               </div>
               <div class="setting-control">
-                <input type="number" id="pref-session-expiry" class="setting-input" min="1" max="480">
+                <div class="stepper-wrapper">
+                  <input type="number" id="pref-session-expiry" class="setting-input" min="1" max="480" step="5">
+                  <div class="stepper-btns">
+                    <button class="stepper-btn" data-for="pref-session-expiry" data-dir="up" tabindex="-1" aria-label="Increase">
+                      <svg width="8" height="5" viewBox="0 0 8 5" fill="currentColor"><polygon points="4,0 8,5 0,5"/></svg>
+                    </button>
+                    <button class="stepper-btn" data-for="pref-session-expiry" data-dir="down" tabindex="-1" aria-label="Decrease">
+                      <svg width="8" height="5" viewBox="0 0 8 5" fill="currentColor"><polygon points="0,0 8,0 4,5"/></svg>
+                    </button>
+                  </div>
+                </div>
                 <span class="setting-unit">min</span>
               </div>
             </div>

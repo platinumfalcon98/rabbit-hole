@@ -161,9 +161,11 @@ function sendInit(storage: StorageService, panel: DashboardPanel): void {
     resolvedProjectId = "all"
   }
 
-  // Compute latest session timestamp per project from aggregate logs
+  // Compute latest session timestamp + today's active time per project from aggregate logs
   const projectTimestamps: Record<string, number> = {}
+  const projectActiveTimes: Record<string, number> = {}
   const allLogs = storage.getAggregateRangeByDates(start, end)
+  const todayKey = todayStr()
   for (const log of allLogs) {
     for (const session of log.sessions) {
       const pid = session.projectId
@@ -171,6 +173,9 @@ function sendInit(storage: StorageService, panel: DashboardPanel): void {
       const ts = session.endTime ?? session.startTime
       if (!projectTimestamps[pid] || ts > projectTimestamps[pid]) {
         projectTimestamps[pid] = ts
+      }
+      if (log.date === todayKey) {
+        projectActiveTimes[pid] = (projectActiveTimes[pid] ?? 0) + session.activeTime
       }
     }
   }
@@ -195,6 +200,7 @@ function sendInit(storage: StorageService, panel: DashboardPanel): void {
     projects: storage.getProjects(),
     currentProjectId: resolvedProjectId,
     projectTimestamps,
+    projectActiveTimes,
   })
 }
 
