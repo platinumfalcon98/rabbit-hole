@@ -35,6 +35,24 @@ Running record of what was built and when, ordered newest first.
 **Activity tab**
 - Longest Streak stat card now reads from stored `DailyLog.streak` values (same source as the streak pill) instead of recalculating from scratch — target changes no longer retroactively affect historical streak counts
 
+**New charts**
+- Activity bar/line chart added to Overview tab: bar for ≤7 days, line for >7 days, always minimum 7-day window, y-axis shows whole hours only
+- Project donut chart in Activity tab (visible when All Projects selected): splits active time per project with legend
+- Mini panel (sidebar widget): SVG donut showing today's time split across projects with distinct colors; hidden when only one project active
+
+**Export modal improvements**
+- Project selector dropdown (defaults to dashboard selection, independent of dashboard view)
+- Display name capped at 20 characters; auto-truncates long default names to 17 + ellipsis
+- Character counter hint appears on input focus
+- Export button renamed to "Today's Report"
+
+**Performance**
+- Charts update in place instead of destroy/recreate on every data refresh
+- Sessions and files lists skip DOM rebuild when data is unchanged
+- Project card event listeners delegated once to container; no longer accumulate on tab switches
+
+**Released as v0.2.2**
+
 ---
 
 ## 2026-03-25 — v0.2.0

@@ -26,37 +26,95 @@
   font-style: normal;
 }
 
-@font-face {
-  font-family: 'Quantico';
-  src: url('./fonts/Quantico-Regular.ttf') format('truetype');
-  font-weight: 400;
-  font-style: normal;
-}
+/* ── DESIGN TOKENS ─ Retro Terminal system ───────────────────────────────
+   Full rationale lives in DESIGN.md at the repo root. Everything below this
+   block should be consumed via these custom properties ─ no new hardcoded
+   colors, spacing, radii, or font names outside this file's @font-face list.
+   ────────────────────────────────────────────────────────────────────────── */
+:root {
+  /* Surfaces ── the dashboard asserts its own dark terminal palette rather
+     than following the host VS Code theme. Native form controls (selects,
+     text inputs, checkboxes) still read --vscode-* so they stay legible
+     against light host themes; the dashboard shell itself does not. */
+  --rh-void: #06090a;
+  --rh-surface: #0a0f0d;
+  --rh-surface-raised: #101613;
+  --rh-card-bg: color-mix(in srgb, var(--rh-surface-raised), black 14%);
+  --rh-border: #1e2b25;
+  --rh-border-bright: #2c4436;
 
-@font-face {
-  font-family: 'Quantico';
-  src: url('./fonts/Quantico-Bold.ttf') format('truetype');
-  font-weight: 700;
-  font-style: normal;
-}
+  /* Text */
+  --rh-text: #dcfbe6;
+  --rh-text-dim: #86a596;
+  --rh-text-muted: #5b7468;
 
-@font-face {
-  font-family: 'Funnel Sans';
-  src: url('./fonts/FunnelSans-Regular.ttf') format('truetype');
-  font-weight: 400;
-  font-style: normal;
-}
+  /* Accent roles ── amber is the primary interactive/chrome color (buttons,
+     active nav, focus rings, selection). Phosphor green is reserved for
+     positive/add/streak states so it never collides visually with "this is
+     clickable." Cyan is a secondary data accent for charts. Red is danger. */
+  --rh-accent: #ffb703;
+  --rh-accent-rgb: 255, 183, 3;
+  --rh-accent-soft: rgba(255, 183, 3, 0.12);
 
-@font-face {
-  font-family: 'Funnel Sans';
-  src: url('./fonts/FunnelSans-Bold.ttf') format('truetype');
-  font-weight: 700;
-  font-style: normal;
+  --rh-success: #39ff6a;
+  --rh-success-rgb: 57, 255, 106;
+
+  --rh-danger: #ff5c5c;
+  --rh-danger-rgb: 255, 92, 92;
+
+  --rh-info: #4fd8ff;
+  --rh-info-rgb: 79, 216, 255;
+
+  /* Text color to use ON TOP OF a solid accent/success fill ── amber and
+     green are both bright, so white text fails contrast; near-black reads
+     correctly on either. */
+  --rh-on-accent: #1a1300;
+  --rh-on-success: #06210e;
+
+  /* Type scale */
+  --rh-text-2xs: 0.68em;
+  --rh-text-xs: 0.75em;
+  --rh-text-sm: 0.85em;
+  --rh-text-md: 1em;
+  --rh-text-lg: 1.15em;
+  --rh-text-xl: 1.35em;
+  --rh-text-2xl: 1.9em;
+  --rh-text-3xl: 2.5em;
+
+  /* Spacing scale ── 4px grid */
+  --rh-space-1: 4px;
+  --rh-space-2: 8px;
+  --rh-space-3: 12px;
+  --rh-space-4: 16px;
+  --rh-space-5: 20px;
+  --rh-space-6: 24px;
+  --rh-space-8: 32px;
+
+  /* Radii */
+  --rh-radius-sm: 4px;
+  --rh-radius-md: 6px;
+  --rh-radius-lg: 8px;
+  --rh-radius-xl: 10px;
+
+  /* Depth / glow recipe ── cards sit darker than the page, with a faint
+     colored glow that reads as CRT bloom rather than a drop shadow. */
+  --rh-shadow-card: 0 4px 16px rgba(0, 0, 0, 0.5), 0 0 20px rgba(var(--rh-accent-rgb), 0.08);
+  --rh-shadow-card-hover: 0 4px 18px rgba(0, 0, 0, 0.55), 0 0 24px rgba(var(--rh-accent-rgb), 0.16);
+  --rh-glow-success: 0 0 20px rgba(var(--rh-success-rgb), 0.14);
+  --rh-glow-danger: 0 0 20px rgba(var(--rh-danger-rgb), 0.14);
+
+  /* Fonts ── 4 typefaces total, each with one job. Quantico and Funnel Sans
+     (previously loaded but unused/inconsistently used) have been dropped in
+     favor of consolidating everything onto these four; see DESIGN.md. */
+  --rh-font-display: 'Press Start 2P', monospace; /* streak hero numeral only */
+  --rh-font-label: 'Electrolize', sans-serif;      /* labels, titles, nav, buttons */
+  --rh-font-mono: 'VT323', monospace;              /* data values, timestamps, diffs */
+  --rh-font-stat: 'Unica One', sans-serif;         /* large stat numerals */
 }
 
 * { box-sizing: border-box; }
 
-/* ── Global focus-visible ring (keyboard accessibility) ─────────────────── */
+/* ── Global focus-visible ring (keyboard accessibility) ────────────────── */
 /* Suppresses the default browser outline, then re-adds it only for keyboard
    navigation via :focus-visible. This keeps mouse use clean while remaining
    WCAG AA compliant for keyboard users. */
@@ -64,7 +122,7 @@
 :focus { outline: none; }
 
 :focus-visible {
-  outline: 2px solid #f97316;
+  outline: 2px solid var(--rh-accent);
   outline-offset: 2px;
 }
 
@@ -77,13 +135,39 @@
 }
 
 body {
-  background: var(--vscode-editor-background);
-  color: var(--vscode-editor-foreground);
+  background: var(--rh-void);
+  color: var(--rh-text);
   font-family: var(--vscode-font-family);
   font-size: var(--vscode-font-size);
   padding: 0;
   margin: 0;
   overflow: hidden;
+  position: relative;
+}
+
+/* ── CRT scanline overlay ─────────────────────────────────────────────────
+   A single fixed pseudo-element, no image assets, no repaint cost beyond
+   compositing ─ cheap enough for a webview. Kept faint (2% line opacity)
+   so it reads as texture, never interferes with legibility. */
+/* No mix-blend-mode: it forces the compositor to re-blend this full-viewport
+   layer against everything underneath on every repaint (chart re-renders,
+   tab fades, hover), which is wasteful in a panel that stays open all day
+   with a 30s live-update tick. A flat low-alpha gradient reads almost
+   identically as scanline texture on our fixed dark background and is
+   purely compositable — it never needs to look at the layer below it. */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 999;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.05) 0px,
+    rgba(0, 0, 0, 0.05) 1px,
+    transparent 1px,
+    transparent 3px
+  );
 }
 
 /* ── Two-column layout ─────────────────────────────────────────────────── */
@@ -97,7 +181,7 @@ body {
   width: 210px;
   min-width: 210px;
   flex-shrink: 0;
-  background: var(--vscode-sideBar-background);
+  background: var(--rh-surface);
   border-right: 1px solid var(--vscode-editorWidget-border);
   overflow: hidden;
   display: flex;
@@ -111,7 +195,7 @@ body {
 }
 
 
-/* ── Sidebar nav items ──────────────────────────────────────────────────── */
+/* ── Sidebar nav items ─────────────────────────────────────────────────── */
 
 #nav-items {
   display: flex;
@@ -132,7 +216,7 @@ body {
   background: none;
   border: none;
   box-shadow: inset 2px 0 0 transparent;
-  color: var(--vscode-foreground);
+  color: var(--rh-text);
   padding: 0;
   font-family: var(--vscode-font-family);
   font-size: 0.88em;
@@ -150,8 +234,8 @@ body {
 }
 
 .nav-item.active {
-  box-shadow: inset 2px 0 0 #f97316;
-  background: rgba(249, 115, 22, 0.08);
+  box-shadow: inset 2px 0 0 var(--rh-accent);
+  background: rgba(var(--rh-accent-rgb), 0.08);
   font-weight: 700;
   opacity: 1;
 }
@@ -179,11 +263,11 @@ body {
 }
 
 .sidebar-projects-mini-title {
-  font-family: 'Electrolize', sans-serif;
+  font-family: var(--rh-font-label);
   font-size: 0.7em;
   font-weight: 700;
   letter-spacing: 0.1em;
-  color: var(--vscode-descriptionForeground);
+  color: var(--rh-text-dim);
   text-transform: uppercase;
   margin-bottom: 4px;
 }
@@ -193,7 +277,7 @@ body {
 }
 
 .nav-label {
-  font-family: 'Electrolize', sans-serif;
+  font-family: var(--rh-font-label);
   font-size: 1.1em;
   font-weight: 700;
   padding-right: 12px;
@@ -205,7 +289,7 @@ body {
   padding: 0;
 }
 
-/* ── Project filter button ──────────────────────────────────────────────── */
+/* ── Project filter button ─────────────────────────────────────────────── */
 
 .proj-filter {
   position: relative;
@@ -220,7 +304,7 @@ body {
   border-radius: 6px;
   border: 1px solid var(--vscode-editorWidget-border);
   background: transparent;
-  color: var(--vscode-editor-foreground);
+  color: var(--rh-text);
   font-family: var(--vscode-font-family);
   font-size: 0.8em;
   cursor: pointer;
@@ -232,9 +316,9 @@ body {
 .proj-filter-btn:hover { opacity: 1; border-color: var(--vscode-focusBorder); }
 
 .proj-filter-btn.active {
-  background: rgba(249, 115, 22, 0.12);
-  border-color: #f97316;
-  color: #f97316;
+  background: rgba(var(--rh-accent-rgb), 0.12);
+  border-color: var(--rh-accent);
+  color: var(--rh-accent);
   opacity: 1;
 }
 
@@ -243,7 +327,7 @@ body {
   top: calc(100% + 6px);
   right: 0;
   min-width: 220px;
-  background: var(--vscode-editorWidget-background);
+  background: var(--rh-surface-raised);
   border: 1px solid var(--vscode-editorWidget-border);
   border-radius: 8px;
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
@@ -257,7 +341,7 @@ body {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: var(--vscode-descriptionForeground);
+  color: var(--rh-text-dim);
   padding: 10px 12px 6px;
   border-bottom: 1px solid var(--vscode-editorWidget-border);
   flex-shrink: 0;
@@ -279,8 +363,8 @@ body {
 }
 
 .proj-panel-apply {
-  background: #f97316;
-  color: #fff;
+  background: var(--rh-accent);
+  color: var(--rh-on-accent);
   border: none;
   border-radius: 5px;
   padding: 4px 14px;
@@ -308,7 +392,7 @@ body {
 }
 
 .proj-dropdown-item input[type="radio"] {
-  accent-color: #f97316;
+  accent-color: var(--rh-accent);
   width: 13px;
   height: 13px;
   cursor: pointer;
@@ -368,7 +452,7 @@ body {
   flex-shrink: 0;
   background: none;
   border: none;
-  color: var(--vscode-editor-foreground);
+  color: var(--rh-text);
   cursor: pointer;
   font-size: 1.05em;
   opacity: 0.55;
@@ -385,46 +469,66 @@ body {
 #streak-pill {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  font-size: 1.25em;
+  gap: var(--rh-space-2);
+  font-size: 1.1em;
   white-space: nowrap;
-  transition: opacity 0.2s;
+  padding: 4px var(--rh-space-3) 4px var(--rh-space-2);
+  background: var(--rh-card-bg);
+  border: 1px solid var(--rh-border-bright);
+  border-radius: var(--rh-radius-lg);
+  box-shadow: var(--rh-glow-success);
+  transition: opacity 0.2s, box-shadow 0.2s, border-color 0.2s;
 }
 
-/* Target not yet met today — muted appearance */
+.streak-icon {
+  flex-shrink: 0;
+  color: var(--rh-success);
+  filter: drop-shadow(0 0 4px rgba(var(--rh-success-rgb), 0.6));
+  transition: color 0.2s, filter 0.2s;
+}
+
+/* Target not yet met today ─ muted appearance, icon and glow dim to signal "at risk" */
 #streak-pill.streak-at-risk {
-  opacity: 0.7;
+  border-color: var(--rh-border);
+  box-shadow: none;
+}
+
+#streak-pill.streak-at-risk .streak-icon {
+  color: var(--rh-text-muted);
+  filter: none;
 }
 
 #streak-count {
-  font-family: 'Press Start 2P', monospace;
+  font-family: var(--rh-font-display);
   font-weight: 700;
-  color: #fff;
+  color: var(--rh-text);
   /* Digit scaling is applied inline from main.ts; this sets the fallback */
   font-size: 2.5em;
   line-height: 1;
-  transition: font-size 0.15s ease;
+  transition: font-size 0.15s ease, color 0.2s;
 }
 
 #streak-pill.streak-at-risk #streak-count {
-  color: var(--vscode-descriptionForeground);
+  color: var(--rh-text-muted);
 }
 
 .streak-label {
-  color: var(--vscode-descriptionForeground);
+  font-family: var(--rh-font-label);
+  color: var(--rh-text-dim);
   font-weight: 700;
-  font-size: 1.5em;
+  font-size: 1.3em;
   text-transform: uppercase;
+  letter-spacing: 0.03em;
 }
 
 .streak-scope {
-  color: var(--vscode-descriptionForeground);
+  color: var(--rh-text-muted);
   font-size: 0.8em;
   font-weight: 500;
 }
 
 .streak-extended {
-  color: #22c55e;
+  color: var(--rh-success);
   font-weight: 700;
   font-size: 0.75em;
   vertical-align: middle;
@@ -432,12 +536,12 @@ body {
 
 .streak-target-pending {
   font-size: 0.85em;
-  color: var(--vscode-descriptionForeground);
+  color: var(--rh-text-muted);
 }
 
 .streak-target-met {
   font-size: 0.85em;
-  color: rgba(46, 204, 113, 0.9);
+  color: rgba(var(--rh-success-rgb), 0.9);
 }
 
 /* ── Filter bar ────────────────────────────────────────────────────────── */
@@ -453,7 +557,7 @@ body {
   flex-shrink: 0;
 }
 
-/* ── Date controls: dropdown + calendar button ──────────────────────────── */
+/* ── Date controls: dropdown + calendar button ─────────────────────────── */
 
 .date-controls {
   display: flex;
@@ -490,7 +594,7 @@ body {
   top: 50%;
   transform: translateY(-50%);
   pointer-events: none;
-  color: var(--vscode-descriptionForeground);
+  color: var(--rh-text-dim);
   opacity: 0.7;
 }
 
@@ -499,15 +603,15 @@ body {
 }
 
 .date-preset-select:focus-visible {
-  outline: 2px solid #f97316;
+  outline: 2px solid var(--rh-accent);
   outline-offset: 2px;
 }
 
 /* Custom date range active indicator */
 .date-preset-select.custom-active {
-  border-color: #f97316;
-  color: #f97316;
-  background-color: rgba(249, 115, 22, 0.08);
+  border-color: var(--rh-accent);
+  color: var(--rh-accent);
+  background-color: rgba(var(--rh-accent-rgb), 0.08);
 }
 
 .calendar-btn {
@@ -520,7 +624,7 @@ body {
   border-radius: 6px;
   border: 1px solid var(--vscode-editorWidget-border);
   background: transparent;
-  color: var(--vscode-editor-foreground);
+  color: var(--rh-text);
   cursor: pointer;
   opacity: 0.65;
   transition: opacity 0.1s, border-color 0.1s, background 0.1s;
@@ -533,13 +637,13 @@ body {
 }
 
 .calendar-btn.active {
-  border-color: #f97316;
-  background: rgba(249, 115, 22, 0.12);
-  color: #f97316;
+  border-color: var(--rh-accent);
+  background: rgba(var(--rh-accent-rgb), 0.12);
+  color: var(--rh-accent);
   opacity: 1;
 }
 
-/* ── Calendar popover ───────────────────────────────────────────────────── */
+/* ── Calendar popover ──────────────────────────────────────────────────── */
 
 .cal-mode-toggle {
   display: flex;
@@ -552,12 +656,12 @@ body {
   background: none;
   border: none;
   padding: 7px 0;
-  font-family: 'Electrolize', sans-serif;
+  font-family: var(--rh-font-label);
   font-size: 0.72em;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: var(--vscode-descriptionForeground);
+  color: var(--rh-text-dim);
   cursor: pointer;
   opacity: 0.6;
   transition: opacity 0.12s, color 0.12s, border-bottom 0.12s;
@@ -567,13 +671,13 @@ body {
 
 .cal-mode-btn:hover {
   opacity: 1;
-  color: var(--vscode-editor-foreground);
+  color: var(--rh-text);
 }
 
 .cal-mode-btn.active {
   opacity: 1;
-  color: #f97316;
-  border-bottom-color: #f97316;
+  color: var(--rh-accent);
+  border-bottom-color: var(--rh-accent);
 }
 
 .calendar-popover {
@@ -581,7 +685,7 @@ body {
   top: calc(100% + 6px);
   left: 0;
   z-index: 100;
-  background: var(--vscode-editorWidget-background);
+  background: var(--rh-surface-raised);
   border: 1px solid var(--vscode-editorWidget-border);
   border-radius: 10px;
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.4);
@@ -601,7 +705,7 @@ body {
   font-family: 'Electrolize', var(--vscode-font-family), sans-serif;
   font-size: 0.82em;
   font-weight: 700;
-  color: var(--vscode-editor-foreground);
+  color: var(--rh-text);
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
@@ -609,7 +713,7 @@ body {
 .cal-nav-btn {
   background: none;
   border: none;
-  color: var(--vscode-editor-foreground);
+  color: var(--rh-text);
   font-size: 1.3em;
   line-height: 1;
   cursor: pointer;
@@ -637,7 +741,7 @@ body {
   font-family: 'Electrolize', var(--vscode-font-family), sans-serif;
   font-size: 0.68em;
   font-weight: 700;
-  color: var(--vscode-descriptionForeground);
+  color: var(--rh-text-dim);
   letter-spacing: 0.05em;
   padding: 2px 0 4px;
   text-transform: uppercase;
@@ -653,7 +757,7 @@ body {
   font-size: 0.78em;
   cursor: pointer;
   transition: background 0.08s, color 0.08s;
-  color: var(--vscode-editor-foreground);
+  color: var(--rh-text);
   position: relative;
 }
 
@@ -684,24 +788,24 @@ body {
   width: 4px;
   height: 4px;
   border-radius: 50%;
-  background: #f97316;
+  background: var(--rh-accent);
 }
 
 /* Range in-between */
 .cal-day-in-range {
-  background: rgba(249, 115, 22, 0.15);
+  background: rgba(var(--rh-accent-rgb), 0.15);
   border-radius: 0;
-  color: var(--vscode-editor-foreground);
+  color: var(--rh-text);
 }
 
 .cal-day-in-range.cal-day:hover {
-  background: rgba(249, 115, 22, 0.25);
+  background: rgba(var(--rh-accent-rgb), 0.25);
 }
 
 /* Selected start / end / single */
 .cal-day-selected {
-  background: #f97316 !important;
-  color: #fff !important;
+  background: var(--rh-accent) !important;
+  color: var(--rh-on-accent) !important;
   border-radius: 5px !important;
   font-weight: 700;
 }
@@ -731,7 +835,7 @@ body {
 
 .cal-selection-hint {
   font-size: 0.72em;
-  color: var(--vscode-descriptionForeground);
+  color: var(--rh-text-dim);
   flex: 1;
   min-width: 0;
   overflow: hidden;
@@ -740,8 +844,8 @@ body {
 }
 
 .cal-apply-btn {
-  background: #f97316;
-  color: #fff;
+  background: var(--rh-accent);
+  color: var(--rh-on-accent);
   border: none;
   border-radius: 5px;
   padding: 4px 14px;
@@ -762,7 +866,7 @@ body {
   opacity: 0.88;
 }
 
-/* ── Projects tab sort header ───────────────────────────────────────────── */
+/* ── Projects tab sort header ──────────────────────────────────────────── */
 
 .projects-tab-header {
   padding: 4px 0 14px;
@@ -774,7 +878,7 @@ body {
 .sort-label {
   font-family: 'Electrolize', var(--vscode-font-family), sans-serif;
   font-size: 0.78em;
-  color: var(--vscode-editor-foreground);
+  color: var(--rh-text);
   text-transform: uppercase;
   letter-spacing: 0.04em;
   white-space: nowrap;
@@ -794,10 +898,10 @@ body {
   to   { opacity: 1; transform: translateY(0); }
 }
 
-/* Used to confirm a setting was saved — brief green border flash */
+/* Used to confirm a setting was saved ── brief green border flash */
 @keyframes savedFlash {
-  0%   { border-color: #22c55e; box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.4); }
-  70%  { border-color: #22c55e; box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.4); }
+  0%   { border-color: var(--rh-success); box-shadow: 0 0 0 1px rgba(var(--rh-success-rgb), 0.4); }
+  70%  { border-color: var(--rh-success); box-shadow: 0 0 0 1px rgba(var(--rh-success-rgb), 0.4); }
   100% { border-color: var(--vscode-input-border, var(--vscode-dropdown-border)); box-shadow: none; }
 }
 
@@ -814,8 +918,8 @@ body {
 
 .widget-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; gap: 8px; flex-wrap: wrap; }
 .widget-header-info { display: flex; flex-direction: column; }
-.widget-title { font-family: 'Electrolize', sans-serif; font-size: 1.05em; font-weight: 700; color: var(--vscode-editor-foreground); line-height: 1.2; margin: 0; }
-.widget-subtitle { font-size: 0.85em; font-weight: 600; color: var(--vscode-descriptionForeground); margin-top: 3px; line-height: 1.3; }
+.widget-title { font-family: var(--rh-font-label); font-size: 1.05em; font-weight: 700; color: var(--rh-text); line-height: 1.2; margin: 0; }
+.widget-subtitle { font-size: 0.85em; font-weight: 600; color: var(--rh-text-dim); margin-top: 3px; line-height: 1.3; }
 .widget-header-controls { display: flex; gap: 6px; flex-shrink: 0; margin-top: 2px; }
 
 .overview-grid {
@@ -833,7 +937,7 @@ body {
   grid-column: 1 / -1;
 }
 
-/* ── Projects mini widget ────────────────────────────────────────────────── */
+/* ── Projects mini widget ──────────────────────────────────────────────── */
 
 .projects-mini-row {
   display: flex;
@@ -850,7 +954,7 @@ body {
 }
 
 .projects-mini-row:hover .projects-mini-name {
-  color: #f97316;
+  color: var(--rh-accent);
 }
 
 .projects-mini-name {
@@ -864,7 +968,7 @@ body {
 
 .projects-mini-time {
   font-family: 'VT323', monospace;
-  color: var(--vscode-descriptionForeground);
+  color: var(--rh-text-dim);
   font-variant-numeric: tabular-nums;
   font-size: 0.88em;
   white-space: nowrap;
@@ -873,20 +977,20 @@ body {
 .stat-range-label {
   font-size: 1.3em;
   font-weight: 700;
-  color: var(--vscode-editor-foreground);
+  color: var(--rh-text);
   white-space: nowrap;
   margin-right: 4px;
   flex-shrink: 0;
 }
 
-/* ── Stat group ─────────────────────────────────────────────────────────── */
+/* ── Stat group ────────────────────────────────────────────────────────── */
 
 .stat-group {
   display: flex;
-  background: color-mix(in srgb, var(--vscode-editorWidget-background), black 20%);
-  border: 1px solid var(--vscode-editorWidget-border);
+  background: var(--rh-card-bg);
+  border: 1px solid var(--rh-border-bright);
   border-radius: 8px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35), 0 0 24px rgba(249, 115, 22, 0.08);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35), 0 0 24px rgba(var(--rh-accent-rgb), 0.08);
   overflow: hidden;
   flex-wrap: wrap;
   margin-top: 24px;
@@ -902,13 +1006,13 @@ body {
 
 .stat-item:last-child { border-right: none; }
 
-.stat-item.accent-add .stat-value { color: rgba(46, 204, 113, 0.9); }
-.stat-item.accent-del .stat-value { color: rgba(231, 76, 60, 0.9); }
+.stat-item.accent-add .stat-value { color: rgba(var(--rh-success-rgb), 0.9); }
+.stat-item.accent-del .stat-value { color: rgba(var(--rh-danger-rgb), 0.9); }
 
 .stat-label {
-  font-family: 'Electrolize', sans-serif;
+  font-family: var(--rh-font-label);
   font-size: 0.75em;
-  color: var(--vscode-descriptionForeground);
+  color: var(--rh-text-dim);
   margin-bottom: 6px;
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -916,7 +1020,7 @@ body {
 }
 
 .stat-value {
-  font-family: 'Unica One', sans-serif;
+  font-family: var(--rh-font-stat);
   font-size: 1.9em;
   font-weight: 700;
   letter-spacing: -0.02em;
@@ -925,24 +1029,24 @@ body {
 
 .stat-avg {
   font-size: 0.75em;
-  color: var(--vscode-descriptionForeground);
+  color: var(--rh-text-dim);
   margin-top: 2px;
 }
 
 .stat-avg.hidden { display: none; }
 
-/* ── Section card ────────────────────────────────────────────────────────── */
+/* ── Section card ──────────────────────────────────────────────────────── */
 
 .section-card {
-  background: color-mix(in srgb, var(--vscode-editorWidget-background), black 20%);
-  border: 1px solid var(--vscode-editorWidget-border);
+  background: var(--rh-card-bg);
+  border: 1px solid var(--rh-border-bright);
   border-radius: 8px;
   padding: 16px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35), 0 0 24px rgba(249, 115, 22, 0.08);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35), 0 0 24px rgba(var(--rh-accent-rgb), 0.08);
   min-width: 0;
 }
 
-/* ── Activity tab ────────────────────────────────────────────────────────── */
+/* ── Activity tab ──────────────────────────────────────────────────────── */
 
 .activity-tab-header {
   display: flex;
@@ -997,7 +1101,7 @@ body {
 }
 
 .activity-stat-value {
-  font-family: 'Unica One', sans-serif;
+  font-family: var(--rh-font-stat);
   font-size: 1.9em;
   font-weight: 700;
   letter-spacing: -0.02em;
@@ -1006,16 +1110,16 @@ body {
 }
 
 .activity-stat-label {
-  font-family: 'Electrolize', sans-serif;
+  font-family: var(--rh-font-label);
   font-size: 0.72em;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.07em;
-  color: var(--vscode-descriptionForeground);
+  color: var(--rh-text-dim);
   margin-top: 5px;
 }
 
-/* ── Heatmap ─────────────────────────────────────────────────────────────── */
+/* ── Heatmap ───────────────────────────────────────────────────────────── */
 
 #heatmap-canvas {
   overflow-x: auto;
@@ -1025,7 +1129,7 @@ body {
   display: block;
 }
 
-/* ── Charts ─────────────────────────────────────────────────────────────── */
+/* ── Charts ────────────────────────────────────────────────────────────── */
 
 .chart-grid {
   display: grid;
@@ -1035,11 +1139,11 @@ body {
 }
 
 .chart-box {
-  background: color-mix(in srgb, var(--vscode-editorWidget-background), black 20%);
-  border: 1px solid var(--vscode-editorWidget-border);
+  background: var(--rh-card-bg);
+  border: 1px solid var(--rh-border-bright);
   border-radius: 8px;
   padding: 12px 14px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35), 0 0 24px rgba(249, 115, 22, 0.08);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35), 0 0 24px rgba(var(--rh-accent-rgb), 0.08);
   min-width: 0;
   overflow: hidden;
 }
@@ -1079,8 +1183,9 @@ body {
 }
 
 .toggle-btn.active {
-  background: var(--vscode-button-background);
-  color: var(--vscode-button-foreground);
+  background: var(--rh-accent);
+  color: var(--rh-on-accent);
+  font-weight: 700;
 }
 
 .lang-legend-table {
@@ -1092,7 +1197,7 @@ body {
 
 .lang-legend-table th {
   text-align: left;
-  color: var(--vscode-descriptionForeground);
+  color: var(--rh-text-dim);
   font-weight: 500;
   padding: 3px 6px 3px 0;
   border-bottom: 1px solid var(--vscode-editorWidget-border);
@@ -1114,12 +1219,12 @@ body {
 .legend-val {
   font-family: 'VT323', monospace;
   font-variant-numeric: tabular-nums;
-  color: var(--vscode-descriptionForeground);
+  color: var(--rh-text-dim);
 }
-.legend-add { color: rgba(46, 204, 113, 0.9); }
-.legend-del { color: rgba(231, 76, 60, 0.9); }
+.legend-add { color: rgba(var(--rh-success-rgb), 0.9); }
+.legend-del { color: rgba(var(--rh-danger-rgb), 0.9); }
 
-/* ── Sessions panel ──────────────────────────────────────────────────────── */
+/* ── Sessions panel ────────────────────────────────────────────────────── */
 
 #sessions-panel {
   margin-top: 8px;
@@ -1132,7 +1237,7 @@ body {
   gap: 10px;
   font-weight: 600;
   font-size: 0.8em;
-  color: var(--vscode-descriptionForeground);
+  color: var(--rh-text-dim);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   margin-top: 20px;
@@ -1168,7 +1273,7 @@ body {
   bottom: 8px;
   width: 2px;
   border-radius: 1px;
-  background: #f97316;
+  background: var(--rh-accent);
   opacity: 0.35;
 }
 
@@ -1178,7 +1283,7 @@ body {
 
 .session-time {
   font-family: 'VT323', monospace;
-  color: var(--vscode-editor-foreground);
+  color: var(--rh-text);
   font-variant-numeric: tabular-nums;
 }
 
@@ -1193,7 +1298,7 @@ body {
 
 .session-active {
   font-family: 'VT323', monospace;
-  color: var(--vscode-descriptionForeground);
+  color: var(--rh-text-dim);
   font-variant-numeric: tabular-nums;
   margin-left: auto;
   white-space: nowrap;
@@ -1203,7 +1308,7 @@ body {
 .sessions-show-more {
   padding: 8px 0 8px 12px;
   font-size: 0.8em;
-  color: var(--vscode-descriptionForeground);
+  color: var(--rh-text-dim);
   cursor: pointer;
   opacity: 0.7;
   transition: opacity 0.1s, color 0.1s;
@@ -1214,10 +1319,10 @@ body {
 
 .sessions-show-more:hover {
   opacity: 1;
-  color: var(--vscode-editor-foreground);
+  color: var(--rh-text);
 }
 
-/* ── Files panel ─────────────────────────────────────────────────────────── */
+/* ── Files panel ───────────────────────────────────────────────────────── */
 
 #files-panel {
   margin-top: 24px;
@@ -1257,7 +1362,7 @@ body {
 }
 
 .file-lang {
-  color: var(--vscode-descriptionForeground);
+  color: var(--rh-text-dim);
   font-size: 0.8em;
   white-space: nowrap;
   flex-shrink: 0;
@@ -1265,7 +1370,7 @@ body {
 
 .file-add {
   font-family: 'VT323', monospace;
-  color: rgba(46, 204, 113, 0.9);
+  color: rgba(var(--rh-success-rgb), 0.9);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   flex-shrink: 0;
@@ -1273,13 +1378,13 @@ body {
 
 .file-del {
   font-family: 'VT323', monospace;
-  color: rgba(231, 76, 60, 0.9);
+  color: rgba(var(--rh-danger-rgb), 0.9);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   flex-shrink: 0;
 }
 
-/* ── Projects tab ────────────────────────────────────────────────────────── */
+/* ── Projects tab ──────────────────────────────────────────────────────── */
 
 #project-cards {
   display: grid;
@@ -1289,18 +1394,18 @@ body {
 }
 
 .project-card {
-  background: var(--vscode-editorWidget-background);
-  border: 1px solid var(--vscode-editorWidget-border);
-  border-left: 3px solid rgba(249, 115, 22, 0.3);
-  border-radius: 8px;
+  background: var(--rh-card-bg);
+  border: 1px solid var(--rh-border-bright);
+  border-left: 3px solid rgba(var(--rh-accent-rgb), 0.3);
+  border-radius: var(--rh-radius-lg);
   padding: 14px 16px;
   cursor: pointer;
   transition: border-left-color 0.15s, box-shadow 0.15s;
 }
 
 .project-card:hover {
-  border-left-color: #f97316;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35), 0 0 20px rgba(249, 115, 22, 0.12);
+  border-left-color: var(--rh-accent);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35), 0 0 20px rgba(var(--rh-accent-rgb), 0.12);
 }
 
 .project-card-header {
@@ -1321,7 +1426,7 @@ body {
 
 .project-card-last {
   font-size: 0.75em;
-  color: var(--vscode-descriptionForeground);
+  color: var(--rh-text-dim);
   white-space: nowrap;
   flex-shrink: 0;
 }
@@ -1329,7 +1434,7 @@ body {
 .project-card-path {
   font-family: var(--vscode-editor-font-family, monospace);
   font-size: 0.75em;
-  color: var(--vscode-descriptionForeground);
+  color: var(--rh-text-dim);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1350,22 +1455,22 @@ body {
 }
 
 .pstat-label {
-  font-family: 'Funnel Sans', sans-serif;
+  font-family: var(--rh-font-label);
   font-size: 0.88em;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--vscode-descriptionForeground);
+  color: var(--rh-text-dim);
 }
 
 .pstat-val {
-  font-family: 'Funnel Sans', sans-serif;
+  font-family: var(--rh-font-label);
   font-size: 1.3em;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 
-.pstat-val.add { color: rgba(46, 204, 113, 0.9); }
-.pstat-val.del { color: rgba(231, 76, 60, 0.9); }
+.pstat-val.add { color: rgba(var(--rh-success-rgb), 0.9); }
+.pstat-val.del { color: rgba(var(--rh-danger-rgb), 0.9); }
 
 .project-card-target {
   display: flex;
@@ -1378,18 +1483,18 @@ body {
 }
 
 .project-target-label {
-  font-family: 'Quantico', sans-serif;
+  font-family: var(--rh-font-label);
   font-size: 0.9em;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--vscode-editor-foreground);
+  color: var(--rh-text);
   white-space: nowrap;
 }
 
 .project-target-unit {
   font-family: 'VT323', monospace;
   font-size: 0.72em;
-  color: var(--vscode-descriptionForeground);
+  color: var(--rh-text-dim);
 }
 
 .project-target-input {
@@ -1413,8 +1518,8 @@ body {
 
 .project-target-input:focus {
   outline: none;
-  border-color: #f97316;
-  box-shadow: 0 0 0 1px rgba(249, 115, 22, 0.35);
+  border-color: var(--rh-accent);
+  box-shadow: 0 0 0 1px rgba(var(--rh-accent-rgb), 0.35);
 }
 
 .project-target-apply {
@@ -1426,7 +1531,7 @@ body {
   border: 1px solid transparent;
   cursor: pointer;
   background: transparent;
-  color: var(--vscode-descriptionForeground);
+  color: var(--rh-text-dim);
   border-color: var(--vscode-editorWidget-border);
   transition: color 0.15s, border-color 0.15s;
 }
@@ -1437,15 +1542,15 @@ body {
 }
 
 .project-target-apply:not(:disabled) {
-  color: #f97316;
-  border-color: #f97316;
+  color: var(--rh-accent);
+  border-color: var(--rh-accent);
 }
 
 .project-target-apply:not(:disabled):hover {
-  background: rgba(249, 115, 22, 0.1);
+  background: rgba(var(--rh-accent-rgb), 0.1);
 }
 
-/* ── Settings tab ────────────────────────────────────────────────────────── */
+/* ── Settings tab ──────────────────────────────────────────────────────── */
 
 #tab-settings {
   max-width: 580px;
@@ -1456,20 +1561,20 @@ body {
 }
 
 .settings-section-title {
-  font-family: 'Electrolize', sans-serif;
+  font-family: var(--rh-font-label);
   font-size: 0.72em;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.1em;
-  color: var(--vscode-descriptionForeground);
+  color: var(--rh-text-dim);
   margin: 0 0 8px 2px;
 }
 
 .settings-card {
-  background: color-mix(in srgb, var(--vscode-editorWidget-background), black 20%);
-  border: 1px solid var(--vscode-editorWidget-border);
+  background: var(--rh-card-bg);
+  border: 1px solid var(--rh-border-bright);
   border-radius: 8px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35), 0 0 24px rgba(249, 115, 22, 0.06);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35), 0 0 24px rgba(var(--rh-accent-rgb), 0.06);
   padding: 0 16px;
 }
 
@@ -1492,10 +1597,10 @@ body {
 }
 
 .setting-label {
-  font-family: 'Funnel Sans', sans-serif;
+  font-family: var(--rh-font-label);
   font-size: 1.3em;
   font-weight: 500;
-  color: var(--vscode-editor-foreground);
+  color: var(--rh-text);
   display: block;
   margin-bottom: 2px;
 }
@@ -1508,7 +1613,7 @@ body {
   border: 1px solid var(--vscode-editorWidget-border);
   cursor: pointer;
   background: transparent;
-  color: var(--vscode-descriptionForeground);
+  color: var(--rh-text-dim);
   transition: color 0.15s, border-color 0.15s;
   white-space: nowrap;
 }
@@ -1519,17 +1624,17 @@ body {
 }
 
 .setting-apply:not(:disabled) {
-  color: #f97316;
-  border-color: #f97316;
+  color: var(--rh-accent);
+  border-color: var(--rh-accent);
 }
 
 .setting-apply:not(:disabled):hover {
-  background: rgba(249, 115, 22, 0.1);
+  background: rgba(var(--rh-accent-rgb), 0.1);
 }
 
 .setting-desc {
   font-size: 0.78em;
-  color: var(--vscode-descriptionForeground);
+  color: var(--rh-text-dim);
   line-height: 1.45;
 }
 
@@ -1555,13 +1660,13 @@ body {
 
 .setting-input:focus {
   outline: none;
-  border-color: #f97316;
-  box-shadow: 0 0 0 1px rgba(249, 115, 22, 0.35);
+  border-color: var(--rh-accent);
+  box-shadow: 0 0 0 1px rgba(var(--rh-accent-rgb), 0.35);
 }
 
 .setting-unit {
   font-size: 0.8em;
-  color: var(--vscode-descriptionForeground);
+  color: var(--rh-text-dim);
   min-width: 24px;
 }
 
@@ -1599,15 +1704,15 @@ body {
   justify-content: center;
   background: transparent;
   border: none;
-  color: var(--vscode-descriptionForeground);
+  color: var(--rh-text-dim);
   cursor: pointer;
   padding: 0;
   transition: background 0.1s, color 0.1s;
 }
 
 .stepper-btn:hover {
-  background: rgba(249, 115, 22, 0.15);
-  color: #f97316;
+  background: rgba(var(--rh-accent-rgb), 0.15);
+  color: var(--rh-accent);
 }
 
 .stepper-btn:first-child {
@@ -1622,7 +1727,7 @@ body {
 .setting-checkbox {
   width: 16px;
   height: 16px;
-  accent-color: var(--vscode-button-background);
+  accent-color: var(--rh-accent);
   cursor: pointer;
 }
 
@@ -1642,19 +1747,19 @@ body {
 }
 
 .agent-toggle input {
-  accent-color: var(--vscode-button-background);
+  accent-color: var(--rh-accent);
   width: 14px;
   height: 14px;
 }
 
-/* ── Export Card button ──────────────────────────────────────────────────── */
+/* ── Export Card button ────────────────────────────────────────────────── */
 
 .export-pdf-btn {
   display: flex;
   align-items: center;
   gap: 7px;
-  background: #22c55e;
-  color: #000;
+  background: var(--rh-success);
+  color: var(--rh-on-success);
   font-weight: 700;
   border: none;
   border-radius: 5px;
@@ -1669,7 +1774,7 @@ body {
 
 #header .export-pdf-btn { margin-left: auto; }
 
-/* ── Modal ───────────────────────────────────────────────────────────────── */
+/* ── Modal ─────────────────────────────────────────────────────────────── */
 
 .modal-overlay {
   position: fixed;
@@ -1686,7 +1791,7 @@ body {
 }
 
 .modal {
-  background: var(--vscode-editorWidget-background);
+  background: var(--rh-surface-raised);
   border: 1px solid var(--vscode-editorWidget-border);
   border-radius: 10px;
   padding: 24px;
@@ -1721,7 +1826,7 @@ body {
   font-size: 0.75em;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: var(--vscode-descriptionForeground);
+  color: var(--rh-text-dim);
   font-weight: 600;
 }
 
@@ -1741,7 +1846,7 @@ body {
 }
 
 .modal-check input[type="checkbox"] {
-  accent-color: #f97316;
+  accent-color: var(--rh-accent);
 }
 
 .modal-name-input {
@@ -1759,13 +1864,13 @@ body {
 
 .modal-name-input:focus {
   outline: none;
-  border-color: #f97316;
-  box-shadow: 0 0 0 1px rgba(249, 115, 22, 0.35);
+  border-color: var(--rh-accent);
+  box-shadow: 0 0 0 1px rgba(var(--rh-accent-rgb), 0.35);
 }
 
 .input-hint {
   font-size: 0.72em;
-  color: var(--vscode-descriptionForeground);
+  color: var(--rh-text-dim);
   opacity: 0.8;
 }
 
@@ -1800,19 +1905,19 @@ body {
 
 .modal-date-input:focus {
   outline: none;
-  border-color: #f97316;
-  box-shadow: 0 0 0 1px rgba(249, 115, 22, 0.35);
+  border-color: var(--rh-accent);
+  box-shadow: 0 0 0 1px rgba(var(--rh-accent-rgb), 0.35);
 }
 
 .export-range-sep {
-  color: var(--vscode-descriptionForeground);
+  color: var(--rh-text-dim);
   font-size: 0.85em;
   flex-shrink: 0;
 }
 
 .export-range-error {
   font-size: 0.75em;
-  color: #ef4444;
+  color: var(--rh-danger);
   width: 100%;
 }
 
@@ -1829,7 +1934,7 @@ body {
 .modal-btn-secondary {
   background: none;
   border: 1px solid var(--vscode-dropdown-border);
-  color: var(--vscode-foreground);
+  color: var(--rh-text);
   border-radius: 5px;
   padding: 6px 14px;
   font-family: var(--vscode-font-family);
@@ -1843,8 +1948,8 @@ body {
 }
 
 .modal-btn-primary {
-  background: #f97316;
-  color: #fff;
+  background: var(--rh-accent);
+  color: var(--rh-on-accent);
   border: none;
   border-radius: 5px;
   padding: 6px 14px;
@@ -1863,7 +1968,7 @@ body {
   cursor: not-allowed;
 }
 
-/* ── Activity tab charts ─────────────────────────────────────────────────── */
+/* ── Activity tab charts ───────────────────────────────────────────────── */
 
 .activity-chart-box {
   margin-bottom: 12px;
@@ -1905,7 +2010,7 @@ body {
   margin-bottom: 12px;
 }
 
-/* ── Empty states ────────────────────────────────────────────────────────── */
+/* ── Empty states ──────────────────────────────────────────────────────── */
 
 .empty-state {
   display: flex;
@@ -1913,7 +2018,7 @@ body {
   align-items: center;
   justify-content: center;
   padding: 48px 24px;
-  color: var(--vscode-descriptionForeground);
+  color: var(--rh-text-dim);
   font-size: 0.85em;
   text-align: center;
   gap: 6px;

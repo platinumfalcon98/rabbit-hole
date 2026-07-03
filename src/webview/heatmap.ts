@@ -1,5 +1,6 @@
 import * as d3 from "d3"
 import { DailyLog } from "../shared/types"
+import { accentColor, successRgb, textColor, textDimColor, surfaceRaisedColor, CHART_FONT_MONO } from "./theme"
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 const DAY_LABELS = ["Mon", "", "Wed", "", "Fri", "", ""]
@@ -124,10 +125,11 @@ export function render(logs: DailyLog[]): void {
     d => logByDate.get(dateKey(d))?.activeTime ?? 0
   ) ?? 1
 
-  // Theme-aware color scale: transparent orange → full orange (works on light and dark themes)
+  // Phosphor-green activity scale: dim green → full --rh-success (reads as "terminal activity")
+  const scaleRgb = successRgb()
   const colorScale = d3.scaleSequential()
     .domain([0, maxTime])
-    .interpolator((t: number) => `rgba(249, 115, 22, ${0.18 + t * 0.82})`)
+    .interpolator((t: number) => `rgba(${scaleRgb}, ${0.18 + t * 0.82})`)
 
   const emptyColor  = "rgba(128,128,128,0.12)"
   const futureColor = "rgba(128,128,128,0.05)"
@@ -136,8 +138,8 @@ export function render(logs: DailyLog[]): void {
     .append("svg")
     .attr("width", svgWidth)
     .attr("height", svgHeight)
-    .style("font-family", "var(--vscode-font-family)")
-    .style("font-size", "11px")
+    .style("font-family", CHART_FONT_MONO)
+    .style("font-size", "13px")
 
   // Day labels
   svg.selectAll(".day-label")
@@ -148,7 +150,7 @@ export function render(logs: DailyLog[]): void {
     .attr("x", marginLeft - cellPad - 4)
     .attr("y", (_, i) => marginTop + i * step + cellSize - 2)
     .attr("text-anchor", "end")
-    .attr("fill", "var(--vscode-descriptionForeground)")
+    .attr("fill", textDimColor())
     .text(d => d)
 
   // Month labels — skip if too close to the previous one
@@ -163,7 +165,7 @@ export function render(logs: DailyLog[]): void {
     svg.append("text")
       .attr("x", x)
       .attr("y", marginTop - 8)
-      .attr("fill", "var(--vscode-descriptionForeground)")
+      .attr("fill", textDimColor())
       .attr("font-weight", d.getMonth() === currentMonth ? "700" : "400")
       .text(d3.timeFormat("%b")(d))
   }
@@ -172,11 +174,13 @@ export function render(logs: DailyLog[]): void {
   const tooltip = d3.select(container)
     .append("div")
     .style("position", "fixed")
-    .style("background", "var(--vscode-editorHoverWidget-background)")
-    .style("border", "1px solid var(--vscode-editorHoverWidget-border)")
+    .style("background", surfaceRaisedColor())
+    .style("border", `1px solid ${accentColor()}`)
+    .style("color", textColor())
+    .style("font-family", CHART_FONT_MONO)
     .style("padding", "6px 10px")
     .style("border-radius", "6px")
-    .style("font-size", "12px")
+    .style("font-size", "14px")
     .style("line-height", "1.5")
     .style("pointer-events", "none")
     .style("display", "none")
@@ -240,7 +244,7 @@ export function render(logs: DailyLog[]): void {
       .attr("x", cellX(todayDate))
       .attr("y", cellY(todayDate))
       .attr("fill", "none")
-      .attr("stroke", "var(--vscode-focusBorder, #f97316)")
+      .attr("stroke", accentColor())
       .attr("stroke-width", 1.5)
   }
 
@@ -262,13 +266,13 @@ export function render(logs: DailyLog[]): void {
     .attr("x", boxesX - legendGap)
     .attr("y", legendTextY)
     .attr("text-anchor", "end")
-    .attr("fill", "var(--vscode-descriptionForeground)")
-    .attr("font-size", "10px")
+    .attr("fill", textDimColor())
+    .attr("font-size", "12px")
     .text("Less")
 
   for (let i = 0; i < legendBoxCount; i++) {
     const t = i / (legendBoxCount - 1)
-    const fill = i === 0 ? emptyColor : `rgba(249, 115, 22, ${0.18 + t * 0.82})`
+    const fill = i === 0 ? emptyColor : `rgba(${scaleRgb}, ${0.18 + t * 0.82})`
     svg.append("rect")
       .attr("x", boxesX + i * (legendBoxSize + legendGap))
       .attr("y", legendY)
@@ -281,7 +285,7 @@ export function render(logs: DailyLog[]): void {
   svg.append("text")
     .attr("x", boxesX + legendTotalBoxWidth + legendGap)
     .attr("y", legendTextY)
-    .attr("fill", "var(--vscode-descriptionForeground)")
-    .attr("font-size", "10px")
+    .attr("fill", textDimColor())
+    .attr("font-size", "12px")
     .text("More")
 }

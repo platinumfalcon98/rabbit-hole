@@ -15,6 +15,11 @@ import {
   ArcElement,
 } from "chart.js"
 import { DailyLog, LanguageStat } from "../shared/types"
+import {
+  accentColor, accentRgb, successColor, successRgb, dangerRgb,
+  infoColor, infoRgb, textColor, surfaceRaisedColor, getCssVar,
+  CHART_FONT_MONO, CHART_FONT_LABEL,
+} from "./theme"
 
 Chart.register(
   BarController,
@@ -77,14 +82,19 @@ function formatDuration(ms: number): string {
   return `${minutes}m`
 }
 
-function getCssVar(name: string): string {
-  return getComputedStyle(document.body).getPropertyValue(name).trim()
-}
+// vscode-tracked border color for gridlines — intentionally not an --rh-* token
+const gridColor = () => getCssVar("--vscode-editorWidget-border", "rgba(128,128,128,0.2)")
+const labelColor = textColor
 
-const gridColor = () =>
-  getCssVar("--vscode-editorWidget-border") || "rgba(128,128,128,0.2)"
-const labelColor = () =>
-  getCssVar("--vscode-editor-foreground") || "#ccc"
+// Highlight color for "today" across bar/line/point series, with a dim rgba
+// variant for all other data points — hoisted outside the per-day .map()
+// callers so we read the CSS custom properties once per render, not once
+// per day in the range.
+function highlightColors(count: number, todayIdx: number, dimAlpha: number): string[] {
+  const accent = accentColor()
+  const dim = `rgba(${accentRgb()}, ${dimAlpha})`
+  return Array.from({ length: count }, (_, i) => i === todayIdx ? accent : dim)
+}
 
 function destroyAll(): void {
   resizeObservers.forEach(o => o.disconnect())
@@ -148,8 +158,8 @@ function renderLinesChart(logs: DailyLog[]): void {
       labels: ["Lines Added", "Lines Deleted"],
       datasets: [{
         data: [added, deleted],
-        backgroundColor: ["rgba(46, 204, 113, 0.75)", "rgba(231, 76, 60, 0.75)"],
-        borderColor: getCssVar("--vscode-editor-background") || "#1e1e1e",
+        backgroundColor: [`rgba(${successRgb()}, 0.75)`, `rgba(${dangerRgb()}, 0.75)`],
+        borderColor: surfaceRaisedColor(),
         borderWidth: added === 0 || deleted === 0 ? 0 : 2,
       }],
     },
@@ -159,7 +169,7 @@ function renderLinesChart(logs: DailyLog[]): void {
       plugins: {
         legend: {
           position: "bottom",
-          labels: { color: labelColor(), boxWidth: 10, padding: 12, font: { size: 11 } },
+          labels: { color: labelColor(), boxWidth: 10, padding: 12, font: { size: 11, family: CHART_FONT_LABEL } },
         },
         tooltip: {
           callbacks: {
@@ -227,7 +237,7 @@ function renderLangPanel(logs: DailyLog[]): void {
         datasets: [{
           data: metricValues,
           backgroundColor: colors,
-          borderColor: getCssVar("--vscode-editor-background") || "#1e1e1e",
+          borderColor: surfaceRaisedColor(),
           borderWidth: langs.length === 1 ? 0 : 2,
         }],
       },
@@ -237,7 +247,7 @@ function renderLangPanel(logs: DailyLog[]): void {
         plugins: {
           legend: {
             position: "bottom",
-            labels: { color: labelColor(), boxWidth: 10, padding: 12, font: { size: 11 } },
+            labels: { color: labelColor(), boxWidth: 10, padding: 12, font: { size: 11, family: CHART_FONT_LABEL } },
           },
           tooltip: {
             callbacks: {
@@ -342,12 +352,8 @@ export function renderActivityChart(
     activityChartType = null
 
     if (isShortRange) {
-      const barBg = logs.map((_, i) =>
-        i === todayIdx ? "#f97316" : "rgba(249,115,22,0.45)"
-      )
-      const barBorder = logs.map((_, i) =>
-        i === todayIdx ? "#fb923c" : "rgba(249,115,22,0.7)"
-      )
+      const barBg = highlightColors(logs.length, todayIdx, 0.45)
+      const barBorder = highlightColors(logs.length, todayIdx, 0.7)
       activityChart = new Chart(canvas, {
         type: "bar",
         data: {
@@ -375,13 +381,13 @@ export function renderActivityChart(
           scales: {
             x: {
               grid: { color: gridColor() },
-              ticks: { color: labelColor(), font: { size: 11 } },
+              ticks: { color: labelColor(), font: { size: 11, family: CHART_FONT_MONO } },
             },
             y: {
               grid: { color: gridColor() },
               ticks: {
                 color: labelColor(),
-                font: { size: 11 },
+                font: { size: 11, family: CHART_FONT_MONO },
                 callback: (val) => formatYAxis(val as number),
                 stepSize: 3_600_000,
               },
@@ -391,8 +397,8 @@ export function renderActivityChart(
         },
       })
     } else {
-      const lineColor = "#f97316"
-      const fillColor = "rgba(249,115,22,0.12)"
+      const lineColor = accentColor()
+      const fillColor = `rgba(${accentRgb()}, 0.12)`
       activityChart = new Chart(canvas, {
         type: "line",
         data: {
@@ -403,9 +409,7 @@ export function renderActivityChart(
             backgroundColor: fillColor,
             borderWidth: 2,
             pointRadius: logs.map((_, i) => i === todayIdx ? 5 : 2),
-            pointBackgroundColor: logs.map((_, i) =>
-              i === todayIdx ? "#f97316" : "rgba(249,115,22,0.6)"
-            ),
+            pointBackgroundColor: highlightColors(logs.length, todayIdx, 0.6),
             tension: 0.35,
             fill: true,
           }],
@@ -427,7 +431,7 @@ export function renderActivityChart(
               grid: { color: gridColor() },
               ticks: {
                 color: labelColor(),
-                font: { size: 10 },
+                font: { size: 10, family: CHART_FONT_MONO },
                 maxRotation: 0,
                 autoSkip: true,
                 maxTicksLimit: 12,
@@ -437,7 +441,7 @@ export function renderActivityChart(
               grid: { color: gridColor() },
               ticks: {
                 color: labelColor(),
-                font: { size: 11 },
+                font: { size: 11, family: CHART_FONT_MONO },
                 callback: (val) => formatYAxis(val as number),
                 stepSize: 3_600_000,
               },
@@ -457,28 +461,34 @@ export function renderActivityChart(
   activityChart.data.labels = labels
   activityChart.data.datasets[0].data = values
   if (isShortRange) {
-    activityChart.data.datasets[0].backgroundColor = logs.map((_, i) =>
-      i === todayIdx ? "#f97316" : "rgba(249,115,22,0.45)"
-    )
-    activityChart.data.datasets[0].borderColor = logs.map((_, i) =>
-      i === todayIdx ? "#fb923c" : "rgba(249,115,22,0.7)"
-    )
+    activityChart.data.datasets[0].backgroundColor = highlightColors(logs.length, todayIdx, 0.45)
+    activityChart.data.datasets[0].borderColor = highlightColors(logs.length, todayIdx, 0.7)
   } else {
     ;(activityChart.data.datasets[0] as any).pointRadius = logs.map((_, i) => i === todayIdx ? 5 : 2)
-    ;(activityChart.data.datasets[0] as any).pointBackgroundColor = logs.map((_, i) =>
-      i === todayIdx ? "#f97316" : "rgba(249,115,22,0.6)"
-    )
+    ;(activityChart.data.datasets[0] as any).pointBackgroundColor = highlightColors(logs.length, todayIdx, 0.6)
   }
   activityChart.update()
 }
 
 // ── Project Pie (Activity tab, All Projects view) ─────────────────────────
 
-// Orange palette — varies hue so adjacent slices are visually distinct
-const PROJECT_COLORS = [
-  "#f97316", "#fb923c", "#fdba74", "#c2410c",
-  "#ea580c", "#ff6b35", "#ffa552", "#e86b00",
-]
+// Phosphor palette — accent/info first, then a few amber/cyan/green variants
+// so adjacent project slices stay distinguishable on the dark terminal background
+function projectColors(): string[] {
+  const accent = accentRgb()
+  const info = infoRgb()
+  const success = successRgb()
+  return [
+    accentColor(),
+    infoColor(),
+    successColor(),
+    `rgba(${accent}, 0.55)`,
+    `rgba(${info}, 0.55)`,
+    `rgba(${success}, 0.55)`,
+    `rgba(${accent}, 0.8)`,
+    `rgba(${info}, 0.8)`,
+  ]
+}
 
 export function renderProjectPie(
   logs: DailyLog[],
@@ -513,7 +523,8 @@ export function renderProjectPie(
 
   const labels = entries.map(([id]) => projectNames[id] ?? id)
   const values = entries.map(([, ms]) => ms)
-  const colors = entries.map((_, i) => PROJECT_COLORS[i % PROJECT_COLORS.length])
+  const palette = projectColors()
+  const colors = entries.map((_, i) => palette[i % palette.length])
   const total = values.reduce((s, v) => s + v, 0)
 
   // Update in place when the project set is unchanged
@@ -537,7 +548,7 @@ export function renderProjectPie(
         datasets: [{
           data: values,
           backgroundColor: colors,
-          borderColor: getCssVar("--vscode-editor-background") || "#1e1e1e",
+          borderColor: surfaceRaisedColor(),
           borderWidth: 2,
         }],
       },
@@ -571,7 +582,7 @@ export function renderProjectPie(
         <td><span class="color-dot" style="background:${colors[i]}"></span></td>
         <td class="legend-name">${name}</td>
         <td class="legend-val">${formatDuration(ms)}</td>
-        <td class="legend-val" style="color:var(--vscode-descriptionForeground)">${pct}%</td>
+        <td class="legend-val" style="color:var(--rh-text-muted)">${pct}%</td>
       </tr>`
     }).join("")
     legendEl.innerHTML = `
