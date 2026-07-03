@@ -4,6 +4,25 @@ Running record of what was built and when, ordered newest first.
 
 ---
 
+## 2026-07-03
+
+**Retro-terminal UI redesign (design-system-first)**
+- New `--rh-*` design token layer in `style.css`: type scale, spacing rhythm, color roles, depth/glow recipe — fixes the "generic, no rhythm" complaint at the root
+- Dashboard asserts its own fixed dark phosphor palette independent of the VS Code theme; native inputs still track `--vscode-*` vars for light-theme legibility
+- Two-accent system: amber for interactive/chrome, phosphor green for positive states
+- Fonts consolidated to four (Press Start 2P, Electrolize, VT323, Unica One); Quantico and Funnel Sans dropped from the CSS
+- Subtle CRT scanline overlay via a single flat CSS gradient (blend-mode avoided for repaint cost)
+- Charts and heatmap restyled through a new shared `src/webview/theme.ts` token helper; hardcoded colors and font strings swept into tokens
+- Streak pill overhaul: fire emoji replaced with SVG spark icon
+- `DESIGN.md` added at repo root: full design-system spec and rationale
+- Committed and pushed (`c334f29`)
+
+**Follow-ups**
+- Visual review of the redesign in the Extension Development Host still pending
+- Unused font files (Quantico, Funnel Sans, Rajdhani) still bundled — remove before next release
+
+---
+
 ## 2026-03-29
 
 **Projects tab overhaul**
