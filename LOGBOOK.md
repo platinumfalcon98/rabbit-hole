@@ -4,6 +4,40 @@ Running record of what was built and when, ordered newest first.
 
 ---
 
+## 2026-07-05
+
+**Phosphor glow system (CRT bloom pass on the whole dashboard)**
+- Card glow made dramatic: two-layer bloom (tight bright halo + wide soft spill) on `--rh-shadow-card` / hover / success / danger tokens
+- Text phosphor glow: inherited `text-shadow` on `body` using `currentColor`, so every element glows in its own color; tuned to a tight, high-gain 1–1.5px edge after iteration
+- Strong-glow tier (`--rh-glow-text-strong`) on large numerals, card titles, all buttons, and the date select; sidebar icons mirror it with accent `drop-shadow`s
+- Chart glow via a shared `#rh-phosphor` SVG filter (blur merged twice under source) on the pie/donut canvases and heatmap cells; activity chart instead uses a `phosphorDatasetGlow` Chart.js plugin so bars/line glow but axis ticks stay clean
+
+**CRT glass bulge**
+- `body::before` overlay fakes tube curvature without distorting text: rounded screen corners, top specular glare, center bloom, barrel vignette starting mid-screen
+
+**Hover pops**
+- Cards (`.chart-box`, `.stat-group`, `.section-card`) lift on hover (`translateY`, not scale — scale blurred canvas text) with brighter bloom
+- Chart elements grow under the cursor: pie/donut `hoverOffset`, bar `inflateAmount`, line point hover radius, heatmap cell `scale(1.3)`
+
+**Heatmap fixes**
+- Phosphor filter scoped to cells only (whole-svg bloom smudged the small labels); labels got their own tighter, dimmer glow
+- Tooltip re-parented to `document.body` — the card hover transform was hijacking its `position: fixed` and rendering it far from the cursor
+
+**Today's Report button**
+- Solid green fill replaced with phosphor-text treatment: green glowing label + icon on a dark card body, green bloom on hover
+
+**Fonts: VT323 dropped, system now 3 typefaces**
+- VT323 unreadable at small sizes — all uses (chart axes, heatmap, session times, legend values, file diffs, settings inputs) now `var(--rh-font-mono)` → Electrolize, with `tabular-nums` for digit alignment
+- JPG export's dead `'Quantico'` references (no `@font-face` — was silently falling back) switched to Electrolize
+- Dead font files deleted: VT323, Quantico ×4, Funnel Sans ×2, Rajdhani ×2 (~500KB off the package)
+
+**Streak pill: plain design chosen**
+- Bordered/glowing container tried and rejected — final design is plain: no background, border, or glow; state carried by icon/number color alone (documented in DESIGN.md so it isn't "fixed" back)
+
+DESIGN.md kept in sync throughout (glow recipes, bulge, chart glow, font table).
+
+---
+
 ## 2026-07-03
 
 **Retro-terminal UI redesign (design-system-first)**

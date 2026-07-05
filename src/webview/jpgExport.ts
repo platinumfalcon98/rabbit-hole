@@ -1,7 +1,7 @@
-import { DailyLog } from "../shared/types"
+﻿import { DailyLog } from "../shared/types"
 import { PdfOptions, computeStats } from "./pdfExport"
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function formatDuration(ms: number): string {
   const totalMinutes = Math.floor(ms / 60_000)
@@ -28,8 +28,8 @@ function roundRect(
   ctx.closePath()
 }
 
-// ── Logo rect data (shared with pdfExport) ───────────────────────────────────
-// [x, y, w, h] in the 48×34 SVG coordinate space, fill color
+// â”€â”€ Logo rect data (shared with pdfExport) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// [x, y, w, h] in the 48Ã—34 SVG coordinate space, fill color
 
 type LogoRect = [number, number, number, number, string]
 
@@ -105,7 +105,7 @@ function drawLogoCanvas(
   }
 }
 
-// ── Heatmap (GitHub-style: weeks as columns, Mon–Sun rows) ───────────────────
+// â”€â”€ Heatmap (GitHub-style: weeks as columns, Monâ€“Sun rows) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function drawCalendarHeatmap(
   ctx: CanvasRenderingContext2D,
@@ -185,7 +185,7 @@ function drawCalendarHeatmap(
   return legendY + boxSize
 }
 
-// ── Stat grid ─────────────────────────────────────────────────────────────────
+// â”€â”€ Stat grid â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function drawStatGrid(
   ctx: CanvasRenderingContext2D,
@@ -213,12 +213,12 @@ function drawStatGrid(
     ctx.fill()
 
     ctx.fillStyle = item.color
-    ctx.font = `bold ${s(22)}px 'Quantico', sans-serif`
+    ctx.font = `bold ${s(22)}px 'Electrolize', sans-serif`
     ctx.textAlign = "left"
     ctx.fillText(item.value, x + s(12), y + s(32))
 
     ctx.fillStyle = MUTED
-    ctx.font = `${s(9)}px 'Quantico', sans-serif`
+    ctx.font = `${s(9)}px 'Electrolize', sans-serif`
     ctx.fillText(item.label, x + s(12), y + s(50))
   })
 
@@ -226,7 +226,7 @@ function drawStatGrid(
   return startY + rows * (cellH + rowGap) - rowGap
 }
 
-// ── Main export ───────────────────────────────────────────────────────────────
+// â”€â”€ Main export â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export async function generateJpg(logs: DailyLog[], options: PdfOptions): Promise<string> {
   await document.fonts.ready
@@ -261,14 +261,14 @@ export async function generateJpg(logs: DailyLog[], options: PdfOptions): Promis
   const todayKey = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,"0")}-${String(today.getDate()).padStart(2,"0")}`
   const stats = computeStats(logs.filter(l => l.date === todayKey))
 
-  // ── Project name (vertically centered in header section) ─────────────────
+  // â”€â”€ Project name (vertically centered in header section) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-  const headerSectionH = s(46)          // px — from accent bar base to divider
+  const headerSectionH = s(46)          // px â€” from accent bar base to divider
   const headerDividerY = s(5) + headerSectionH
   const headerTextY    = s(5) + headerSectionH / 2 + s(10)  // baseline centered
 
   ctx.fillStyle = TEXT
-  ctx.font = `bold ${s(20)}px 'Quantico', sans-serif`
+  ctx.font = `bold ${s(20)}px 'Electrolize', sans-serif`
   ctx.textAlign = "center"
   ctx.fillText(options.projectName.toUpperCase(), W / 2, headerTextY)
 
@@ -281,7 +281,7 @@ export async function generateJpg(logs: DailyLog[], options: PdfOptions): Promis
 
   let yPos = headerDividerY + s(18)
 
-  // ── Streak hero ───────────────────────────────────────────────────────────
+  // â”€â”€ Streak hero â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   if (options.isToday) {
     ctx.fillStyle = ACCENT
@@ -289,7 +289,7 @@ export async function generateJpg(logs: DailyLog[], options: PdfOptions): Promis
     ctx.textAlign = "center"
     ctx.fillText(String(stats.streak), W / 2, yPos + s(62))
 
-    ctx.font = `bold ${s(14)}px 'Quantico', sans-serif`
+    ctx.font = `bold ${s(14)}px 'Electrolize', sans-serif`
     ctx.fillText("Day Streak", W / 2, yPos + s(80))
     yPos += s(98)
 
@@ -303,7 +303,7 @@ export async function generateJpg(logs: DailyLog[], options: PdfOptions): Promis
     yPos += s(18)
   }
 
-  // ── Stats grid ────────────────────────────────────────────────────────────
+  // â”€â”€ Stats grid â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   const statItems: { label: string; value: string; color: string }[] = [
     { label: "ACTIVE TIME",   value: formatDuration(stats.totalActiveTime), color: TEXT },
@@ -313,7 +313,7 @@ export async function generateJpg(logs: DailyLog[], options: PdfOptions): Promis
   ]
   yPos = drawStatGrid(ctx, statItems, yPos, W, s, SURFACE, MUTED) + s(24)
 
-  // ── Heatmap ───────────────────────────────────────────────────────────────
+  // â”€â”€ Heatmap â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   if (logs.length > 0) {
     ctx.fillStyle = MUTED
@@ -325,12 +325,12 @@ export async function generateJpg(logs: DailyLog[], options: PdfOptions): Promis
     yPos = drawCalendarHeatmap(ctx, logs, yPos, W, s, MUTED) + s(16)
   }
 
-  // ── Footer ────────────────────────────────────────────────────────────────
+  // â”€â”€ Footer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   const now = new Date()
   const dateStr = now.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })
   const timeStr = now.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })
-  const footerPrefix = `Generated ${dateStr} at ${timeStr}  ·  `
+  const footerPrefix = `Generated ${dateStr} at ${timeStr}  Â·  `
   const footerSuffix = `Rabbit Hole`
 
   ctx.font = `${s(7.5)}px 'Electrolize', sans-serif`

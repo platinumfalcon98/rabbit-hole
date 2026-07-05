@@ -12,12 +12,6 @@
   font-style: normal;
 }
 
-@font-face {
-  font-family: 'VT323';
-  src: url('./fonts/VT323-Regular.woff2') format('woff2');
-  font-weight: normal;
-  font-style: normal;
-}
 
 @font-face {
   font-family: 'Unica One';
@@ -96,19 +90,31 @@
   --rh-radius-lg: 8px;
   --rh-radius-xl: 10px;
 
-  /* Depth / glow recipe ── cards sit darker than the page, with a faint
-     colored glow that reads as CRT bloom rather than a drop shadow. */
-  --rh-shadow-card: 0 4px 16px rgba(0, 0, 0, 0.5), 0 0 20px rgba(var(--rh-accent-rgb), 0.08);
-  --rh-shadow-card-hover: 0 4px 18px rgba(0, 0, 0, 0.55), 0 0 24px rgba(var(--rh-accent-rgb), 0.16);
-  --rh-glow-success: 0 0 20px rgba(var(--rh-success-rgb), 0.14);
-  --rh-glow-danger: 0 0 20px rgba(var(--rh-danger-rgb), 0.14);
+  /* Depth / glow recipe ── cards sit darker than the page, with a colored
+     glow that reads as CRT bloom rather than a drop shadow. Two layers:
+     a tight bright halo at the edge plus a wide soft spill. */
+  --rh-shadow-card: 0 4px 16px rgba(0, 0, 0, 0.5), 0 0 10px rgba(var(--rh-accent-rgb), 0.16), 0 0 36px rgba(var(--rh-accent-rgb), 0.1);
+  --rh-shadow-card-hover: 0 4px 18px rgba(0, 0, 0, 0.55), 0 0 12px rgba(var(--rh-accent-rgb), 0.28), 0 0 48px rgba(var(--rh-accent-rgb), 0.16);
+  --rh-glow-success: 0 0 10px rgba(var(--rh-success-rgb), 0.3), 0 0 36px rgba(var(--rh-success-rgb), 0.15);
+  --rh-glow-danger: 0 0 10px rgba(var(--rh-danger-rgb), 0.3), 0 0 36px rgba(var(--rh-danger-rgb), 0.15);
 
-  /* Fonts ── 4 typefaces total, each with one job. Quantico and Funnel Sans
-     (previously loaded but unused/inconsistently used) have been dropped in
-     favor of consolidating everything onto these four; see DESIGN.md. */
+  /* Text phosphor glow ── currentColor resolves per element, so each piece
+     of text glows in its own color (amber buttons glow amber, green diffs
+     glow green). Base variant is applied globally via body and inherits;
+     strong variant is opted into by large numerals only ─ at small sizes a
+     bigger blur reads as smudge, not glow. */
+  --rh-glow-text: 0 0 1px currentColor, 0 0 1.5px color-mix(in srgb, currentColor 70%, transparent);
+  --rh-glow-text-strong: 0 0 1px currentColor, 0 0 1.5px currentColor,
+    0 0 5px color-mix(in srgb, currentColor 80%, transparent);
+
+  /* Fonts ── 3 typefaces total, each with one job. Quantico, Funnel Sans,
+     and VT323 (unreadable at small sizes) have been dropped in favor of
+     consolidating onto these three; see DESIGN.md. */
   --rh-font-display: 'Press Start 2P', monospace; /* streak hero numeral only */
   --rh-font-label: 'Electrolize', sans-serif;      /* labels, titles, nav, buttons */
-  --rh-font-mono: 'VT323', monospace;              /* data values, timestamps, diffs */
+  /* VT323 dropped ── unreadable at small sizes. Data values share
+     Electrolize with labels; tabular-nums keeps digits aligned. */
+  --rh-font-mono: 'Electrolize', sans-serif;       /* data values, timestamps, diffs */
   --rh-font-stat: 'Unica One', sans-serif;         /* large stat numerals */
 }
 
@@ -139,6 +145,8 @@ body {
   color: var(--rh-text);
   font-family: var(--vscode-font-family);
   font-size: var(--vscode-font-size);
+  /* Inherits everywhere; each element glows in its own currentColor */
+  text-shadow: var(--rh-glow-text);
   padding: 0;
   margin: 0;
   overflow: hidden;
@@ -168,6 +176,90 @@ body::after {
     transparent 1px,
     transparent 3px
   );
+}
+
+/* ── CRT glass bulge ──────────────────────────────────────────────────────
+   Suggests the curvature of a real tube without actually distorting the
+   content (a displacement filter would warp and blur text). Three cues in
+   one fixed pseudo-element, all flat gradient layers ─ same compositing
+   story as the scanlines above:
+   1. rounded screen corners (four tiny corner gradients masking to black)
+   2. a faint specular glare near the top, as if curved glass catches light
+   3. a soft center bloom ─ the point of the tube closest to the viewer
+   4. a barrel vignette starting mid-screen, so the falloff toward the
+      edges reads as curvature across the whole viewport */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1000;
+  background-image:
+    radial-gradient(circle at 100% 100%, transparent 13px, #000 14px),
+    radial-gradient(circle at 0% 100%, transparent 13px, #000 14px),
+    radial-gradient(circle at 100% 0%, transparent 13px, #000 14px),
+    radial-gradient(circle at 0% 0%, transparent 13px, #000 14px),
+    radial-gradient(ellipse 55% 30% at 50% 4%, rgba(220, 251, 230, 0.04), transparent 70%),
+    radial-gradient(ellipse 60% 50% at 50% 46%, rgba(220, 251, 230, 0.045), transparent 75%),
+    radial-gradient(ellipse 95% 85% at 50% 48%, transparent 42%, rgba(0, 0, 0, 0.1) 68%, rgba(0, 0, 0, 0.28) 88%, rgba(0, 0, 0, 0.55) 100%);
+  background-position: top left, top right, bottom left, bottom right, center, center, center;
+  background-size: 14px 14px, 14px 14px, 14px 14px, 14px 14px, 100% 100%, 100% 100%, 100% 100%;
+  background-repeat: no-repeat;
+}
+
+/* ── Chart / graph phosphor glow ──────────────────────────────────────────
+   text-shadow can't reach canvas pixels or SVG fills, so charts get their
+   glow from the #rh-phosphor SVG filter defined in dashboardPanel.ts: the
+   source is blurred in its own colors and merged twice under the original,
+   mirroring the tight high-gain text glow. GPU-composited blur; only
+   re-evaluated when the chart itself repaints. */
+/* #activity-chart is exempt: its axis ticks live on the same canvas and
+   would glow too ── it gets a data-marks-only glow from a Chart.js plugin
+   (phosphorDatasetGlow in charts.ts) instead. */
+#lines-chart,
+#lang-chart,
+#project-pie-chart,
+/* cells only ── blooming the whole svg smudges the small dim labels */
+#heatmap-canvas svg rect {
+  filter: url(#rh-phosphor);
+}
+
+/* Heatmap cells pop on hover ── SVG scales cleanly (no canvas-pixel blur).
+   transform-box: fill-box makes the scale originate from the cell's own
+   center rather than the svg origin. */
+#heatmap-canvas svg rect.day-cell {
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: transform 0.12s ease;
+}
+
+#heatmap-canvas svg rect.day-cell:hover {
+  transform: scale(1.3);
+}
+
+/* Heatmap labels ── tighter, fainter glow than the inherited body glow;
+   at this size and dimness the standard threshold reads as smudge. The
+   explicit dim color also avoids the inherited currentColor mismatch
+   (SVG text is filled with the dim color but inherits body's bright
+   `color`, so the default shadow would glow brighter than the glyphs). */
+#heatmap-canvas svg text {
+  text-shadow: 0 0 1px color-mix(in srgb, var(--rh-text-dim) 55%, transparent);
+}
+
+/* ── Strong-glow opt-ins ── beyond the large numerals: card titles, all
+   buttons, and the date controls carry the hot two-layer glow. */
+.widget-title,
+button,
+.date-preset-select {
+  text-shadow: var(--rh-glow-text-strong);
+}
+
+/* Sidebar icons ── SVG shapes can't use text-shadow; mirror the strong
+   glow with stacked drop-shadows. Accent-colored to match the icons'
+   amber fills. */
+.nav-icon svg {
+  filter: drop-shadow(0 0 1px rgba(var(--rh-accent-rgb), 0.9))
+    drop-shadow(0 0 5px rgba(var(--rh-accent-rgb), 0.4));
 }
 
 /* ── Two-column layout ─────────────────────────────────────────────────── */
@@ -466,6 +558,9 @@ body::after {
 
 /* ── Streak pill ───────────────────────────────────────────────────────── */
 
+/* Deliberately plain ── no card container, border, or glow. The icon,
+   numeral, and label sit directly on the page; state is carried by color
+   alone (green vs muted). */
 #streak-pill {
   display: inline-flex;
   align-items: center;
@@ -473,29 +568,18 @@ body::after {
   font-size: 1.1em;
   white-space: nowrap;
   padding: 4px var(--rh-space-3) 4px var(--rh-space-2);
-  background: var(--rh-card-bg);
-  border: 1px solid var(--rh-border-bright);
-  border-radius: var(--rh-radius-lg);
-  box-shadow: var(--rh-glow-success);
-  transition: opacity 0.2s, box-shadow 0.2s, border-color 0.2s;
+  transition: opacity 0.2s;
 }
 
 .streak-icon {
   flex-shrink: 0;
   color: var(--rh-success);
-  filter: drop-shadow(0 0 4px rgba(var(--rh-success-rgb), 0.6));
-  transition: color 0.2s, filter 0.2s;
+  transition: color 0.2s;
 }
 
-/* Target not yet met today ─ muted appearance, icon and glow dim to signal "at risk" */
-#streak-pill.streak-at-risk {
-  border-color: var(--rh-border);
-  box-shadow: none;
-}
-
+/* Target not yet met today ─ muted appearance to signal "at risk" */
 #streak-pill.streak-at-risk .streak-icon {
   color: var(--rh-text-muted);
-  filter: none;
 }
 
 #streak-count {
@@ -505,6 +589,8 @@ body::after {
   /* Digit scaling is applied inline from main.ts; this sets the fallback */
   font-size: 2.5em;
   line-height: 1;
+  /* opts out of the strong glow ── the pill is a plain element */
+  text-shadow: none;
   transition: font-size 0.15s ease, color 0.2s;
 }
 
@@ -967,7 +1053,7 @@ body::after {
 }
 
 .projects-mini-time {
-  font-family: 'VT323', monospace;
+  font-family: var(--rh-font-mono);
   color: var(--rh-text-dim);
   font-variant-numeric: tabular-nums;
   font-size: 0.88em;
@@ -1025,6 +1111,7 @@ body::after {
   font-weight: 700;
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
+  text-shadow: var(--rh-glow-text-strong);
 }
 
 .stat-avg {
@@ -1044,6 +1131,22 @@ body::after {
   padding: 16px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35), 0 0 24px rgba(var(--rh-accent-rgb), 0.08);
   min-width: 0;
+}
+
+/* ── Card hover pop ── charts/stat groups lift toward the cursor and
+   brighten their bloom. Translate, not scale: scaling stretches canvas
+   pixels and blurs chart text. */
+.chart-box,
+.stat-group,
+.section-card {
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.chart-box:hover,
+.stat-group:hover,
+.section-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--rh-shadow-card-hover);
 }
 
 /* ── Activity tab ──────────────────────────────────────────────────────── */
@@ -1107,6 +1210,7 @@ body::after {
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
   line-height: 1.1;
+  text-shadow: var(--rh-glow-text-strong);
 }
 
 .activity-stat-label {
@@ -1217,7 +1321,7 @@ body::after {
 
 .legend-name { font-weight: 500; }
 .legend-val {
-  font-family: 'VT323', monospace;
+  font-family: var(--rh-font-mono);
   font-variant-numeric: tabular-nums;
   color: var(--rh-text-dim);
 }
@@ -1282,7 +1386,7 @@ body::after {
 }
 
 .session-time {
-  font-family: 'VT323', monospace;
+  font-family: var(--rh-font-mono);
   color: var(--rh-text);
   font-variant-numeric: tabular-nums;
 }
@@ -1297,7 +1401,7 @@ body::after {
 }
 
 .session-active {
-  font-family: 'VT323', monospace;
+  font-family: var(--rh-font-mono);
   color: var(--rh-text-dim);
   font-variant-numeric: tabular-nums;
   margin-left: auto;
@@ -1369,7 +1473,7 @@ body::after {
 }
 
 .file-add {
-  font-family: 'VT323', monospace;
+  font-family: var(--rh-font-mono);
   color: rgba(var(--rh-success-rgb), 0.9);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -1377,7 +1481,7 @@ body::after {
 }
 
 .file-del {
-  font-family: 'VT323', monospace;
+  font-family: var(--rh-font-mono);
   color: rgba(var(--rh-danger-rgb), 0.9);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -1492,7 +1596,7 @@ body::after {
 }
 
 .project-target-unit {
-  font-family: 'VT323', monospace;
+  font-family: var(--rh-font-mono);
   font-size: 0.72em;
   color: var(--rh-text-dim);
 }
@@ -1651,7 +1755,7 @@ body::after {
   border: 1px solid var(--vscode-input-border, var(--vscode-dropdown-border));
   border-radius: 5px;
   padding: 5px 26px 5px 10px;
-  font-family: 'VT323', monospace;
+  font-family: var(--rh-font-mono);
   font-size: 1.15em;
   width: 76px;
   text-align: right;
@@ -1754,23 +1858,36 @@ body::after {
 
 /* ── Export Card button ────────────────────────────────────────────────── */
 
+/* Solid green fill dropped in favor of the phosphor-text treatment: green
+   glowing label (strong glow arrives via the global button rule ─
+   currentColor resolves to success green) on a dark card body. */
 .export-pdf-btn {
   display: flex;
   align-items: center;
   gap: 7px;
-  background: var(--rh-success);
-  color: var(--rh-on-success);
+  background: var(--rh-card-bg);
+  color: var(--rh-success);
   font-weight: 700;
-  border: none;
+  border: 1px solid var(--rh-border-bright);
   border-radius: 5px;
   padding: 6px 14px;
   font-family: var(--vscode-font-family);
   font-size: 0.9em;
   cursor: pointer;
-  transition: opacity 0.12s;
+  box-shadow: var(--rh-glow-success);
+  transition: border-color 0.12s, box-shadow 0.12s;
 }
 
-.export-pdf-btn:hover { opacity: 0.88; }
+/* Icon is SVG (currentColor fill) ── mirror the text glow with drop-shadows */
+.export-pdf-btn svg {
+  filter: drop-shadow(0 0 1px rgba(var(--rh-success-rgb), 0.9))
+    drop-shadow(0 0 5px rgba(var(--rh-success-rgb), 0.4));
+}
+
+.export-pdf-btn:hover {
+  border-color: var(--rh-success);
+  box-shadow: 0 0 12px rgba(var(--rh-success-rgb), 0.45), 0 0 40px rgba(var(--rh-success-rgb), 0.2);
+}
 
 #header .export-pdf-btn { margin-left: auto; }
 

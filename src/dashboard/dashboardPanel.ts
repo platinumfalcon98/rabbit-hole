@@ -80,6 +80,20 @@ export class DashboardPanel {
   <title>Rabbit Hole</title>
 </head>
 <body>
+  <!-- Phosphor glow filter for canvas charts + SVG heatmap: blurs the source
+       in its own colors and layers it twice under the original (gain), the
+       same recipe as the text-shadow glow. Referenced from style.css via
+       filter: url(#rh-phosphor). -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+    <filter id="rh-phosphor" x="-10%" y="-10%" width="120%" height="120%" color-interpolation-filters="sRGB">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="1.2" result="bloom"/>
+      <feMerge>
+        <feMergeNode in="bloom"/>
+        <feMergeNode in="bloom"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </svg>
   <div id="app">
 
     <nav id="sidebar" class="collapsed">

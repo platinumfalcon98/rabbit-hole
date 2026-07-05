@@ -170,9 +170,13 @@ export function render(logs: DailyLog[]): void {
       .text(d3.timeFormat("%b")(d))
   }
 
-  // Tooltip
-  const tooltip = d3.select(container)
+  // Tooltip ── appended to body, not the card: the card's hover transform
+  // would otherwise become the containing block for position:fixed and
+  // offset the tooltip far from the cursor
+  d3.select("body").selectAll(".heatmap-tooltip").remove()
+  const tooltip = d3.select("body")
     .append("div")
+    .attr("class", "heatmap-tooltip")
     .style("position", "fixed")
     .style("background", surfaceRaisedColor())
     .style("border", `1px solid ${accentColor()}`)

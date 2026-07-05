@@ -96,6 +96,23 @@ function highlightColors(count: number, todayIdx: number, dimAlpha: number): str
   return Array.from({ length: count }, (_, i) => i === todayIdx ? accent : dim)
 }
 
+// Phosphor glow for the activity chart's data marks only. The CSS
+// #rh-phosphor filter would bloom the whole canvas including axis ticks,
+// so this chart is exempt from it and glows bars/line/points here instead:
+// a canvas shadow is enabled just while datasets draw.
+const phosphorDatasetGlow = {
+  id: "phosphorDatasetGlow",
+  beforeDatasetDraw(chart: Chart) {
+    const ctx = chart.ctx
+    ctx.save()
+    ctx.shadowColor = accentColor()
+    ctx.shadowBlur = 5
+  },
+  afterDatasetDraw(chart: Chart) {
+    chart.ctx.restore()
+  },
+}
+
 function destroyAll(): void {
   resizeObservers.forEach(o => o.disconnect())
   resizeObservers = []
@@ -161,11 +178,13 @@ function renderLinesChart(logs: DailyLog[]): void {
         backgroundColor: [`rgba(${successRgb()}, 0.75)`, `rgba(${dangerRgb()}, 0.75)`],
         borderColor: surfaceRaisedColor(),
         borderWidth: added === 0 || deleted === 0 ? 0 : 2,
+        hoverOffset: 10,
       }],
     },
     options: {
       responsive: true,
       aspectRatio: 1.6,
+      layout: { padding: 8 },
       plugins: {
         legend: {
           position: "bottom",
@@ -239,11 +258,13 @@ function renderLangPanel(logs: DailyLog[]): void {
           backgroundColor: colors,
           borderColor: surfaceRaisedColor(),
           borderWidth: langs.length === 1 ? 0 : 2,
+          hoverOffset: 10,
         }],
       },
       options: {
         responsive: true,
         aspectRatio: 1.6,
+        layout: { padding: 8 },
         plugins: {
           legend: {
             position: "bottom",
@@ -356,6 +377,7 @@ export function renderActivityChart(
       const barBorder = highlightColors(logs.length, todayIdx, 0.7)
       activityChart = new Chart(canvas, {
         type: "bar",
+        plugins: [phosphorDatasetGlow],
         data: {
           labels,
           datasets: [{
@@ -364,6 +386,11 @@ export function renderActivityChart(
             borderColor: barBorder,
             borderWidth: 1,
             borderRadius: 3,
+            hoverBackgroundColor: barBorder,
+            hoverBorderWidth: 2,
+            // Inflate the hovered bar's rect so it physically pops bigger,
+            // matching the pie hoverOffset / heatmap cell scale
+            inflateAmount: (ctx: any) => (ctx.active ? 3 : "auto"),
           }],
         },
         options: {
@@ -401,6 +428,7 @@ export function renderActivityChart(
       const fillColor = `rgba(${accentRgb()}, 0.12)`
       activityChart = new Chart(canvas, {
         type: "line",
+        plugins: [phosphorDatasetGlow],
         data: {
           labels,
           datasets: [{
@@ -410,6 +438,8 @@ export function renderActivityChart(
             borderWidth: 2,
             pointRadius: logs.map((_, i) => i === todayIdx ? 5 : 2),
             pointBackgroundColor: highlightColors(logs.length, todayIdx, 0.6),
+            pointHoverRadius: logs.map((_, i) => i === todayIdx ? 8 : 6),
+            pointHoverBackgroundColor: lineColor,
             tension: 0.35,
             fill: true,
           }],
@@ -550,12 +580,14 @@ export function renderProjectPie(
           backgroundColor: colors,
           borderColor: surfaceRaisedColor(),
           borderWidth: 2,
+          hoverOffset: 10,
         }],
       },
       options: {
         responsive: true,
         maintainAspectRatio: true,
         cutout: "60%",
+        layout: { padding: 8 },
         plugins: {
           legend: { display: false },
           tooltip: {

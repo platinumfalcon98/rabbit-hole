@@ -37,5 +37,5 @@ export const infoRgb = () => getCssVar("--rh-info-rgb", "79, 216, 255")
 
 // Chart.js/SVG can't resolve CSS var() in font.family, so these are literal
 // strings — must stay in sync with --rh-font-mono / --rh-font-label in style.css.
-export const CHART_FONT_MONO = "'VT323', monospace"
+export const CHART_FONT_MONO = "'Electrolize', sans-serif"
 export const CHART_FONT_LABEL = "'Electrolize', sans-serif"

@@ -64,19 +64,22 @@ Existing rules mostly predate this scale with hand-picked em values that
 already land close to these steps — new components should pull from the
 named tokens instead of picking a fresh number.
 
-## Fonts — 4 typefaces, each with exactly one job
+## Fonts — 3 typefaces, each with exactly one job
 
 Previously the codebase loaded 6 typefaces (Press Start 2P, Electrolize,
 VT323, Unica One, Quantico, Funnel Sans) but only inconsistently used all of
 them — this was a direct contributor to the "lacks rhythm" complaint. Quantico
 and Funnel Sans have been **removed** and their handful of call sites folded
-into Electrolize:
+into Electrolize. VT323 was later also **dropped** (unreadable at the 10–13px
+sizes it was used at); `--rh-font-mono` and `CHART_FONT_MONO` now resolve to
+Electrolize, with `font-variant-numeric: tabular-nums` doing the digit
+alignment a mono face used to provide:
 
 | Token | Font | Used for |
 |---|---|---|
 | `--rh-font-display` | Press Start 2P | streak hero numeral only |
 | `--rh-font-label` | Electrolize | labels, section/widget titles, nav, stat labels, settings labels |
-| `--rh-font-mono` | VT323 | data values: session times, file diffs, language legend values |
+| `--rh-font-mono` | Electrolize | data values: session times, file diffs, chart axes, heatmap labels |
 | `--rh-font-stat` | Unica One | large stat numerals (active time, lines added/deleted) |
 
 Native inputs/buttons keep `var(--vscode-font-family)` — that's a deliberate
@@ -103,19 +106,46 @@ use `xl`.
 ## Depth / glow recipe
 
 Cards keep the previously-established pattern (darker fill than the page,
-plus a faint colored glow) but restyled as phosphor bloom instead of a
-generic drop shadow:
+plus a colored glow) but restyled as phosphor bloom instead of a generic
+drop shadow. The bloom is two-layer: a tight bright halo at the card edge
+plus a wide soft spill:
 
 ```css
 background: var(--rh-card-bg);
 border: 1px solid var(--rh-border-bright);
 border-radius: var(--rh-radius-lg);
-box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5), 0 0 20px rgba(var(--rh-accent-rgb), 0.08);
+box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5),
+            0 0 10px rgba(var(--rh-accent-rgb), 0.16),
+            0 0 36px rgba(var(--rh-accent-rgb), 0.1);
 ```
 
 Tokenized as `--rh-shadow-card` / `--rh-shadow-card-hover`. Success/danger
 variants (`--rh-glow-success`, `--rh-glow-danger`) exist for state-specific
 glows (e.g. the streak pill).
+
+## Text phosphor glow
+
+All text carries a faint phosphor glow via an inherited `text-shadow` set
+once on `body`. The shadow color is `color-mix(… currentColor …)`, which
+resolves per element — amber chrome glows amber, green diffs glow green,
+dim text glows dimly — with no per-component rules. Two tokens:
+`--rh-glow-text` (tight 2px blur at high gain — a hot edge rather than a
+haze) and `--rh-glow-text-strong` (near-solid 2px core + 7px halo). Strong
+opt-ins: the large numerals (`.stat-value`, `.activity-stat-value`,
+`#streak-count`), card titles (`.widget-title`), all `button`s, and the
+date select. Sidebar nav icons are SVG (no `text-shadow`), so they mirror
+the strong glow with stacked accent-colored `drop-shadow`s.
+
+## Chart / graph phosphor glow
+
+Canvas charts and the SVG heatmap can't use `text-shadow`, so they share a
+single SVG filter (`#rh-phosphor`, defined once in the `dashboardPanel.ts`
+HTML shell): `feGaussianBlur` (stdDeviation 1.2) blurs the source in its
+own colors, and `feMerge` stacks the bloom twice under the original — the
+same tight, high-gain recipe as the text glow. Applied from `style.css`
+via `filter: url(#rh-phosphor)` to the four chart canvases and
+`#heatmap-canvas svg`. GPU-composited; only re-evaluated when the chart
+repaints.
 
 ## CRT scanline texture
 
@@ -125,16 +155,29 @@ image assets, no extra DOM node, negligible compositing cost — safe for a
 webview that stays open all day. Deliberately faint: it should read as
 texture on a second look, not announce itself.
 
+## CRT glass bulge
+
+A `body::before` fixed pseudo-element that suggests tube curvature without
+distorting content (a real displacement filter would warp/blur text). Three
+cues, all flat gradient layers with the same negligible compositing cost as
+the scanlines: rounded screen corners (four 14px corner gradients masking to
+black), a faint specular glare near the top edge plus a soft center bloom
+(~4% alpha each ─ the bloom is the point of the tube nearest the viewer),
+and a barrel vignette that starts falling off mid-screen (clear through
+~42%, ~55% black at the extreme corners) so the curvature reads across the
+whole viewport, not just at the edges.
+Sits at `z-index: 1000`, above the scanlines, since glare and vignette live
+on the glass while scanlines live on the phosphor.
+
 ## What changed per area
 
 - **Streak pill**: fire emoji (`&#x1F525;`, inconsistent cross-platform
   rendering) replaced with an inline SVG spark icon using `currentColor`, so
   it recolors with state (`--rh-success` when active, `--rh-text-muted` when
-  at-risk) and picks up a phosphor `drop-shadow` glow. The pill itself is now
-  a bordered container (`--rh-card-bg` fill, `--rh-glow-success` shadow)
-  instead of bare inline text, and dims that glow/border in the at-risk
-  state. Digit-scaling logic in `main.ts` (1/2/3+ digit font-size) is
-  unchanged — it was already correct.
+  at-risk). The pill is deliberately **plain** — no card container, border,
+  glow, or strong text-shadow (a bordered/glowing version was tried and
+  rejected); state is carried by color alone. Digit-scaling logic in
+  `main.ts` (1/2/3+ digit font-size) is unchanged — it was already correct.
 - **Cards** (`.stat-group`, `.section-card`, `.chart-box`, `.settings-card`,
   `.project-card`): fill and border now come from `--rh-card-bg` /
   `--rh-border-bright` instead of `color-mix(...vscode-editorWidget-
