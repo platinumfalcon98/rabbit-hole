@@ -254,6 +254,13 @@ button,
   text-shadow: var(--rh-glow-text-strong);
 }
 
+/* Modal ── a dense cluster of buttons (format/range toggles, actions) at
+   small sizes; the strong glow reads as smudge there. Drop back to the
+   faint base variant inside the modal. */
+.modal button {
+  text-shadow: var(--rh-glow-text);
+}
+
 /* Sidebar icons ── SVG shapes can't use text-shadow; mirror the strong
    glow with stacked drop-shadows. Accent-colored to match the icons'
    amber fills. */
@@ -1945,6 +1952,65 @@ button,
   letter-spacing: 0.06em;
   color: var(--rh-text-dim);
   font-weight: 600;
+}
+
+.export-format-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.export-format-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 8px 12px;
+  background: var(--rh-card-bg);
+  border: 1px solid var(--rh-border);
+  border-radius: var(--rh-radius-md);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.1s, color 0.1s;
+}
+
+.export-format-btn .export-format-name {
+  font-family: var(--rh-font-label);
+  font-size: 0.85em;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--rh-text-dim);
+}
+
+.export-format-btn .export-format-desc {
+  font-family: var(--rh-font-label);
+  font-size: 0.72em;
+  color: var(--rh-text-muted);
+}
+
+.export-format-btn:hover {
+  border-color: var(--rh-border-bright);
+}
+
+.export-format-btn:hover .export-format-name {
+  color: var(--rh-text);
+}
+
+.export-format-btn.active {
+  border-color: var(--rh-accent);
+}
+
+.export-format-btn.active .export-format-name {
+  color: var(--rh-accent);
+}
+
+.export-range-toggle {
+  grid-template-columns: 1fr 1fr 1fr;
+}
+
+.export-range-btn {
+  align-items: center;
+  padding: 7px 8px;
 }
 
 .modal-checks {

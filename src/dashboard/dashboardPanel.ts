@@ -282,7 +282,7 @@ export class DashboardPanel {
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
             <path d="M8 12L3 7L4.4 5.55L7 8.15V0H9V8.15L11.6 5.55L13 7L8 12ZM2 16C1.45 16 0.979333 15.8043 0.588 15.413C0.196666 15.0217 0.000666667 14.5507 0 14V11H2V14H14V11H16V14C16 14.55 15.8043 15.021 15.413 15.413C15.0217 15.805 14.5507 16.0007 14 16H2Z" fill="currentColor"/>
           </svg>
-          Today's Report
+          Export Report
         </button>
       </div>
 
@@ -421,7 +421,36 @@ export class DashboardPanel {
       <!-- Export modal -->
       <div id="pdf-modal-overlay" class="modal-overlay hidden">
         <div class="modal">
-          <h2 class="modal-title">EXPORT STAT CARD</h2>
+          <h2 class="modal-title">EXPORT REPORT</h2>
+
+          <div class="modal-section">
+            <div class="modal-label">Format</div>
+            <div class="export-format-toggle">
+              <button id="export-format-jpg" class="export-format-btn active" data-format="jpg">
+                <span class="export-format-name">JPG</span>
+                <span class="export-format-desc">Share card</span>
+              </button>
+              <button id="export-format-pdf" class="export-format-btn" data-format="pdf">
+                <span class="export-format-name">PDF</span>
+                <span class="export-format-desc">Full report</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="modal-section hidden" id="export-range-section">
+            <div class="modal-label">Report Range</div>
+            <div class="export-format-toggle export-range-toggle">
+              <button class="export-format-btn export-range-btn active" data-range="today">
+                <span class="export-format-name">Today</span>
+              </button>
+              <button class="export-format-btn export-range-btn" data-range="30d">
+                <span class="export-format-name">30 Days</span>
+              </button>
+              <button class="export-format-btn export-range-btn" data-range="90d">
+                <span class="export-format-name">90 Days</span>
+              </button>
+            </div>
+          </div>
 
           <div class="modal-section">
             <div class="modal-label">Project Selected</div>

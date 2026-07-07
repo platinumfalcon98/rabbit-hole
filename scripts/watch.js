@@ -49,6 +49,7 @@ async function main() {
       bundle: true,
       outfile: "out/webview/main.js",
       platform: "browser",
+      loader: { ".ttf": "base64" },
       sourcemap: true,
       logLevel: "silent",
       plugins: [logPlugin],

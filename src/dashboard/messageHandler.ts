@@ -35,6 +35,7 @@ function presetToDates(
     case "today":  return { start: today, end: today }
     case "7d":     return { start: offsetDateStr(-6), end: today }
     case "30d":    return { start: offsetDateStr(-29), end: today }
+    case "90d":    return { start: offsetDateStr(-89), end: today }
     case "1y":     return { start: offsetDateStr(-364), end: today }
     case "custom":
       if (customStart && customEnd) return { start: customStart, end: customEnd }
@@ -86,7 +87,9 @@ export function handleMessage(
       const { start, end } = presetToDates(msg.preset, msg.customStart, msg.customEnd)
 
       const exportPid = msg.exportProjectId ?? currentProjectIds[0] ?? "all"
-      const heatmapStart = offsetDateStr(-29)
+      // Fetch back to the Monday-aligned start of the report's heatmap grid
+      // (5 weeks for today/30d, 13 weeks for 90d), not just the stat range.
+      const heatmapStart = offsetDateStr(msg.preset === "90d" ? -96 : -34)
       const logs = exportPid === "all"
         ? storage.getAggregateRangeByDates(heatmapStart, end)
         : storage.getRangeByDates(heatmapStart, end, exportPid)
@@ -225,7 +228,7 @@ async function writePdfExport(base64: string, projectName: string): Promise<void
 
   const bytes = Buffer.from(base64, "base64")
   await vscode.workspace.fs.writeFile(uri, bytes)
-  vscode.window.showInformationMessage(`Rabbit Hole: Card exported to ${uri.fsPath}`)
+  vscode.window.showInformationMessage(`Rabbit Hole: Report exported to ${uri.fsPath}`)
 }
 
 async function writeJpgExport(base64: string, projectName: string): Promise<void> {

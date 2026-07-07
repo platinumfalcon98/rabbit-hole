@@ -101,7 +101,7 @@
   "scripts": {
     "build": "npm run build:ext && npm run build:webview",
     "build:ext": "esbuild src/extension.ts --bundle --outfile=out/extension.js --external:vscode --platform=node --sourcemap",
-    "build:webview": "esbuild src/webview/main.ts --bundle --outfile=out/webview/main.js --platform=browser --sourcemap && node scripts/copy-assets.js",
+    "build:webview": "esbuild src/webview/main.ts --bundle --outfile=out/webview/main.js --platform=browser --loader:.ttf=base64 --sourcemap && node scripts/copy-assets.js",
     "watch": "node scripts/watch.js",
     "package": "vsce package"
   },

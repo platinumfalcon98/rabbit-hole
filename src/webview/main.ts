@@ -1,7 +1,8 @@
 import { DailyLog, ExtensionMessage, ProjectMeta } from "../shared/types"
 import * as heatmap from "./heatmap"
 import * as charts from "./charts"
-import { PdfOptions } from "./pdfExport"
+import { ExportOptions } from "./exportShared"
+import { generateReportPdf } from "./pdfExport"
 import { generateJpg } from "./jpgExport"
 
 declare function acquireVsCodeApi(): {
@@ -922,19 +923,33 @@ window.addEventListener("message", (event: MessageEvent) => {
     case "pdfData": {
       const nameInput = document.getElementById("export-display-name") as HTMLInputElement | null
       const displayName = nameInput?.value.trim() || msg.projectName
-      const options: PdfOptions = {
-        projectName: displayName,
-        dateRange:   msg.dateRange,
-        isToday:     true,
+      const preset = exportFormat === "pdf" ? exportRange : "today"
+      const options: ExportOptions = {
+        projectName:  displayName,
+        dateRange:    msg.dateRange,
+        isToday:      preset === "today",
+        preset,
+        projectNames: Object.fromEntries(projects.map(pr => [pr.id, pr.name])),
       }
-      generateJpg(msg.logs, options).then(dataUrl => {
-        const base64 = dataUrl.split(",")[1]
-        vscode.postMessage({ type: "writeJpg", base64, projectName: msg.projectName })
-        closePdfModal()
-      }).catch(() => {
+      const restoreButton = () => {
         const btn = document.getElementById("pdf-generate") as HTMLButtonElement | null
-        if (btn) { btn.disabled = false; btn.textContent = "Export JPG" }
-      })
+        if (btn) { btn.disabled = false; btn.textContent = exportGenerateLabel() }
+      }
+      if (exportFormat === "pdf") {
+        try {
+          const buffer = generateReportPdf(msg.logs, options)
+          vscode.postMessage({ type: "writePdf", base64: arrayBufferToBase64(buffer), projectName: msg.projectName })
+          closePdfModal()
+        } catch {
+          restoreButton()
+        }
+      } else {
+        generateJpg(msg.logs, options).then(dataUrl => {
+          const base64 = dataUrl.split(",")[1]
+          vscode.postMessage({ type: "writeJpg", base64, projectName: msg.projectName })
+          closePdfModal()
+        }).catch(restoreButton)
+      }
       break
     }
   }
@@ -1157,12 +1172,53 @@ document.addEventListener("click", (e: Event) => {
   input.dispatchEvent(new Event("change", { bubbles: true }))
 })
 
-// ── Export modal (JPG) ──────────────────────────────────────────────────────
+// ── Export modal (JPG share card / PDF full report) ─────────────────────────
+
+let exportFormat: "jpg" | "pdf" = "jpg"
+let exportRange: "today" | "30d" | "90d" = "today"
+
+function exportGenerateLabel(): string {
+  return exportFormat === "pdf" ? "Export PDF" : "Export JPG"
+}
+
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer)
+  let binary = ""
+  const chunk = 0x8000
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk))
+  }
+  return btoa(binary)
+}
 
 function closePdfModal(): void {
   document.getElementById("pdf-modal-overlay")?.classList.add("hidden")
   const btn = document.getElementById("pdf-generate") as HTMLButtonElement | null
-  if (btn) { btn.disabled = false; btn.textContent = "Export JPG" }
+  if (btn) { btn.disabled = false; btn.textContent = exportGenerateLabel() }
+}
+
+for (const id of ["export-format-jpg", "export-format-pdf"]) {
+  document.getElementById(id)?.addEventListener("click", (e: Event) => {
+    const btn = e.currentTarget as HTMLElement
+    exportFormat = btn.dataset.format === "pdf" ? "pdf" : "jpg"
+    document.getElementById("export-format-jpg")?.classList.toggle("active", exportFormat === "jpg")
+    document.getElementById("export-format-pdf")?.classList.toggle("active", exportFormat === "pdf")
+    // Range only applies to the PDF report; the share card is always today
+    document.getElementById("export-range-section")?.classList.toggle("hidden", exportFormat !== "pdf")
+    const genBtn = document.getElementById("pdf-generate") as HTMLButtonElement | null
+    if (genBtn && !genBtn.disabled) genBtn.textContent = exportGenerateLabel()
+  })
+}
+
+for (const btn of Array.from(document.querySelectorAll<HTMLElement>(".export-range-btn"))) {
+  btn.addEventListener("click", () => {
+    const range = btn.dataset.range
+    if (range !== "today" && range !== "30d" && range !== "90d") return
+    exportRange = range
+    for (const b of Array.from(document.querySelectorAll<HTMLElement>(".export-range-btn"))) {
+      b.classList.toggle("active", b === btn)
+    }
+  })
 }
 
 function syncExportName(): void {
@@ -1221,5 +1277,6 @@ document.getElementById("pdf-generate")?.addEventListener("click", () => {
   btn.disabled = true
   btn.textContent = "Generating…"
   const sel = document.getElementById("export-project-select") as HTMLSelectElement | null
-  vscode.postMessage({ type: "exportPdfRequest", preset: "today", exportProjectId: sel?.value ?? "all" })
+  const preset = exportFormat === "pdf" ? exportRange : "today"
+  vscode.postMessage({ type: "exportPdfRequest", preset, exportProjectId: sel?.value ?? "all" })
 })
