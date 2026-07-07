@@ -1203,8 +1203,10 @@ for (const id of ["export-format-jpg", "export-format-pdf"]) {
     exportFormat = btn.dataset.format === "pdf" ? "pdf" : "jpg"
     document.getElementById("export-format-jpg")?.classList.toggle("active", exportFormat === "jpg")
     document.getElementById("export-format-pdf")?.classList.toggle("active", exportFormat === "pdf")
-    // Range only applies to the PDF report; the share card is always today
+    // Range only applies to the PDF report; the share card is always today —
+    // the hint spells that out while the range section is hidden
     document.getElementById("export-range-section")?.classList.toggle("hidden", exportFormat !== "pdf")
+    document.getElementById("export-format-hint")?.classList.toggle("hidden", exportFormat !== "jpg")
     const genBtn = document.getElementById("pdf-generate") as HTMLButtonElement | null
     if (genBtn && !genBtn.disabled) genBtn.textContent = exportGenerateLabel()
   })

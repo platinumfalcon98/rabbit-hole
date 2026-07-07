@@ -2004,6 +2004,17 @@ button,
   color: var(--rh-accent);
 }
 
+.export-format-hint {
+  font-family: var(--rh-font-label);
+  font-size: 0.72em;
+  color: var(--rh-text-muted);
+  line-height: 1.4;
+}
+
+.export-format-hint.hidden {
+  display: none;
+}
+
 .export-range-toggle {
   grid-template-columns: 1fr 1fr 1fr;
 }

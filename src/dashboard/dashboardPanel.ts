@@ -428,13 +428,14 @@ export class DashboardPanel {
             <div class="export-format-toggle">
               <button id="export-format-jpg" class="export-format-btn active" data-format="jpg">
                 <span class="export-format-name">JPG</span>
-                <span class="export-format-desc">Share card</span>
+                <span class="export-format-desc">Share card · today</span>
               </button>
               <button id="export-format-pdf" class="export-format-btn" data-format="pdf">
                 <span class="export-format-name">PDF</span>
-                <span class="export-format-desc">Full report</span>
+                <span class="export-format-desc">Full report · any range</span>
               </button>
             </div>
+            <div id="export-format-hint" class="export-format-hint">The share card is a snapshot of the current day's activity.</div>
           </div>
 
           <div class="modal-section hidden" id="export-range-section">
