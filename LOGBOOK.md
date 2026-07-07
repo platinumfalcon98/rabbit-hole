@@ -23,6 +23,15 @@ Running record of what was built and when, ordered newest first.
 - Format toggle (JPG · Share card · today / PDF · Full report · any range) with a today-only hint for the card; range selector shown only for PDF; header button renamed "Today's Report" → "Export Report"; modal buttons dropped to the faint text glow
 - New `src/webview/exportShared.ts` holds palette/logo/stat helpers that had drifted between the duplicated JPG and PDF renderers; mojibake comments in jpgExport.ts fixed
 
+**External file edit tracking — agent auto-edits now recorded (`2fd7a5c`)**
+- Root cause of "Claude auto-edits not recorded": `onDidChangeTextDocument` only fires for open documents, so CLI-agent edits to unopened files were invisible
+- Workspace-wide `FileSystemWatcher` in `ActivityTracker`: 2s per-file debounce, line-count diffing against a cached baseline for net lines added/deleted, extension + basename → languageId map (incl. Dockerfile, Makefile, `.env`, proto, prisma, etc.), skips open files / build dirs / lockfiles / `.min.` / >5MB
+- External edits count as session activity — supervising an agent keeps the session alive and accrues active time
+- Git history-moving ops (`HEAD`/`MERGE_HEAD`/`ORIG_HEAD` directly under `.git/`) suppress recording ~5s so branch-switch churn isn't counted; plain commits deliberately don't suppress, so auto-committing agents (Aider) record normally
+- File deletions record cached line count as lines deleted; `appendFileActivity` takes optional `projectId` for multi-root attribution
+- Tested in Extension Development Host
+- Assessed multi-AI agent attribution (Claude/Codex/Gemini/Aider/Copilot); three-tier plan added to CLAUDE.md future agenda — Tier 1 (per-agent fingerprint table + external-watcher correlation) is the practical next step
+
 ---
 
 ## 2026-07-05
