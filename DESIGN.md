@@ -20,8 +20,12 @@ in one place.
 
 ## Palette
 
-The dashboard **asserts its own dark surface** rather than following the host
-VS Code theme:
+The palette is **dynamic** (added 2026-07-07): the retro-terminal identity is
+kept, but the phosphor is re-tinted to match the host VS Code theme, and light
+host themes get a "paper terminal" variant. See "Dynamic theme derivation"
+below. The values in this table are the **static defaults** in `style.css`'s
+`:root` — the shipped green phosphor look, which is also the fallback whenever
+derivation can't parse the host theme's colors:
 
 | Token | Value | Role |
 |---|---|---|
@@ -48,13 +52,42 @@ Amber and green are both bright — text drawn on a solid fill of either uses
 `--rh-on-accent` (`#1a1300`) or `--rh-on-success` (`#06210e`), never white,
 to hold WCAG AA contrast.
 
-**Why assert our own palette instead of following `--vscode-*`:** a
-retro-terminal identity needs a fixed phosphor-on-black relationship to read
-correctly — it can't be legible in a user's light theme by definition. Native
-form controls (`<select>`, `<input>`, checkboxes) are the exception: they
-still use `--vscode-dropdown-*` / `--vscode-input-*` / `--vscode-badge-*` so
-they render as expected VS Code controls and stay legible against any host
-theme, light or dark.
+Native form controls (`<select>`, `<input>`, checkboxes) don't use `--rh-*`
+surfaces at all: they use `--vscode-dropdown-*` / `--vscode-input-*` /
+`--vscode-badge-*` so they render as expected VS Code controls and stay
+legible against any host theme, light or dark.
+
+## Dynamic theme derivation
+
+`src/webview/derivePalette.ts` (shared by the dashboard bundle and the mini
+panel's `miniTheme.ts` entry) rebuilds the `--rh-*` tokens from the host
+theme at webview boot and on every theme switch (watched via the
+`data-vscode-theme-*` attributes VS Code stamps on `<body>`):
+
+- **Hue source:** the first *chromatic* color among `--vscode-focusBorder` →
+  `--vscode-activityBarBadge-background` → `--vscode-button-background` →
+  `--vscode-textLink-foreground`. Only the **hue** is taken; every token's
+  saturation/lightness anchors are lifted from the green phosphor defaults
+  (e.g. `--rh-text` ≈ hsl(H, 79%, 92%)), so a green-accented host reproduces
+  the shipped look and any other hue gets the same relationships re-tinted.
+- **Dark host themes:** dark CRT shell always; phosphor hue = host hue.
+  Interactive chrome stays amber unless the phosphor itself lands near amber
+  (then chrome flips to the cool complement). `--rh-success` / `--rh-danger`
+  are **fixed** — lines added must always read green, deleted red.
+- **Light host themes:** "paper terminal" — dark ink (same host hue) on warm
+  paper, cards lighter than the page, phosphor bloom replaced by flat paper
+  shadows, `--rh-glow-text*` set to `none`, CRT dressing (scanlines, glare,
+  vignette — tokenized as `--rh-scanline` / `--rh-glare-*` / `--rh-vig-*`)
+  dialed way down. `style.css` also statically disables the `#rh-phosphor`
+  chart filter and SVG drop-shadow glows under `body.vscode-light` /
+  `body.vscode-high-contrast-light`, and `charts.ts`'s `phosphorDatasetGlow`
+  plugin skips its canvas shadow there.
+- **Near-achromatic accents** (gray/minimal themes): "white phosphor" tube —
+  same lightness ladder at a whisper of saturation; chrome stays amber.
+- **Mechanism:** values are written as inline custom properties on `<html>`,
+  overriding the `:root` statics; on failure they're removed so the green
+  defaults show through. Charts/heatmap repaint via `renderAll()` when the
+  derived palette actually changes (mini panel: `rh-theme-changed` event).
 
 ## Type scale
 

@@ -4,6 +4,7 @@ import * as charts from "./charts"
 import { ExportOptions } from "./exportShared"
 import { generateReportPdf } from "./pdfExport"
 import { generateJpg } from "./jpgExport"
+import { watchThemeChanges } from "./derivePalette"
 
 declare function acquireVsCodeApi(): {
   postMessage(msg: unknown): void
@@ -897,6 +898,12 @@ function renderAll(): void {
 // ── Message handling ───────────────────────────────────────────────────────
 
 window.addEventListener("DOMContentLoaded", () => {
+  // Derive the --rh-* palette from the host theme before the first render so
+  // charts/heatmap read the right tokens; keep watching so a theme switch
+  // while the dashboard is open re-tints and repaints everything live.
+  watchThemeChanges(() => {
+    if (currentLogs.length > 0) renderAll()
+  })
   vscode.postMessage({ type: "ready" })
 })
 

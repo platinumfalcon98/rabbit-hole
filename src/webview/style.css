@@ -107,6 +107,17 @@
   --rh-glow-text-strong: 0 0 1px currentColor, 0 0 1.5px currentColor,
     0 0 5px color-mix(in srgb, currentColor 80%, transparent);
 
+  /* CRT dressing ── scanline line color, glass glare tints (phosphor-white),
+     and the barrel-vignette stops. Tokenized so the derived theme
+     (derivePalette.ts) can re-tint the glare and soften the whole treatment
+     in the light "paper" variant. */
+  --rh-scanline: rgba(0, 0, 0, 0.05);
+  --rh-glare-1: rgba(220, 251, 230, 0.04);
+  --rh-glare-2: rgba(220, 251, 230, 0.045);
+  --rh-vig-1: rgba(0, 0, 0, 0.1);
+  --rh-vig-2: rgba(0, 0, 0, 0.28);
+  --rh-vig-3: rgba(0, 0, 0, 0.55);
+
   /* Fonts ── 3 typefaces total, each with one job. Quantico, Funnel Sans,
      and VT323 (unreadable at small sizes) have been dropped in favor of
      consolidating onto these three; see DESIGN.md. */
@@ -171,8 +182,8 @@ body::after {
   z-index: 999;
   background: repeating-linear-gradient(
     to bottom,
-    rgba(0, 0, 0, 0.05) 0px,
-    rgba(0, 0, 0, 0.05) 1px,
+    var(--rh-scanline) 0px,
+    var(--rh-scanline) 1px,
     transparent 1px,
     transparent 3px
   );
@@ -194,14 +205,16 @@ body::before {
   inset: 0;
   pointer-events: none;
   z-index: 1000;
+  /* Bezel corners mask to the host editor background so the "outside the
+     tube" area matches whatever chrome surrounds the webview, dark or light. */
   background-image:
-    radial-gradient(circle at 100% 100%, transparent 13px, #000 14px),
-    radial-gradient(circle at 0% 100%, transparent 13px, #000 14px),
-    radial-gradient(circle at 100% 0%, transparent 13px, #000 14px),
-    radial-gradient(circle at 0% 0%, transparent 13px, #000 14px),
-    radial-gradient(ellipse 55% 30% at 50% 4%, rgba(220, 251, 230, 0.04), transparent 70%),
-    radial-gradient(ellipse 60% 50% at 50% 46%, rgba(220, 251, 230, 0.045), transparent 75%),
-    radial-gradient(ellipse 95% 85% at 50% 48%, transparent 42%, rgba(0, 0, 0, 0.1) 68%, rgba(0, 0, 0, 0.28) 88%, rgba(0, 0, 0, 0.55) 100%);
+    radial-gradient(circle at 100% 100%, transparent 13px, var(--vscode-editor-background, #000) 14px),
+    radial-gradient(circle at 0% 100%, transparent 13px, var(--vscode-editor-background, #000) 14px),
+    radial-gradient(circle at 100% 0%, transparent 13px, var(--vscode-editor-background, #000) 14px),
+    radial-gradient(circle at 0% 0%, transparent 13px, var(--vscode-editor-background, #000) 14px),
+    radial-gradient(ellipse 55% 30% at 50% 4%, var(--rh-glare-1), transparent 70%),
+    radial-gradient(ellipse 60% 50% at 50% 46%, var(--rh-glare-2), transparent 75%),
+    radial-gradient(ellipse 95% 85% at 50% 48%, transparent 42%, var(--rh-vig-1) 68%, var(--rh-vig-2) 88%, var(--rh-vig-3) 100%);
   background-position: top left, top right, bottom left, bottom right, center, center, center;
   background-size: 14px 14px, 14px 14px, 14px 14px, 14px 14px, 100% 100%, 100% 100%, 100% 100%;
   background-repeat: no-repeat;
@@ -267,6 +280,33 @@ button,
 .nav-icon svg {
   filter: drop-shadow(0 0 1px rgba(var(--rh-accent-rgb), 0.9))
     drop-shadow(0 0 5px rgba(var(--rh-accent-rgb), 0.4));
+}
+
+/* ── Light host theme ("paper terminal") ──────────────────────────────────
+   Color tokens are swapped by derivePalette.ts; what CSS must do statically
+   is kill the phosphor bloom ── blur-based glow reads as smudge on a light
+   ground. Text glow is already disabled via the --rh-glow-* tokens. */
+body.vscode-light #lines-chart,
+body.vscode-light #lang-chart,
+body.vscode-light #project-pie-chart,
+body.vscode-light #heatmap-canvas svg rect,
+body.vscode-high-contrast-light #lines-chart,
+body.vscode-high-contrast-light #lang-chart,
+body.vscode-high-contrast-light #project-pie-chart,
+body.vscode-high-contrast-light #heatmap-canvas svg rect {
+  filter: none;
+}
+
+body.vscode-light .nav-icon svg,
+body.vscode-light .export-pdf-btn svg,
+body.vscode-high-contrast-light .nav-icon svg,
+body.vscode-high-contrast-light .export-pdf-btn svg {
+  filter: none;
+}
+
+body.vscode-light #heatmap-canvas svg text,
+body.vscode-high-contrast-light #heatmap-canvas svg text {
+  text-shadow: none;
 }
 
 /* ── Two-column layout ─────────────────────────────────────────────────── */

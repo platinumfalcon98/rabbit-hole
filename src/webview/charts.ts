@@ -108,6 +108,10 @@ const phosphorDatasetGlow = {
   beforeDatasetDraw(chart: Chart) {
     const ctx = chart.ctx
     ctx.save()
+    // No bloom on the light "paper" theme ── matches the CSS-side
+    // `filter: none` override on the other chart canvases.
+    if (document.body.classList.contains("vscode-light")
+      || document.body.classList.contains("vscode-high-contrast-light")) return
     ctx.shadowColor = accentColor()
     ctx.shadowBlur = 5
   },

@@ -45,9 +45,9 @@ async function main() {
       plugins: [logPlugin],
     }),
     esbuild.context({
-      entryPoints: ["src/webview/main.ts"],
+      entryPoints: ["src/webview/main.ts", "src/webview/miniTheme.ts"],
       bundle: true,
-      outfile: "out/webview/main.js",
+      outdir: "out/webview",
       platform: "browser",
       loader: { ".ttf": "base64" },
       sourcemap: true,

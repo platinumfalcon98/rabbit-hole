@@ -87,6 +87,9 @@ export class MiniPanel implements vscode.WebviewViewProvider {
     const fontBase = webview.asWebviewUri(
       vscode.Uri.joinPath(this.extensionUri, "out", "webview", "fonts")
     )
+    const themeScript = webview.asWebviewUri(
+      vscode.Uri.joinPath(this.extensionUri, "out", "webview", "miniTheme.js")
+    )
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -125,6 +128,8 @@ export class MiniPanel implements vscode.WebviewViewProvider {
       --rh-success-light: #8effab;
       --rh-on-success: #06210e;
       --rh-danger-rgb: 255, 92, 92;
+      --rh-info: #4fd8ff;
+      --rh-info-rgb: 79, 216, 255;
       --rh-glow-text: 0 0 1px currentColor, 0 0 1.5px color-mix(in srgb, currentColor 70%, transparent);
       --rh-glow-text-strong: 0 0 1px currentColor, 0 0 1.5px currentColor,
         0 0 5px color-mix(in srgb, currentColor 80%, transparent);
@@ -334,20 +339,40 @@ export class MiniPanel implements vscode.WebviewViewProvider {
     </div>
   </div>
   <button class="open-btn" id="open-btn">Open Dashboard &#x2197;</button>
+  <script nonce="${n}" src="${themeScript}"></script>
   <script nonce="${n}">
     const vscode = acquireVsCodeApi();
     document.getElementById('open-btn').addEventListener('click', () => {
       vscode.postMessage({ type: 'openDashboard' });
     });
 
-    // Phosphor palette — mirrors projectColors() in src/webview/charts.ts
+    // Read the palette from the --rh-* tokens at render time (miniTheme.js
+    // rewrites them to match the host theme), so SVG colors track theme
+    // switches. Role mix mirrors projectColors() in src/webview/charts.ts
     // (accent/info/success + alpha variants) so slices match the main
-    // project chart. Keep in sync.
-    const COLORS = [
-      '#ffb703', '#4fd8ff', '#39ff6a',
-      'rgba(255,183,3,0.55)', 'rgba(79,216,255,0.55)', 'rgba(57,255,106,0.55)',
-      'rgba(255,183,3,0.8)', 'rgba(79,216,255,0.8)'
-    ];
+    // project chart. Keep the roles in sync.
+    function cssVar(name, fb) {
+      const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+      return v || fb;
+    }
+    function palette() {
+      return {
+        accent: cssVar('--rh-accent', '#ffb703'),
+        accentRgb: cssVar('--rh-accent-rgb', '255, 183, 3'),
+        info: cssVar('--rh-info', '#4fd8ff'),
+        infoRgb: cssVar('--rh-info-rgb', '79, 216, 255'),
+        success: cssVar('--rh-success', '#39ff6a'),
+        successRgb: cssVar('--rh-success-rgb', '57, 255, 106'),
+      };
+    }
+    function projectColors() {
+      const p = palette();
+      return [
+        p.accent, p.info, p.success,
+        'rgba(' + p.accentRgb + ',0.55)', 'rgba(' + p.infoRgb + ',0.55)', 'rgba(' + p.successRgb + ',0.55)',
+        'rgba(' + p.accentRgb + ',0.8)', 'rgba(' + p.infoRgb + ',0.8)'
+      ];
+    }
 
     function formatDur(ms) {
       const m = Math.floor(ms / 60000);
@@ -382,6 +407,7 @@ export class MiniPanel implements vscode.WebviewViewProvider {
 
       const total = entries.reduce((s, e) => s + e.ms, 0);
       const cx = 36, cy = 36, r = 28, inner = 18;
+      const COLORS = projectColors();
       svg.innerHTML = '';
 
       let angle = 0;
@@ -426,6 +452,7 @@ export class MiniPanel implements vscode.WebviewViewProvider {
       section.style.display = '';
 
       const W = 200, H = 56, pad = 5;
+      const pal = palette();
       const peak = Math.max(...series.map(p => p.activeTime));
       const max = Math.max(1, peak);
       const pts = series.map((p, i) => [
@@ -443,7 +470,7 @@ export class MiniPanel implements vscode.WebviewViewProvider {
       const dots = series.map((p, i) => {
         const x = pts[i][0], y = pts[i][1];
         const isToday = i === series.length - 1;
-        const color = isToday ? '#ffb703' : 'rgba(79,216,255,0.85)';
+        const color = isToday ? pal.accent : 'rgba(' + pal.infoRgb + ',0.85)';
         const day = isToday ? 'today' : p.date.slice(5).replace('-', '/');
         const label = day + ' · ' + (p.activeTime > 0 ? formatDur(p.activeTime) : '0m');
         return \`<line x1="\${x}" y1="\${y}" x2="\${x}" y2="\${y}"
@@ -456,11 +483,11 @@ export class MiniPanel implements vscode.WebviewViewProvider {
 
       svg.innerHTML =
         \`<line x1="\${pad}" y1="\${H / 2}" x2="\${W - pad}" y2="\${H / 2}"
-           stroke="rgba(134,165,150,0.15)" stroke-width="1"
+           stroke="rgba(128,128,128,0.18)" stroke-width="1"
            vector-effect="non-scaling-stroke"/>\` +
         \`<polygon points="\${line} \${(W - pad)},\${H - pad} \${pad},\${H - pad}"
-           fill="rgba(255,183,3,0.08)"/>\` +
-        \`<polyline points="\${line}" fill="none" stroke="rgba(255,183,3,0.7)"
+           fill="rgba(\${pal.accentRgb},0.08)"/>\` +
+        \`<polyline points="\${line}" fill="none" stroke="rgba(\${pal.accentRgb},0.7)"
            stroke-width="1.5" vector-effect="non-scaling-stroke"
            stroke-linejoin="round" stroke-linecap="round"/>\` +
         dots;
@@ -470,9 +497,12 @@ export class MiniPanel implements vscode.WebviewViewProvider {
       fromEl.textContent = d0.slice(5).replace('-', '/');
     }
 
+    let lastData = null;
+
     window.addEventListener('message', e => {
       const d = e.data;
       if (d.type !== 'update') return;
+      lastData = d;
       const timeEl = document.getElementById('time');
       timeEl.textContent = d.time;
       timeEl.className = 'stat-value' + (d.isTracking ? ' tracking' : '');
@@ -481,6 +511,14 @@ export class MiniPanel implements vscode.WebviewViewProvider {
       document.getElementById('deleted').textContent = '-' + d.linesDeleted;
       if (d.projectActiveTimes) renderDonut(d.projectActiveTimes, d.projectNames || {});
       renderTrend(d.dailySeries);
+    });
+
+    // miniTheme.js re-derives the --rh-* palette on host theme switches and
+    // fires this event; the SVGs bake colors in, so redraw them.
+    window.addEventListener('rh-theme-changed', () => {
+      if (!lastData) return;
+      if (lastData.projectActiveTimes) renderDonut(lastData.projectActiveTimes, lastData.projectNames || {});
+      renderTrend(lastData.dailySeries);
     });
 
     window.addEventListener('DOMContentLoaded', () => {
