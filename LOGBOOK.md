@@ -32,6 +32,17 @@ Running record of what was built and when, ordered newest first.
 - Tested in Extension Development Host
 - Assessed multi-AI agent attribution (Claude/Codex/Gemini/Aider/Copilot); three-tier plan added to CLAUDE.md future agenda — Tier 1 (per-agent fingerprint table + external-watcher correlation) is the practical next step
 
+**Long dashboard lists truncated behind expanders (`fed5b5f`)**
+- Language chart caps at top 8 slices + muted combined "Other" slice; legend lists top 8 with "+N more languages" / "Show less" toggle (tail rows get the muted dot)
+- Files panel collapses to 10 rows + "N more files"; sessions render at most 7 day groups + "N more days" (per-day 3-session collapse unchanged)
+- Shared `.list-show-more` style; expansion state is per-view (resets on range/project change, survives 30s updates and metric toggles)
+
+**Activity Bar mini panel — DESIGN.md restyle + sparkline (`dd0068d`, `62820b1`)**
+- Clarified naming: "mini panel" = `src/dashboard/miniPanel.ts`, the VS Code Activity Bar webview (not the dashboard sidebar's `#projects-mini` widget — a donut mistakenly built there was reverted)
+- Restyle: DESIGN.md tokens mirrored into its standalone `:root` (keep in sync with style.css), phosphor text glow, green Press Start 2P streak hero, donut palette now mirrors `projectColors()` so slices match the main project chart, success/danger diff colors
+- Body sits on the host `--vscode-sideBar-background` (blends with Activity Bar; legend names inherit host foreground for light themes); Open Dashboard button = solid light-green `#8effab` fill, dark on-success text, uppercase Electrolize, phosphor bloom
+- New 7-day all-projects sparkline: `getGlobalActiveSeries(days)` on StorageService (reads only per-day global records — cheap for the 30s tick); amber line + faint area + midline; HTML y-axis anchors (peak/0) since SVG text would distort under `preserveAspectRatio=none`; cyan dots on past days, larger amber dot today, native `<title>` hover tooltips (`MM/DD · 1h 45m`) via oversized invisible hit twins
+
 ---
 
 ## 2026-07-05
