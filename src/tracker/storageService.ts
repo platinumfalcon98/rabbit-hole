@@ -289,9 +289,10 @@ export class StorageService {
     }
   }
 
-  appendFileActivity(file: FileActivity): void {
-    if (!this.currentProjectId) return
-    const log = this.getLog(this.currentProjectId, todayKey())
+  appendFileActivity(file: FileActivity, projectId?: string): void {
+    const targetProject = projectId ?? this.currentProjectId
+    if (!targetProject) return
+    const log = this.getLog(targetProject, todayKey())
     const existing = log.files.findIndex(f => f.path === file.path)
     if (existing >= 0) {
       log.files[existing].linesAdded += file.linesAdded
@@ -305,7 +306,7 @@ export class StorageService {
     }
     log.languages[file.language].linesAdded += file.linesAdded
     log.languages[file.language].linesDeleted += file.linesDeleted
-    this.saveLog(this.currentProjectId, log)
+    this.saveLog(targetProject, log)
   }
 
   appendAgentEvent(event: AgentEvent): void {

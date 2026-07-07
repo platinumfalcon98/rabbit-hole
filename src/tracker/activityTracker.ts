@@ -3,6 +3,59 @@ import { ActivitySession, FileActivity } from "../shared/types"
 import { StorageService } from "./storageService"
 import { detectProject, clearDetectionCache } from "./projectDetector"
 
+// Map file extensions to VS Code languageIds so external (agent/CLI) edits merge
+// with stats recorded from open editors, which use document.languageId.
+const EXTENSION_LANGUAGES: Record<string, string> = {
+  ts: "typescript", mts: "typescript", cts: "typescript", tsx: "typescriptreact",
+  js: "javascript", mjs: "javascript", cjs: "javascript", jsx: "javascriptreact",
+  py: "python", rb: "ruby", go: "go", rs: "rust", java: "java",
+  kt: "kotlin", kts: "kotlin", c: "c", h: "c",
+  cpp: "cpp", cc: "cpp", cxx: "cpp", hpp: "cpp",
+  cs: "csharp", php: "php", swift: "swift", scala: "scala",
+  sh: "shellscript", bash: "shellscript", zsh: "shellscript",
+  ps1: "powershell", psm1: "powershell", bat: "bat",
+  sql: "sql", html: "html", htm: "html", css: "css", scss: "scss", less: "less",
+  vue: "vue", svelte: "svelte", json: "json", jsonc: "jsonc",
+  md: "markdown", yml: "yaml", yaml: "yaml", toml: "toml", xml: "xml",
+  graphql: "graphql", gql: "graphql", dart: "dart", lua: "lua", r: "r",
+  ex: "elixir", exs: "elixir", erl: "erlang", hs: "haskell",
+  clj: "clojure", zig: "zig", tf: "terraform", ini: "ini",
+  proto: "proto", astro: "astro", prisma: "prisma", sol: "solidity",
+  cmake: "cmake", groovy: "groovy", gradle: "groovy", pl: "perl",
+  m: "objective-c", mm: "objective-cpp", fs: "fsharp", nim: "nim",
+  tex: "latex", env: "dotenv",
+}
+
+// Well-known files without a (meaningful) extension. Keys are lowercase.
+const BASENAME_LANGUAGES: Record<string, string> = {
+  dockerfile: "dockerfile", makefile: "makefile", gnumakefile: "makefile",
+  rakefile: "ruby", gemfile: "ruby", vagrantfile: "ruby",
+  jenkinsfile: "groovy", ".env": "dotenv",
+}
+
+function languageForFile(basename: string): string | undefined {
+  const byName = BASENAME_LANGUAGES[basename.toLowerCase()]
+  if (byName) return byName
+  const ext = basename.includes(".") ? basename.slice(basename.lastIndexOf(".") + 1).toLowerCase() : ""
+  return EXTENSION_LANGUAGES[ext]
+}
+
+// Directory segments whose contents never count as coding activity.
+const EXCLUDED_SEGMENTS = new Set([
+  ".git", "node_modules", "dist", "out", "build", "coverage", "vendor",
+  "target", "bin", "obj", "__pycache__", ".venv", "venv",
+  ".next", ".nuxt", ".idea", ".vscode", ".claude", "tmp",
+])
+
+// Generated files that churn in bulk without representing hand/agent-written code.
+const EXCLUDED_BASENAMES = new Set([
+  "package-lock.json", "pnpm-lock.yaml", "yarn.lock", "composer.lock",
+])
+
+const EXTERNAL_DEBOUNCE_MS = 2_000     // let agents finish streaming writes to a file
+const GIT_OP_SUPPRESS_MS = 5_000       // ignore file churn around checkout/pull/merge
+const EXTERNAL_MAX_FILE_BYTES = 5 * 1024 * 1024
+
 function uuidSimple(): string {
   return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, c => {
     const r = (Math.random() * 16) | 0
@@ -28,6 +81,12 @@ export class ActivityTracker {
 
   private lastLanguage = ""
   private fileLastChange = new Map<string, number>()
+
+  // External change tracking (agent/CLI edits to files not open in an editor)
+  private externalDebounce = new Map<string, ReturnType<typeof setTimeout>>()
+  private externalLineCounts = new Map<string, number>()
+  private externalCreated = new Set<string>()
+  private lastGitOpTime = 0
 
   // Project tracking
   private currentProjectId = ""
@@ -56,6 +115,7 @@ export class ActivityTracker {
       vscode.window.onDidChangeTextEditorVisibleRanges(() => this.onActivity()),
       vscode.workspace.onDidChangeWorkspaceFolders(e => this.onWorkspaceFoldersChange(e)),
     )
+    this.initExternalWatcher()
     this.context.subscriptions.push(
       ...this.subscriptions,
       { dispose: () => this.stop() }
@@ -74,6 +134,8 @@ export class ActivityTracker {
       clearInterval(this.checkpointInterval)
       this.checkpointInterval = null
     }
+    for (const timer of this.externalDebounce.values()) clearTimeout(timer)
+    this.externalDebounce.clear()
     this.endSession()
     for (const d of this.subscriptions) d.dispose()
   }
@@ -383,6 +445,123 @@ export class ActivityTracker {
     const elapsed = now - this.languageIntervalStart
     if (elapsed > 0) this.storage.updateLanguageTime(this.languageCurrent, elapsed)
     this.languageIntervalStart = now
+  }
+
+  // ── External change tracking ─────────────────────────────────────────────
+  // Agents (Claude Code, etc.) and other CLI tools edit files without opening
+  // them in an editor, so onDidChangeTextDocument never fires. Watch the
+  // workspace directly and record those edits as file/line/language activity.
+
+  private initExternalWatcher(): void {
+    const watcher = vscode.workspace.createFileSystemWatcher("**/*")
+    this.subscriptions.push(
+      watcher,
+      watcher.onDidCreate(uri => this.onExternalFileEvent(uri, true)),
+      watcher.onDidChange(uri => this.onExternalFileEvent(uri, false)),
+      watcher.onDidDelete(uri => this.onExternalFileDelete(uri)),
+    )
+  }
+
+  private onExternalFileEvent(uri: vscode.Uri, isCreate: boolean): void {
+    if (uri.scheme !== "file") return
+
+    const segments = uri.path.split("/")
+    const basename = segments[segments.length - 1]
+
+    // .git internals: not activity, but refs directly under .git/ signal a
+    // history-moving operation (checkout → HEAD, merge → MERGE_HEAD,
+    // pull/rebase/reset → ORIG_HEAD) whose working-tree churn we must not
+    // count. Deliberately NOT index/logs/refs: plain commits touch those, and
+    // agents that auto-commit after every edit (Aider) would suppress their
+    // own contributions. Note .git/logs/HEAD shares the HEAD basename, hence
+    // the direct-child check.
+    const gitIdx = segments.indexOf(".git")
+    if (gitIdx >= 0) {
+      if (gitIdx === segments.length - 2 &&
+          (basename === "HEAD" || basename === "MERGE_HEAD" || basename === "ORIG_HEAD")) {
+        this.lastGitOpTime = Date.now()
+      }
+      return
+    }
+    if (segments.some(s => EXCLUDED_SEGMENTS.has(s))) return
+    if (EXCLUDED_BASENAMES.has(basename) || basename.includes(".min.")) return
+
+    const language = languageForFile(basename)
+    if (!language) return
+
+    // Files open in an editor are already tracked via onDidChangeTextDocument
+    const uriStr = uri.toString()
+    if (vscode.workspace.textDocuments.some(d => d.uri.toString() === uriStr)) return
+
+    if (isCreate) this.externalCreated.add(uri.fsPath)
+
+    const existing = this.externalDebounce.get(uri.fsPath)
+    if (existing) clearTimeout(existing)
+    this.externalDebounce.set(uri.fsPath, setTimeout(() => {
+      this.externalDebounce.delete(uri.fsPath)
+      const wasCreated = this.externalCreated.delete(uri.fsPath)
+      void this.processExternalChange(uri, language, wasCreated)
+    }, EXTERNAL_DEBOUNCE_MS))
+  }
+
+  private async processExternalChange(uri: vscode.Uri, language: string, isCreate: boolean): Promise<void> {
+    let lineCount: number
+    try {
+      const stat = await vscode.workspace.fs.stat(uri)
+      if (stat.size > EXTERNAL_MAX_FILE_BYTES) return
+      const bytes = await vscode.workspace.fs.readFile(uri)
+      const text = Buffer.from(bytes).toString("utf8")
+      lineCount = text.length === 0 ? 0 : text.split("\n").length
+    } catch {
+      return // deleted or unreadable between event and processing
+    }
+
+    const prev = this.externalLineCounts.get(uri.fsPath)
+    this.externalLineCounts.set(uri.fsPath, lineCount)
+
+    // Around a git operation, keep the baseline fresh but record nothing —
+    // a branch switch is not coding activity.
+    if (Date.now() - this.lastGitOpTime < GIT_OP_SUPPRESS_MS + EXTERNAL_DEBOUNCE_MS) return
+
+    // First sighting of an existing file: no baseline, so no line delta —
+    // record the touch with zero lines; subsequent edits diff properly.
+    const delta = prev === undefined ? (isCreate ? lineCount : 0) : lineCount - prev
+
+    this.onActivity()
+    this.storage.appendFileActivity(
+      {
+        path: uri.fsPath,
+        language,
+        linesAdded: Math.max(0, delta),
+        linesDeleted: Math.max(0, -delta),
+        lastModified: Date.now(),
+      },
+      this.resolveProjectForUri(uri)
+    )
+  }
+
+  private onExternalFileDelete(uri: vscode.Uri): void {
+    const pending = this.externalDebounce.get(uri.fsPath)
+    if (pending) {
+      clearTimeout(pending)
+      this.externalDebounce.delete(uri.fsPath)
+    }
+    this.externalCreated.delete(uri.fsPath)
+    const prev = this.externalLineCounts.get(uri.fsPath)
+    this.externalLineCounts.delete(uri.fsPath)
+    if (prev === undefined || prev === 0) return
+    if (Date.now() - this.lastGitOpTime < GIT_OP_SUPPRESS_MS) return
+
+    const segments = uri.path.split("/")
+    const basename = segments[segments.length - 1]
+    const language = languageForFile(basename)
+    if (!language) return
+
+    this.onActivity()
+    this.storage.appendFileActivity(
+      { path: uri.fsPath, language, linesAdded: 0, linesDeleted: prev, lastModified: Date.now() },
+      this.resolveProjectForUri(uri)
+    )
   }
 
   private resetIdleTimer(): void {
