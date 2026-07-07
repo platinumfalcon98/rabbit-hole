@@ -106,12 +106,38 @@ export class MiniPanel implements vscode.WebviewViewProvider {
       src: url('${fontBase}/UnicaOne-Regular.woff2') format('woff2');
       font-weight: normal; font-style: normal;
     }
+    /* DESIGN.md retro-terminal tokens — standalone webview, so the values
+       are mirrored from src/webview/style.css :root. Keep in sync. */
+    :root {
+      --rh-void: #06090a;
+      --rh-surface-raised: #101613;
+      --rh-card-bg: color-mix(in srgb, var(--rh-surface-raised), black 14%);
+      --rh-border: #1e2b25;
+      --rh-border-bright: #2c4436;
+      --rh-text: #dcfbe6;
+      --rh-text-dim: #86a596;
+      --rh-success: #39ff6a;
+      --rh-success-rgb: 57, 255, 106;
+      --rh-success-light: #8effab;
+      --rh-on-success: #06210e;
+      --rh-danger-rgb: 255, 92, 92;
+      --rh-glow-text: 0 0 1px currentColor, 0 0 1.5px color-mix(in srgb, currentColor 70%, transparent);
+      --rh-glow-text-strong: 0 0 1px currentColor, 0 0 1.5px currentColor,
+        0 0 5px color-mix(in srgb, currentColor 80%, transparent);
+      --rh-glow-success: 0 0 10px rgba(var(--rh-success-rgb), 0.3), 0 0 36px rgba(var(--rh-success-rgb), 0.15);
+      --rh-font-display: 'Press Start 2P', monospace;
+      --rh-font-label: 'Electrolize', sans-serif;
+      --rh-font-stat: 'Unica One', sans-serif;
+    }
     * { box-sizing: border-box; margin: 0; padding: 0; }
+    /* Sits on the host sidebar background (not the dashboard's void) so the
+       panel blends into the Activity Bar; phosphor accents + glows on top. */
     body {
       background: var(--vscode-sideBar-background);
       color: var(--vscode-sideBar-foreground, var(--vscode-editor-foreground));
       font-family: var(--vscode-font-family);
       font-size: var(--vscode-font-size);
+      text-shadow: var(--rh-glow-text);
       padding: 12px;
     }
     .streak-row {
@@ -121,56 +147,72 @@ export class MiniPanel implements vscode.WebviewViewProvider {
       margin-bottom: 14px;
     }
     .streak-number {
-      font-family: 'Press Start 2P', monospace;
+      font-family: var(--rh-font-display);
       font-size: 2em;
       font-weight: 700;
       line-height: 1;
+      color: var(--rh-success);
+      text-shadow: var(--rh-glow-text-strong);
     }
     .streak-label {
-      font-family: 'Electrolize', sans-serif;
+      font-family: var(--rh-font-label);
       font-size: 0.8em;
       font-weight: 700;
       text-transform: uppercase;
-      color: var(--vscode-descriptionForeground);
+      color: var(--rh-text-dim);
     }
     .divider {
       height: 1px;
-      background: var(--vscode-sideBarSectionHeader-border, rgba(128,128,128,0.2));
+      background: var(--rh-border);
       margin-bottom: 12px;
     }
     .stat {
       margin-bottom: 10px;
     }
     .stat-label {
-      font-family: 'Electrolize', sans-serif;
+      font-family: var(--rh-font-label);
       font-size: 0.75em;
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.05em;
-      color: var(--vscode-descriptionForeground);
+      color: var(--rh-text-dim);
       margin-bottom: 2px;
     }
     .stat-value {
-      font-family: 'Unica One', sans-serif;
+      font-family: var(--rh-font-stat);
       font-size: 1.15em;
       font-weight: 600;
     }
-    .add { color: rgba(46, 204, 113, 0.9); }
-    .del { color: rgba(231, 76, 60, 0.9); margin-left: 6px; }
+    .add { color: rgba(var(--rh-success-rgb), 0.9); }
+    .del { color: rgba(var(--rh-danger-rgb), 0.9); margin-left: 6px; }
+    /* Solid light-green fill with phosphor bloom; near-black text
+       (--rh-on-success) since white fails contrast on bright green */
     .open-btn {
       width: 100%;
       margin-top: 14px;
       padding: 6px 0;
-      background: var(--vscode-button-background);
-      color: var(--vscode-button-foreground);
-      border: none;
-      border-radius: 4px;
-      font-family: var(--vscode-font-family);
+      background: var(--rh-success-light);
+      color: var(--rh-on-success);
+      font-weight: 700;
+      border: 1px solid var(--rh-success);
+      border-radius: 5px;
+      font-family: var(--rh-font-label);
       font-size: 0.85em;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
       cursor: pointer;
+      text-shadow: none;
+      box-shadow: var(--rh-glow-success);
+      transition: background 0.12s, box-shadow 0.12s;
     }
-    .open-btn:hover { background: var(--vscode-button-hoverBackground); }
-    .tracking { color: #22c55e; }
+    .open-btn:hover {
+      background: var(--rh-success);
+      box-shadow: 0 0 12px rgba(var(--rh-success-rgb), 0.45), 0 0 40px rgba(var(--rh-success-rgb), 0.2);
+    }
+    .tracking {
+      color: var(--rh-success);
+      text-shadow: var(--rh-glow-text-strong);
+    }
     .project-chart-section { margin-top: 14px; }
     .project-chart-row {
       display: flex;
@@ -178,6 +220,9 @@ export class MiniPanel implements vscode.WebviewViewProvider {
       gap: 14px;
     }
     .donut-wrap { flex-shrink: 0; }
+    .donut-wrap svg {
+      filter: drop-shadow(0 0 3px rgba(var(--rh-success-rgb), 0.25));
+    }
     .project-legend { flex: 1; min-width: 0; }
     .legend-row {
       display: flex;
@@ -197,11 +242,10 @@ export class MiniPanel implements vscode.WebviewViewProvider {
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      color: var(--vscode-editor-foreground);
     }
     .legend-time {
-      font-family: 'Unica One', sans-serif;
-      color: white;
+      font-family: var(--rh-font-stat);
+      color: var(--rh-text-dim);
       white-space: nowrap;
       font-size: 1em;
     }
@@ -242,10 +286,13 @@ export class MiniPanel implements vscode.WebviewViewProvider {
       vscode.postMessage({ type: 'openDashboard' });
     });
 
+    // Phosphor palette — mirrors projectColors() in src/webview/charts.ts
+    // (accent/info/success + alpha variants) so slices match the main
+    // project chart. Keep in sync.
     const COLORS = [
-      '#f97316','#22c55e','#3b82f6',
-      '#a855f7','#eab308','#ec4899',
-      '#14b8a6','#f43f5e'
+      '#ffb703', '#4fd8ff', '#39ff6a',
+      'rgba(255,183,3,0.55)', 'rgba(79,216,255,0.55)', 'rgba(57,255,106,0.55)',
+      'rgba(255,183,3,0.8)', 'rgba(79,216,255,0.8)'
     ];
 
     function formatDur(ms) {
