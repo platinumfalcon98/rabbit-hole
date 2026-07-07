@@ -54,6 +54,9 @@ let langMetric: "time" | "lines" = "time"
 let langMetricBound = false
 let storedLogs: DailyLog[] = []
 let currentLangData: LangData[] = []
+const LANG_TOP_N = 8
+const LANG_OTHER_COLOR = "hsl(0, 0%, 45%)"
+let langLegendExpanded = false
 
 function aggregateLangs(logs: DailyLog[]): LangData[] {
   const map = new Map<string, { time: number; linesAdded: number; linesDeleted: number }>()
@@ -214,11 +217,29 @@ function renderLangPanel(logs: DailyLog[]): void {
   const legendEl = document.getElementById("lang-legend")
   if (!canvas) return
 
-  currentLangData = aggregateLangs(logs).filter(l =>
+  const allLangs = aggregateLangs(logs).filter(l =>
     langMetric === "time" ? l.time >= 60_000 : (l.linesAdded + l.linesDeleted) > 0
   )
-  const langs = currentLangData
-  const colors = langs.map((_, i) => `hsl(${(i * 47) % 360}, 65%, 55%)`)
+
+  // Chart shows top N slices; the tail is combined into one muted "Other"
+  // slice so a long language tail (agents touch yaml/json/md/…) stays readable
+  const topLangs = allLangs.slice(0, LANG_TOP_N)
+  const tailLangs = allLangs.slice(LANG_TOP_N)
+  const langs: LangData[] = tailLangs.length > 0
+    ? [...topLangs, tailLangs.reduce(
+        (acc, l) => ({
+          name: `Other (${tailLangs.length})`,
+          time: acc.time + l.time,
+          linesAdded: acc.linesAdded + l.linesAdded,
+          linesDeleted: acc.linesDeleted + l.linesDeleted,
+        }),
+        { name: "", time: 0, linesAdded: 0, linesDeleted: 0 } as LangData
+      )]
+    : topLangs
+  currentLangData = langs
+  const colors = langs.map((_, i) =>
+    tailLangs.length > 0 && i === langs.length - 1 ? LANG_OTHER_COLOR : `hsl(${(i * 47) % 360}, 65%, 55%)`
+  )
 
   if (langs.length === 0) {
     langChart?.destroy()
@@ -292,16 +313,27 @@ function renderLangPanel(logs: DailyLog[]): void {
     }
   }
 
-  // Legend table — always shows time + lines regardless of metric toggle
+  // Legend table — always shows time + lines regardless of metric toggle.
+  // Top N languages always listed; the tail collapses behind a "+N more" row.
   if (legendEl) {
-    const rows = langs.map((l, i) => `
+    const legendRow = (l: LangData, color: string) => `
       <tr>
-        <td><span class="color-dot" style="background:${colors[i]}"></span></td>
+        <td><span class="color-dot" style="background:${color}"></span></td>
         <td class="legend-name">${l.name}</td>
         <td class="legend-val">${formatDuration(l.time)}</td>
         <td class="legend-val legend-add">+${l.linesAdded}</td>
         <td class="legend-val legend-del">-${l.linesDeleted}</td>
-      </tr>`).join("")
+      </tr>`
+
+    let rows = topLangs.map((l, i) => legendRow(l, colors[i])).join("")
+    if (tailLangs.length > 0) {
+      if (langLegendExpanded) {
+        rows += tailLangs.map(l => legendRow(l, LANG_OTHER_COLOR)).join("")
+        rows += `<tr class="legend-toggle"><td colspan="5">Show less</td></tr>`
+      } else {
+        rows += `<tr class="legend-toggle"><td colspan="5">${tailLangs.length} more language${tailLangs.length !== 1 ? "s" : ""}</td></tr>`
+      }
+    }
     legendEl.innerHTML = `
       <table class="lang-legend-table">
         <thead>
@@ -311,6 +343,10 @@ function renderLangPanel(logs: DailyLog[]): void {
         </thead>
         <tbody>${rows}</tbody>
       </table>`
+    legendEl.querySelector(".legend-toggle")?.addEventListener("click", () => {
+      langLegendExpanded = !langLegendExpanded
+      renderLangPanel(storedLogs)
+    })
   }
 
   // Bind metric toggle once

@@ -477,6 +477,8 @@ function updateStatCards(logs: DailyLog[]): void {
 // ── Files ──────────────────────────────────────────────────────────────────
 
 let lastRenderedFilesKey = ""
+const FILES_COLLAPSED = 10
+let filesListExpanded = false
 
 function aggregateFiles(logs: DailyLog[]) {
   const map = new Map<string, { path: string; language: string; linesAdded: number; linesDeleted: number; projectId?: string }>()
@@ -513,20 +515,39 @@ function renderFiles(logs: DailyLog[]): void {
 
   const isAggregate = currentProjectId === "all"
 
-  container.innerHTML = files.map(f => `
+  const fileRow = (f: ReturnType<typeof aggregateFiles>[number]) => `
     <div class="file-row">
       <span class="file-path" title="${f.path}">${shortenPath(f.path)}</span>
       ${isAggregate && f.projectId ? `<span class="file-project">${projectName(f.projectId)}</span>` : ""}
       <span class="file-lang">${f.language}</span>
       <span class="file-add">+${f.linesAdded}</span>
       <span class="file-del">-${f.linesDeleted}</span>
-    </div>`).join("")
+    </div>`
+
+  const visible = filesListExpanded ? files : files.slice(0, FILES_COLLAPSED)
+  const hidden = filesListExpanded ? [] : files.slice(FILES_COLLAPSED)
+
+  container.innerHTML = visible.map(fileRow).join("")
+
+  if (hidden.length > 0) {
+    const showMore = document.createElement("div")
+    showMore.className = "list-show-more"
+    showMore.textContent = `${hidden.length} more file${hidden.length !== 1 ? "s" : ""}`
+    showMore.addEventListener("click", () => {
+      filesListExpanded = true
+      showMore.insertAdjacentHTML("beforebegin", hidden.map(fileRow).join(""))
+      showMore.remove()
+    })
+    container.appendChild(showMore)
+  }
 }
 
 // ── Sessions ───────────────────────────────────────────────────────────────
 
 const SESSIONS_COLLAPSED = 3
+const SESSION_DAYS_COLLAPSED = 7
 const expandedSessionDates = new Set<string>()
+let sessionDaysExpanded = false
 let sessionSortOrder: "desc" | "asc" = "desc"
 let lastRenderedSessionsKey = ""
 
@@ -561,18 +582,23 @@ function renderSessions(logs: DailyLog[]): void {
 
   const isAggregate = currentProjectId === "all"
   const sorted = [...logs].reverse()
-  const hasSessions = sorted.some(log => log.sessions.some(s => s.activeTime > 0 || s.endTime !== null))
-  if (!hasSessions) {
+  const dayGroups = sorted
+    .map(log => ({
+      log,
+      sessions: log.sessions
+        .filter(s => s.activeTime > 0 || s.endTime !== null)
+        .sort((a, b) => sessionSortOrder === "desc" ? b.startTime - a.startTime : a.startTime - b.startTime),
+    }))
+    .filter(g => g.sessions.length > 0)
+  if (dayGroups.length === 0) {
     container.innerHTML = `<div class="empty-state">No sessions recorded yet</div>`
     return
   }
 
-  for (const log of sorted) {
-    const sessions = log.sessions
-      .filter(s => s.activeTime > 0 || s.endTime !== null)
-      .sort((a, b) => sessionSortOrder === "desc" ? b.startTime - a.startTime : a.startTime - b.startTime)
-    if (sessions.length === 0) continue
+  const visibleGroups = sessionDaysExpanded ? dayGroups : dayGroups.slice(0, SESSION_DAYS_COLLAPSED)
+  const hiddenDays = dayGroups.length - visibleGroups.length
 
+  for (const { log, sessions } of visibleGroups) {
     // At most one session can be truly ongoing: the latest open one from today
     const openSessions = log.date === todayStr
       ? sessions.filter(s => s.endTime === null)
@@ -607,6 +633,18 @@ function renderSessions(logs: DailyLog[]): void {
       })
       container.appendChild(showMore)
     }
+  }
+
+  if (hiddenDays > 0) {
+    const showDays = document.createElement("div")
+    showDays.className = "list-show-more"
+    showDays.textContent = `${hiddenDays} more day${hiddenDays !== 1 ? "s" : ""}`
+    showDays.addEventListener("click", () => {
+      sessionDaysExpanded = true
+      lastRenderedSessionsKey = ""
+      renderSessions(currentLogs)
+    })
+    container.appendChild(showDays)
   }
 }
 
@@ -840,6 +878,10 @@ function renderAll(): void {
   // Invalidate list caches so a full re-render always happens on range/project change
   lastRenderedSessionsKey = ""
   lastRenderedFilesKey = ""
+  // Collapse lists back when the view changes — expansion applies to one view
+  filesListExpanded = false
+  sessionDaysExpanded = false
+  expandedSessionDates.clear()
   heatmap.render(heatmapLogs)
   heatmap.renderActivityStats(heatmapLogs, heatmapProjectName)
   charts.renderAll(currentLogs)

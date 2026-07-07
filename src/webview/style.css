@@ -1416,7 +1416,8 @@ button,
   font-size: 0.9em;
 }
 
-.sessions-show-more {
+.sessions-show-more,
+.list-show-more {
   padding: 8px 0 8px 12px;
   font-size: 0.8em;
   color: var(--rh-text-dim);
@@ -1428,7 +1429,24 @@ button,
   align-items: center;
 }
 
-.sessions-show-more:hover {
+.sessions-show-more:hover,
+.list-show-more:hover {
+  opacity: 1;
+  color: var(--rh-text);
+}
+
+/* Expand/collapse row inside the language legend table */
+.legend-toggle td {
+  padding: 6px 0 6px 2px;
+  font-size: 0.95em;
+  color: var(--rh-text-dim);
+  cursor: pointer;
+  opacity: 0.7;
+  transition: opacity 0.1s, color 0.1s;
+  border-bottom: none;
+}
+
+.legend-toggle:hover td {
   opacity: 1;
   color: var(--rh-text);
 }
