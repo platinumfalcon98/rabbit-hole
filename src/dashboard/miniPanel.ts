@@ -25,6 +25,7 @@ export interface MiniUpdateData {
   isTracking: boolean
   projectActiveTimes: Record<string, number>
   projectNames: Record<string, string>
+  dailySeries: { date: string; activeTime: number }[]
 }
 
 export class MiniPanel implements vscode.WebviewViewProvider {
@@ -77,6 +78,7 @@ export class MiniPanel implements vscode.WebviewViewProvider {
       isTracking: data.isTracking,
       projectActiveTimes: data.projectActiveTimes,
       projectNames: data.projectNames,
+      dailySeries: data.dailySeries,
     })
   }
 
@@ -116,6 +118,8 @@ export class MiniPanel implements vscode.WebviewViewProvider {
       --rh-border-bright: #2c4436;
       --rh-text: #dcfbe6;
       --rh-text-dim: #86a596;
+      --rh-accent: #ffb703;
+      --rh-accent-rgb: 255, 183, 3;
       --rh-success: #39ff6a;
       --rh-success-rgb: 57, 255, 106;
       --rh-success-light: #8effab;
@@ -213,6 +217,45 @@ export class MiniPanel implements vscode.WebviewViewProvider {
       color: var(--rh-success);
       text-shadow: var(--rh-glow-text-strong);
     }
+    .trend-section { margin-top: 14px; }
+    .trend-body {
+      display: flex;
+      gap: 6px;
+      margin-top: 10px;
+    }
+    /* Y anchors live in HTML — text inside the SVG would distort, since the
+       chart stretches to panel width via preserveAspectRatio="none" */
+    .trend-axis {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      align-items: flex-end;
+      flex-shrink: 0;
+      height: 56px; /* match the svg, not the range row below it */
+      font-family: var(--rh-font-label);
+      font-size: 0.62em;
+      color: var(--rh-text-dim);
+      padding: 1px 0;
+    }
+    .trend-chart {
+      flex: 1;
+      min-width: 0;
+    }
+    .trend-chart svg {
+      display: block;
+      width: 100%;
+      height: 56px;
+      /* Amber phosphor bloom, matching the dashboard activity chart's marks */
+      filter: drop-shadow(0 0 3px rgba(var(--rh-accent-rgb), 0.35));
+    }
+    .trend-range {
+      display: flex;
+      justify-content: space-between;
+      font-family: var(--rh-font-label);
+      font-size: 0.68em;
+      color: var(--rh-text-dim);
+      margin-top: 2px;
+    }
     .project-chart-section { margin-top: 14px; }
     .project-chart-row {
       display: flex;
@@ -267,6 +310,17 @@ export class MiniPanel implements vscode.WebviewViewProvider {
     <div class="stat-value">
       <span class="add" id="added">—</span>
       <span class="del" id="deleted"></span>
+    </div>
+  </div>
+  <div class="trend-section" id="trend-section" style="display:none">
+    <div class="divider" style="margin-bottom:10px"></div>
+    <div class="stat-label">All Projects — Last 7 Days</div>
+    <div class="trend-body">
+      <div class="trend-axis"><span id="trend-max"></span><span>0</span></div>
+      <div class="trend-chart">
+        <svg id="trend-svg" viewBox="0 0 200 56" preserveAspectRatio="none"></svg>
+        <div class="trend-range"><span id="trend-from"></span><span>today</span></div>
+      </div>
     </div>
   </div>
   <div class="project-chart-section" id="project-chart-section" style="display:none">
@@ -362,6 +416,60 @@ export class MiniPanel implements vscode.WebviewViewProvider {
       ).join('');
     }
 
+    // Combined active time across all projects, one point per day.
+    // Amber like the dashboard's activity chart; today's point highlighted.
+    // vector-effect keeps the stroke uniform despite preserveAspectRatio=none.
+    function renderTrend(series) {
+      const section = document.getElementById('trend-section');
+      const svg = document.getElementById('trend-svg');
+      if (!series || series.length < 2) { section.style.display = 'none'; return; }
+      section.style.display = '';
+
+      const W = 200, H = 56, pad = 5;
+      const peak = Math.max(...series.map(p => p.activeTime));
+      const max = Math.max(1, peak);
+      const pts = series.map((p, i) => [
+        pad + (W - 2 * pad) * i / (series.length - 1),
+        H - pad - (H - 2 * pad) * (p.activeTime / max),
+      ]);
+      const line = pts.map(p => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
+
+      document.getElementById('trend-max').textContent = peak > 0 ? formatDur(peak) : '';
+
+      // One dot per day: past days cyan (secondary data accent), today amber.
+      // Dots are zero-length round-capped lines so they stay circular despite
+      // preserveAspectRatio=none; a wider transparent twin carries the
+      // native <title> tooltip so hovering doesn't require pixel precision.
+      const dots = series.map((p, i) => {
+        const x = pts[i][0], y = pts[i][1];
+        const isToday = i === series.length - 1;
+        const color = isToday ? '#ffb703' : 'rgba(79,216,255,0.85)';
+        const day = isToday ? 'today' : p.date.slice(5).replace('-', '/');
+        const label = day + ' · ' + (p.activeTime > 0 ? formatDur(p.activeTime) : '0m');
+        return \`<line x1="\${x}" y1="\${y}" x2="\${x}" y2="\${y}"
+            stroke="\${color}" stroke-width="\${isToday ? 5 : 4}" stroke-linecap="round"
+            vector-effect="non-scaling-stroke"/>\` +
+          \`<line x1="\${x}" y1="\${y}" x2="\${x}" y2="\${y}"
+            stroke="transparent" stroke-width="14" stroke-linecap="round"
+            vector-effect="non-scaling-stroke"><title>\${label}</title></line>\`;
+      }).join('');
+
+      svg.innerHTML =
+        \`<line x1="\${pad}" y1="\${H / 2}" x2="\${W - pad}" y2="\${H / 2}"
+           stroke="rgba(134,165,150,0.15)" stroke-width="1"
+           vector-effect="non-scaling-stroke"/>\` +
+        \`<polygon points="\${line} \${(W - pad)},\${H - pad} \${pad},\${H - pad}"
+           fill="rgba(255,183,3,0.08)"/>\` +
+        \`<polyline points="\${line}" fill="none" stroke="rgba(255,183,3,0.7)"
+           stroke-width="1.5" vector-effect="non-scaling-stroke"
+           stroke-linejoin="round" stroke-linecap="round"/>\` +
+        dots;
+
+      const fromEl = document.getElementById('trend-from');
+      const d0 = series[0].date;
+      fromEl.textContent = d0.slice(5).replace('-', '/');
+    }
+
     window.addEventListener('message', e => {
       const d = e.data;
       if (d.type !== 'update') return;
@@ -372,6 +480,7 @@ export class MiniPanel implements vscode.WebviewViewProvider {
       document.getElementById('added').textContent = '+' + d.linesAdded;
       document.getElementById('deleted').textContent = '-' + d.linesDeleted;
       if (d.projectActiveTimes) renderDonut(d.projectActiveTimes, d.projectNames || {});
+      renderTrend(d.dailySeries);
     });
 
     window.addEventListener('DOMContentLoaded', () => {

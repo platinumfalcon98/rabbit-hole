@@ -95,6 +95,7 @@ export function activate(context: vscode.ExtensionContext): void {
       isTracking: tracker.isActivelyTracking,
       projectActiveTimes,
       projectNames,
+      dailySeries: storage.getGlobalActiveSeries(7),
     })
   }
 

@@ -117,6 +117,19 @@ export class StorageService {
     return logs
   }
 
+  // Combined active time per day across all projects — reads only the
+  // per-day global records, so it's cheap enough for the 30s mini panel tick
+  getGlobalActiveSeries(days: number): { date: string; activeTime: number }[] {
+    const series: { date: string; activeTime: number }[] = []
+    for (let i = days - 1; i >= 0; i--) {
+      const d = new Date()
+      d.setDate(d.getDate() - i)
+      const date = dateKey(d)
+      series.push({ date, activeTime: this.getGlobalDay(date).activeTime })
+    }
+    return series
+  }
+
   getAggregateRange(days: number): DailyLog[] {
     const projects = this.getProjects()
     const logs: DailyLog[] = []
