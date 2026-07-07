@@ -4,6 +4,27 @@ Running record of what was built and when, ordered newest first.
 
 ---
 
+## 2026-07-07
+
+**PDF reports shipped (`913888e`, `650d1af`)**
+- Full-report A4 PDF export with three presets: Daily, 30-Day, 90-Day. Sections: summary tiles → range heatmap → languages → sessions → top files, with a redesigned header (logo + wordmark left, title/project/range right), hairline page frame, and centered logo footer
+- Electrolize embedded in the PDF via esbuild `--loader:.ttf=base64`; styling follows DESIGN.md tokens but restrained (no glow/scanlines in print)
+- Summary tiles adapt per report: DAY STREAK (daily) vs ACTIVE DAYS + AVG / ACTIVE DAY (ranges); TOP PROJECT tile on All-Projects exports; grid flexes 3→4 columns with incomplete rows centered; long values shrink font before truncating
+- Range reports summarize sessions as highlights (total, avg/day, avg length, longest session, most active day) instead of a huge table; daily keeps the table capped at 20 rows
+- Languages aggregated across the range, top 8 + "+N more" combined row; top files merged per path+project with muted project tags on aggregate exports
+- Verified by rendering real PDFs through a node harness and reading them back
+
+**JPG share card restyled to DESIGN.md**
+- Old slate/orange palette → phosphor tokens: void bg, bordered card tiles, amber chrome bar, Press Start 2P streak hero with green bloom, Unica One stat numerals, green heatmap with amber today ring, faint scanlines
+- Date now shown on the card; fonts explicitly loaded before canvas draw (`fonts.ready` alone doesn't load unused faces — hero was silently falling back)
+- Verified via headless Edge screenshots
+
+**Export modal + shared code**
+- Format toggle (JPG · Share card · today / PDF · Full report · any range) with a today-only hint for the card; range selector shown only for PDF; header button renamed "Today's Report" → "Export Report"; modal buttons dropped to the faint text glow
+- New `src/webview/exportShared.ts` holds palette/logo/stat helpers that had drifted between the duplicated JPG and PDF renderers; mojibake comments in jpgExport.ts fixed
+
+---
+
 ## 2026-07-05
 
 **Phosphor glow system (CRT bloom pass on the whole dashboard)**
