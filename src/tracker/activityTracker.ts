@@ -50,7 +50,26 @@ const EXCLUDED_SEGMENTS = new Set([
 // Generated files that churn in bulk without representing hand/agent-written code.
 const EXCLUDED_BASENAMES = new Set([
   "package-lock.json", "pnpm-lock.yaml", "yarn.lock", "composer.lock",
+  "packages.lock.json", "bun.lockb", "go.sum", "go.work.sum",
+  "Cargo.lock", "poetry.lock", "Gemfile.lock", "Podfile.lock",
 ])
+
+// Some tooling registers a languageId for generated files (the Go extension calls
+// go.sum's language "go.sum"), so the basename check above is not enough on its own.
+const EXCLUDED_LANGUAGE_IDS = new Set(["go.sum", "go.work.sum", "log"])
+
+// Language for a document open in an editor, or undefined if it should not be
+// counted. The FileSystemWatcher path applies these same exclusions before
+// recording; without this the editor path would silently credit time to
+// generated files and to anything under node_modules/dist/out.
+function trackableLanguage(doc: vscode.TextDocument): string | undefined {
+  if (EXCLUDED_LANGUAGE_IDS.has(doc.languageId)) return undefined
+  const segments = doc.uri.path.split("/")
+  const basename = segments[segments.length - 1]
+  if (segments.some(s => EXCLUDED_SEGMENTS.has(s))) return undefined
+  if (EXCLUDED_BASENAMES.has(basename) || basename.includes(".min.")) return undefined
+  return doc.languageId
+}
 
 const EXTERNAL_DEBOUNCE_MS = 2_000     // let agents finish streaming writes to a file
 const GIT_OP_SUPPRESS_MS = 5_000       // ignore file churn around checkout/pull/merge
@@ -228,7 +247,10 @@ export class ActivityTracker {
 
     const doc = e.document
     const filePath = doc.uri.fsPath
-    const language = doc.languageId
+    const language = trackableLanguage(doc)
+    // Typing still counts as activity (onActivity above), but generated and
+    // excluded files contribute no language time and no file stats.
+    if (!language) return
     this.lastLanguage = language
 
     const now = Date.now()
@@ -282,7 +304,9 @@ export class ActivityTracker {
 
   private onEditorChange(editor: vscode.TextEditor | undefined): void {
     if (editor) {
-      const newLanguage = editor.document.languageId
+      // Empty when the document is excluded — flushLanguageTime treats that as
+      // "credit nothing", so time on a generated file stays unattributed.
+      const newLanguage = trackableLanguage(editor.document) ?? ""
       const newProjectId = this.resolveProjectForUri(editor.document.uri)
 
       if (newProjectId !== this.currentProjectId && this.currentProjectId !== "") {
@@ -307,7 +331,8 @@ export class ActivityTracker {
     this.activeIntervalStart = now
     this.activeTimeAccumulated = 0
     this.isPaused = false
-    const activeLang = vscode.window.activeTextEditor?.document.languageId ?? this.lastLanguage
+    const activeDoc = vscode.window.activeTextEditor?.document
+    const activeLang = activeDoc ? (trackableLanguage(activeDoc) ?? "") : this.lastLanguage
     this.languageCurrent = activeLang
     this.lastLanguage = activeLang
     this.languageIntervalStart = now

@@ -5,7 +5,12 @@
       "name": "Run Extension",
       "type": "extensionHost",
       "request": "launch",
-      "args": ["--extensionDevelopmentPath=${workspaceFolder}"],
+      "args": [
+        "--extensionDevelopmentPath=${workspaceFolder}",
+        // Isolated profile: the dev host gets its own globalState, so test runs
+        // never race with — or pollute — the installed extension's real data.
+        "--user-data-dir=${workspaceFolder}/.vscode-test-profile"
+      ],
       "outFiles": ["${workspaceFolder}/out/**/*.js"],
       "preLaunchTask": "watch"
     }
