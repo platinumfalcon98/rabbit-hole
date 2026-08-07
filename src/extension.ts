@@ -4,7 +4,10 @@ import { ActivityTracker } from "./tracker/activityTracker"
 import { DashboardPanel } from "./dashboard/dashboardPanel"
 import { MiniPanel } from "./dashboard/miniPanel"
 import { handleMessage } from "./dashboard/messageHandler"
+import { MirrorService } from "./tracker/mirrorService"
 import { WebviewMessage } from "./shared/types"
+
+let mirror: MirrorService | null = null
 
 function formatDuration(ms: number): string {
   const totalMinutes = Math.floor(ms / 60_000)
@@ -16,6 +19,10 @@ function formatDuration(ms: number): string {
 
 export function activate(context: vscode.ExtensionContext): void {
   const storage = new StorageService(context)
+  mirror = new MirrorService(context)
+  storage.setMirror(mirror)
+  mirror.start()
+
   const tracker = new ActivityTracker(context, storage)
 
   tracker.start()
@@ -140,4 +147,9 @@ export function activate(context: vscode.ExtensionContext): void {
   )
 }
 
-export function deactivate(): void {}
+export function deactivate(): Thenable<void> | undefined {
+  // Returned so VS Code waits for the last debounced mirror write to land.
+  const pending = mirror?.dispose()
+  mirror = null
+  return pending
+}

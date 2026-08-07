@@ -7,6 +7,7 @@ import {
   FileActivity,
   ProjectMeta,
 } from "../shared/types"
+import { MirrorSink } from "./mirrorFormat"
 
 const ALL_AGENTS: AgentName[] = [
   "claude-code",
@@ -61,12 +62,19 @@ function globalKey(date: string): string {
   return `rabbithole:global:${date}`
 }
 
-const PROJECTS_KEY = "rabbithole:projects"
+export const PROJECTS_KEY = "rabbithole:projects"
 
 export class StorageService {
   private currentProjectId = ""
+  private mirror: MirrorSink | null = null
 
   constructor(private context: vscode.ExtensionContext) {}
+
+  // Dual-write target: globalState stays authoritative, the mirror is a
+  // best-effort JSON export and must never be allowed to fail a write path.
+  setMirror(mirror: MirrorSink): void {
+    this.mirror = mirror
+  }
 
   setCurrentProject(id: string): void {
     this.currentProjectId = id
@@ -90,6 +98,7 @@ export class StorageService {
       projects.push({ ...meta, streak: 0 })
     }
     this.context.globalState.update(PROJECTS_KEY, projects)
+    this.mirror?.markProjectsDirty()
   }
 
   getProjects(): ProjectMeta[] {
@@ -392,6 +401,7 @@ export class StorageService {
     if ((project.streak ?? 0) !== newStreak) {
       project.streak = newStreak
       this.context.globalState.update(PROJECTS_KEY, projects)
+      this.mirror?.markProjectsDirty()
     }
   }
 
@@ -405,6 +415,7 @@ export class StorageService {
       project.dailyTargetMinutes = minutes
     }
     this.context.globalState.update(PROJECTS_KEY, projects)
+    this.mirror?.markProjectsDirty()
   }
 
   updateLanguageTime(language: string, ms: number): void {
@@ -454,6 +465,7 @@ export class StorageService {
   private saveLog(projectId: string, log: DailyLog): void {
     if (!projectId) return
     this.context.globalState.update(storageKey(projectId, log.date), log)
+    this.mirror?.markDayDirty(log.date)
   }
 
   private getGlobalDay(date: string): GlobalDay {
@@ -462,5 +474,6 @@ export class StorageService {
 
   private saveGlobalDay(day: GlobalDay): void {
     this.context.globalState.update(globalKey(day.date), day)
+    this.mirror?.markDayDirty(day.date)
   }
 }
