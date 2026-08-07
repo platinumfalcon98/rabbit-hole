@@ -64,6 +64,9 @@
      correctly on either. */
   --rh-on-accent: #1a1300;
   --rh-on-success: #06210e;
+  /* Fill behind that text. derivePalette re-sets it per theme, but the
+     stylesheet needs a value for the frame before main.js runs. */
+  --rh-success-light: #8effab;
 
   /* Type scale */
   --rh-text-2xs: 0.68em;
@@ -298,9 +301,7 @@ body.vscode-high-contrast-light #heatmap-canvas svg rect {
 }
 
 body.vscode-light .nav-icon svg,
-body.vscode-light .export-pdf-btn svg,
-body.vscode-high-contrast-light .nav-icon svg,
-body.vscode-high-contrast-light .export-pdf-btn svg {
+body.vscode-high-contrast-light .nav-icon svg {
   filter: none;
 }
 
@@ -435,30 +436,49 @@ body.vscode-high-contrast-light #heatmap-canvas svg text {
   margin-left: auto;
 }
 
+/* Same skin as .export-pdf-btn / .open-btn ── solid fill, near-black label.
+   The old ghost treatment (transparent, 0.75 opacity) is gone: a solid fill
+   cannot be dimmed without muddying it. */
 .proj-filter-btn {
   display: flex;
   align-items: center;
   gap: 6px;
   padding: 3px 11px;
-  border-radius: 6px;
-  border: 1px solid var(--vscode-editorWidget-border);
-  background: transparent;
-  color: var(--rh-text);
-  font-family: var(--vscode-font-family);
+  border-radius: 5px;
+  border: 1px solid var(--rh-success);
+  background: var(--rh-success-light);
+  color: var(--rh-on-success);
+  font-weight: 700;
+  font-family: var(--rh-font-label);
   font-size: 0.8em;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
   cursor: pointer;
   white-space: nowrap;
-  opacity: 0.75;
-  transition: opacity 0.1s, border-color 0.1s, background 0.1s, color 0.1s;
+  text-shadow: none;
+  box-shadow: var(--rh-glow-success);
+  transition: background 0.12s, box-shadow 0.12s;
 }
 
-.proj-filter-btn:hover { opacity: 1; border-color: var(--vscode-focusBorder); }
+.proj-filter-btn:hover {
+  background: var(--rh-success);
+  box-shadow: 0 0 12px rgba(var(--rh-success-rgb), 0.45), 0 0 40px rgba(var(--rh-success-rgb), 0.2);
+}
 
+/* Filtered to one project ── same skin in amber, so "a filter is applied"
+   still reads at a glance. --rh-accent / --rh-on-accent are already a
+   fill/text pair in both themes (bright amber + black in dark, ink amber +
+   paper in light), so unlike the green this needs no light-theme override. */
 .proj-filter-btn.active {
-  background: rgba(var(--rh-accent-rgb), 0.12);
+  background: var(--rh-accent);
   border-color: var(--rh-accent);
-  color: var(--rh-accent);
-  opacity: 1;
+  color: var(--rh-on-accent);
+  box-shadow: 0 0 10px rgba(var(--rh-accent-rgb), 0.3), 0 0 36px rgba(var(--rh-accent-rgb), 0.15);
+}
+
+.proj-filter-btn.active:hover {
+  background: var(--rh-accent);
+  box-shadow: 0 0 12px rgba(var(--rh-accent-rgb), 0.45), 0 0 40px rgba(var(--rh-accent-rgb), 0.2);
 }
 
 .proj-dropdown-panel {
@@ -1923,35 +1943,73 @@ body.vscode-high-contrast-light #heatmap-canvas svg text {
 
 /* ── Export Card button ────────────────────────────────────────────────── */
 
-/* Solid green fill dropped in favor of the phosphor-text treatment: green
-   glowing label (strong glow arrives via the global button rule ─
-   currentColor resolves to success green) on a dark card body. */
+/* Same skin as .open-btn in miniPanel.ts: solid light-green fill with
+   phosphor bloom and near-black text (--rh-on-success), since white fails
+   contrast on bright green. Only the box is different ─ this one sits inline
+   in the header rather than filling the sidebar width. Keep the two in sync. */
 .export-pdf-btn {
   display: flex;
   align-items: center;
   gap: 7px;
-  background: var(--rh-card-bg);
-  color: var(--rh-success);
+  background: var(--rh-success-light);
+  color: var(--rh-on-success);
   font-weight: 700;
-  border: 1px solid var(--rh-border-bright);
+  border: 1px solid var(--rh-success);
   border-radius: 5px;
   padding: 6px 14px;
-  font-family: var(--vscode-font-family);
-  font-size: 0.9em;
+  font-family: var(--rh-font-label);
+  font-size: 0.85em;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
   cursor: pointer;
+  text-shadow: none;
   box-shadow: var(--rh-glow-success);
-  transition: border-color 0.12s, box-shadow 0.12s;
+  transition: background 0.12s, box-shadow 0.12s;
 }
 
-/* Icon is SVG (currentColor fill) ── mirror the text glow with drop-shadows */
+/* Icon fills with currentColor, so it darkens with the label ── the glow that
+   matched the old green text would only muddy it against the fill. */
 .export-pdf-btn svg {
-  filter: drop-shadow(0 0 1px rgba(var(--rh-success-rgb), 0.9))
-    drop-shadow(0 0 5px rgba(var(--rh-success-rgb), 0.4));
+  filter: none;
 }
 
 .export-pdf-btn:hover {
-  border-color: var(--rh-success);
+  background: var(--rh-success);
   box-shadow: 0 0 12px rgba(var(--rh-success-rgb), 0.45), 0 0 40px rgba(var(--rh-success-rgb), 0.2);
+}
+
+/* Light hosts invert the pair ── derivePalette darkens --rh-success to an ink
+   green and lifts --rh-on-success to near-white, so the dark theme's roles
+   come out white-on-pale-green and fail contrast. Swap them: ink fill, paper
+   text. There is no darker token to move to on hover, so deepen the fill
+   instead, and drop the colored bloom for the paper shadow. Mirrored on
+   .open-btn in miniPanel.ts.
+
+   .proj-filter-btn rides along, but only unfiltered ── its .active amber is
+   a working fill/text pair in both themes, and these selectors outrank it. */
+body.vscode-light .export-pdf-btn,
+body.vscode-light .proj-filter-btn:not(.active),
+body.vscode-high-contrast-light .export-pdf-btn,
+body.vscode-high-contrast-light .proj-filter-btn:not(.active) {
+  background: var(--rh-success);
+  color: var(--rh-on-success);
+}
+
+body.vscode-light .export-pdf-btn:hover,
+body.vscode-light .proj-filter-btn:not(.active):hover,
+body.vscode-high-contrast-light .export-pdf-btn:hover,
+body.vscode-high-contrast-light .proj-filter-btn:not(.active):hover {
+  background: var(--rh-success);
+  filter: brightness(0.85);
+  box-shadow: var(--rh-glow-success);
+}
+
+/* Amber bloom is still a colored blur ── flatten it on paper like the rest. */
+body.vscode-light .proj-filter-btn.active,
+body.vscode-light .proj-filter-btn.active:hover,
+body.vscode-high-contrast-light .proj-filter-btn.active,
+body.vscode-high-contrast-light .proj-filter-btn.active:hover {
+  box-shadow: var(--rh-shadow-card);
 }
 
 #header .export-pdf-btn { margin-left: auto; }

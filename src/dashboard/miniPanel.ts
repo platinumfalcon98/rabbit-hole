@@ -218,6 +218,23 @@ export class MiniPanel implements vscode.WebviewViewProvider {
       background: var(--rh-success);
       box-shadow: 0 0 12px rgba(var(--rh-success-rgb), 0.45), 0 0 40px rgba(var(--rh-success-rgb), 0.2);
     }
+    /* Light hosts invert the pair ── derivePalette darkens --rh-success to an
+       ink green and lifts --rh-on-success to near-white, so the roles above
+       come out white-on-pale-green and fail contrast. Swap them: ink fill,
+       paper text. No darker token to move to on hover, so deepen the fill
+       instead, and drop the colored bloom for the paper shadow. Mirrored on
+       .export-pdf-btn in webview/style.css. */
+    body.vscode-light .open-btn,
+    body.vscode-high-contrast-light .open-btn {
+      background: var(--rh-success);
+      color: var(--rh-on-success);
+    }
+    body.vscode-light .open-btn:hover,
+    body.vscode-high-contrast-light .open-btn:hover {
+      background: var(--rh-success);
+      filter: brightness(0.85);
+      box-shadow: var(--rh-glow-success);
+    }
     .tracking {
       color: var(--rh-success);
       text-shadow: var(--rh-glow-text-strong);

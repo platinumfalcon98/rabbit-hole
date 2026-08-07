@@ -57,6 +57,33 @@ surfaces at all: they use `--vscode-dropdown-*` / `--vscode-input-*` /
 `--vscode-badge-*` so they render as expected VS Code controls and stay
 legible against any host theme, light or dark.
 
+### Solid-fill button skin
+
+One shared treatment for the primary action buttons — the sidebar's
+`.open-btn`, the dashboard's `.export-pdf-btn`, and `.proj-filter-btn`:
+`--rh-success-light` fill, `--rh-on-success` label, `--rh-success` border, 5px
+radius, uppercase `--rh-font-label` at weight 700, `--rh-glow-success` bloom,
+hover to solid `--rh-success`. `text-shadow: none` is part of the skin, not an
+afterthought — the global `button` rule applies the strong phosphor glow, which
+smears a dark label on a bright fill.
+
+Two things about it are load-bearing:
+
+- **`--rh-success-light` is the fill only in dark themes.** The light branch of
+  `derivePalette` inverts the pair — `--rh-success` becomes ink green and
+  `--rh-on-success` near-white — so `body.vscode-light` / `.vscode-high-contrast-light`
+  overrides swap the roles to ink fill on paper text and deepen on hover with
+  `filter: brightness(0.85)`, there being no darker token to move to. Without
+  the swap the buttons render white-on-pale-green.
+- **`.proj-filter-btn.active` wears the same skin in amber**, so "a filter is
+  applied" still reads. `--rh-accent` / `--rh-on-accent` are already a working
+  fill/text pair in both branches, so that variant needs no light override —
+  only its bloom is flattened on paper.
+
+`.open-btn` lives in `miniPanel.ts`'s inline stylesheet rather than
+`style.css`, since the sidebar webview loads its own CSS. The two copies have
+to move together; each carries a comment pointing at the other.
+
 ## Dynamic theme derivation
 
 `src/webview/derivePalette.ts` (shared by the dashboard bundle and the mini
@@ -236,9 +263,13 @@ on the glass while scanlines live on the phosphor.
   throughout — it's a low-risk theme-linked gray that still reads as a
   divider against the fixed dark shell in both light and dark host themes.
   A future pass could move these to `--rh-border` for full token coverage.
-- Primary action buttons (`.modal-btn-primary`, `.export-pdf-btn`,
-  `.setting-apply`, etc.) still use `var(--vscode-font-family)` rather than
-  `--rh-font-label`, to keep small-size legibility on native-styled buttons.
+- Primary action buttons (`.modal-btn-primary`, `.setting-apply`, etc.) still
+  use `var(--vscode-font-family)` rather than `--rh-font-label`, to keep
+  small-size legibility on native-styled buttons. `.export-pdf-btn` and
+  `.proj-filter-btn` no longer belong to this list — both took the solid-fill
+  treatment (see "Solid-fill button skin" above) and moved to
+  `--rh-font-label`, which reads fine once the button is a filled block
+  rather than a native-styled control.
 - Chart.js and SVG heatmap restyling (colors, fonts, tooltips, gradient) was
   delegated to the dashboard-chart-engineer agent with this token set — see
   that agent's changes in `src/webview/charts.ts` and `src/webview/heatmap.ts`.
