@@ -17,15 +17,38 @@ fs.watch(cssSrc, () => {
   catch (e) { console.error("[css] copy failed:", e.message) }
 })
 
+// Both contexts below share this plugin, so logging per build emitted two
+// "started"/"finished" pairs per round. VS Code's background problemMatcher is
+// a toggle -- beginsPattern makes the task active, endsPattern makes it idle --
+// and the two contexts finish in no fixed order. An interleaving that ends on
+// the second "started" leaves the task active forever: the preLaunchTask never
+// completes and F5 never launches the host, while the compiler goes on working
+// perfectly and hides the cause. Counting in-flight builds collapses a round
+// into exactly one pair, however many contexts take part.
+let inFlight = 0
+let roundFailed = false
+
 const logPlugin = {
   name: "watch-log",
   setup(build) {
-    build.onStart(() => { process.stdout.write("[watch] build started\n") })
+    build.onStart(() => {
+      if (inFlight++ === 0) {
+        roundFailed = false
+        process.stdout.write("[watch] build started\n")
+      }
+    })
     build.onEnd(({ errors }) => {
       for (const { text, location: l } of errors) {
         console.error(l ? `${l.file}:${l.line}:${l.column}: error: ${text}` : `error: ${text}`)
       }
-      process.stdout.write(errors.length ? "[watch] build failed\n" : "[watch] build finished\n")
+      if (errors.length) { roundFailed = true }
+      if (--inFlight === 0) {
+        // A failed round still has to end. The matcher only releases the task on
+        // endsPattern, so signalling failure by withholding it would hang F5
+        // rather than surface the errors printed above -- and those reach the
+        // Problems panel through the matcher's own pattern either way.
+        process.stdout.write(`[watch] build finished${roundFailed ? " with errors" : ""}\n`)
+      }
     })
   },
 }
