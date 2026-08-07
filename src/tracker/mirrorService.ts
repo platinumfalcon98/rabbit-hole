@@ -31,6 +31,7 @@ export class MirrorService implements MirrorSink {
   private readonly metaPath: string
   private readonly dirtyDates = new Set<string>()
   private metaDirty = false
+  private backfillSettled = false
   private timer: ReturnType<typeof setTimeout> | null = null
   private queue: Promise<void> = Promise.resolve()
   private disposed = false
@@ -84,19 +85,29 @@ export class MirrorService implements MirrorSink {
   }
 
   private async writePending(): Promise<void> {
+    // Nothing may write meta.json until backfill has finished, because meta is
+    // what marks the mirror complete. A backfill that died partway leaves no
+    // meta on purpose, so the next activation retries it — but a flush writing
+    // meta would stamp the current schema over that gap, needsBackfill would
+    // stop returning true, and the mirror would stay permanently short of
+    // history while the CLI went on preferring it.
+    if (!this.backfillSettled) return
+
     const dates = [...this.dirtyDates]
     if (dates.length === 0 && !this.metaDirty) return
-    this.dirtyDates.clear()
-    this.metaDirty = false
 
     await this.ensureDirs()
     const groups = groupKeysByDate(this.context.globalState.keys())
     for (const date of dates) {
       const group = groups.get(date)
       if (group) await this.writeDay(group)
+      // Cleared only once written, so a failed flush retries the day instead
+      // of dropping it until something happens to touch that date again.
+      this.dirtyDates.delete(date)
     }
     // updatedAt is the time of the last mirror write, so meta trails every flush.
     await this.writeMeta()
+    this.metaDirty = false
   }
 
   private async backfillIfStale(): Promise<void> {
@@ -106,13 +117,19 @@ export class MirrorService implements MirrorSink {
     } catch {
       raw = null
     }
-    if (!needsBackfill(raw)) return
+    if (!needsBackfill(raw)) {
+      this.backfillSettled = true
+      return
+    }
 
     await this.ensureDirs()
     for (const group of groupKeysByDate(this.context.globalState.keys()).values()) {
       await this.writeDay(group)
     }
     await this.writeMeta()
+    // Last, and only on the success path: a throw above leaves this false, so
+    // no flush can seal the incomplete mirror and the retry survives.
+    this.backfillSettled = true
   }
 
   private async writeDay(group: DateKeyGroup): Promise<void> {
