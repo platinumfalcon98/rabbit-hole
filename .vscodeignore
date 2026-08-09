@@ -2,6 +2,11 @@ src/
 node_modules/
 .vscode/
 .claude/
+# Extension Development Host profile — cache plus a User/ dir holding real
+# settings and state. gitignored, but .vscodeignore is what vsce reads, and
+# without this every .vsix shipped ~5.8 MB of it.
+.vscode-test-profile/
+.vscode-test/
 scripts/
 CLAUDE.md
 DESIGN.md
