@@ -1794,16 +1794,25 @@ body.vscode-high-contrast-light #heatmap-canvas svg text {
   margin-bottom: 2px;
 }
 
+/* Solid amber skin, matching .proj-filter-btn.active. Disabled is the resting
+   state for the Apply buttons, so it stays a ghost and the button only fills in
+   when there is something to apply — the colour shift is the affordance.
+   text-shadow: none is load-bearing, not tidiness: the global button rule applies
+   --rh-glow-text-strong, which smears near-black text on a bright fill. */
 .setting-apply {
-  padding: 3px 10px;
-  font-family: var(--vscode-font-family);
+  padding: 3px 11px;
+  font-family: var(--rh-font-label);
   font-size: 0.75em;
-  border-radius: 4px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-radius: 5px;
   border: 1px solid var(--vscode-editorWidget-border);
   cursor: pointer;
   background: transparent;
   color: var(--rh-text-dim);
-  transition: color 0.15s, border-color 0.15s;
+  text-shadow: none;
+  transition: background 0.12s, color 0.12s, border-color 0.12s, box-shadow 0.12s;
   white-space: nowrap;
 }
 
@@ -1813,12 +1822,24 @@ body.vscode-high-contrast-light #heatmap-canvas svg text {
 }
 
 .setting-apply:not(:disabled) {
-  color: var(--rh-accent);
+  background: var(--rh-accent);
   border-color: var(--rh-accent);
+  color: var(--rh-on-accent);
+  box-shadow: 0 0 10px rgba(var(--rh-accent-rgb), 0.3), 0 0 36px rgba(var(--rh-accent-rgb), 0.15);
 }
 
 .setting-apply:not(:disabled):hover {
-  background: rgba(var(--rh-accent-rgb), 0.1);
+  background: var(--rh-accent);
+  box-shadow: 0 0 12px rgba(var(--rh-accent-rgb), 0.45), 0 0 40px rgba(var(--rh-accent-rgb), 0.2);
+}
+
+/* Amber is a working fill/text pair in both branches, so no light override is
+   needed — only the phosphor bloom flattened, as .proj-filter-btn.active does. */
+body.vscode-light .setting-apply:not(:disabled),
+body.vscode-light .setting-apply:not(:disabled):hover,
+body.vscode-high-contrast-light .setting-apply:not(:disabled),
+body.vscode-high-contrast-light .setting-apply:not(:disabled):hover {
+  box-shadow: var(--rh-shadow-card);
 }
 
 /* Destructive twin of .setting-apply — same shape, danger tint */
