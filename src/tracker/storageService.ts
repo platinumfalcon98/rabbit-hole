@@ -47,7 +47,10 @@ function todayKey(): string {
   return dateKey(new Date())
 }
 
-function dateKey(d: Date): string {
+// Local-time day key. Every storage key is built from this, so any caller
+// deriving its own day key must use it too — a UTC-derived key (toISOString)
+// silently reads the wrong day either side of local midnight.
+export function dateKey(d: Date): string {
   const y = d.getFullYear()
   const m = String(d.getMonth() + 1).padStart(2, "0")
   const day = String(d.getDate()).padStart(2, "0")

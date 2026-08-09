@@ -75,6 +75,37 @@ const EXTERNAL_DEBOUNCE_MS = 2_000     // let agents finish streaming writes to 
 const GIT_OP_SUPPRESS_MS = 5_000       // ignore file churn around checkout/pull/merge
 const EXTERNAL_MAX_FILE_BYTES = 5 * 1024 * 1024
 
+// FNV-1a 32-bit. Hashing lines rather than storing them keeps the per-file
+// baseline small; collisions (~0.3% across a 5000-line file) can mask a changed
+// line as unchanged, so external line counts are close but not exact.
+function hashLine(s: string): number {
+  let h = 0x811c9dc5
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i)
+    h = Math.imul(h, 0x01000193)
+  }
+  return h >>> 0
+}
+
+// Multiset diff: a line present in both bags cancels out regardless of position,
+// so a reordering costs nothing while an in-place rewrite counts both ways.
+function lineBagDiff(prev: number[], next: number[]): { added: number; deleted: number } {
+  const counts = new Map<number, number>()
+  for (const h of prev) counts.set(h, (counts.get(h) ?? 0) + 1)
+
+  let added = 0
+  for (const h of next) {
+    const c = counts.get(h) ?? 0
+    if (c > 0) counts.set(h, c - 1)
+    else added++
+  }
+
+  let deleted = 0
+  for (const c of counts.values()) deleted += c
+
+  return { added, deleted }
+}
+
 function uuidSimple(): string {
   return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, c => {
     const r = (Math.random() * 16) | 0
@@ -93,6 +124,7 @@ export class ActivityTracker {
   private activeTimeAccumulated = 0  // ms from completed active intervals
   private activeIntervalStart = 0    // start of current active interval
   private isPaused = false           // true when idle/blur has paused the session
+  private isWindowFocused = false    // blur pauses once; without this, later background events would resume
 
   // Language time tracking
   private languageCurrent = ""
@@ -103,7 +135,7 @@ export class ActivityTracker {
 
   // External change tracking (agent/CLI edits to files not open in an editor)
   private externalDebounce = new Map<string, ReturnType<typeof setTimeout>>()
-  private externalLineCounts = new Map<string, number>()
+  private externalBaselines = new Map<string, number[]>()
   private externalCreated = new Set<string>()
   private lastGitOpTime = 0
 
@@ -143,6 +175,7 @@ export class ActivityTracker {
     // Checkpoint every 10s so storage stays fresh for status bar / dashboard
     this.checkpointInterval = setInterval(() => this.saveCheckpoint(), 10_000)
 
+    this.isWindowFocused = vscode.window.state.focused
     if (vscode.window.state.focused) {
       this.startSession()
     }
@@ -225,6 +258,10 @@ export class ActivityTracker {
   }
 
   private onActivity(): void {
+    // Background agents writing files (and disk rewrites of open documents) fire
+    // activity events while the window is blurred; counting them would accrue
+    // active time for a minimised editor. File/line stats are recorded separately.
+    if (!this.isWindowFocused) return
     this.clearIdleTimer()
     if (!this.currentSession) {
       this.startSession()
@@ -295,6 +332,8 @@ export class ActivityTracker {
   }
 
   private onWindowState(state: vscode.WindowState): void {
+    // Must precede the dispatch below — onActivity() bails out on a stale false.
+    this.isWindowFocused = state.focused
     if (!state.focused) {
       this.pauseSession()
     } else {
@@ -530,35 +569,48 @@ export class ActivityTracker {
   }
 
   private async processExternalChange(uri: vscode.Uri, language: string, isCreate: boolean): Promise<void> {
-    let lineCount: number
+    let lines: number[]
     try {
       const stat = await vscode.workspace.fs.stat(uri)
       if (stat.size > EXTERNAL_MAX_FILE_BYTES) return
       const bytes = await vscode.workspace.fs.readFile(uri)
       const text = Buffer.from(bytes).toString("utf8")
-      lineCount = text.length === 0 ? 0 : text.split("\n").length
+      lines = text.length === 0 ? [] : text.split("\n").map(hashLine)
     } catch {
       return // deleted or unreadable between event and processing
     }
 
-    const prev = this.externalLineCounts.get(uri.fsPath)
-    this.externalLineCounts.set(uri.fsPath, lineCount)
+    const prev = this.externalBaselines.get(uri.fsPath)
+    this.externalBaselines.set(uri.fsPath, lines)
 
     // Around a git operation, keep the baseline fresh but record nothing —
     // a branch switch is not coding activity.
     if (Date.now() - this.lastGitOpTime < GIT_OP_SUPPRESS_MS + EXTERNAL_DEBOUNCE_MS) return
 
-    // First sighting of an existing file: no baseline, so no line delta —
-    // record the touch with zero lines; subsequent edits diff properly.
-    const delta = prev === undefined ? (isCreate ? lineCount : 0) : lineCount - prev
+    let added: number
+    let deleted: number
+    if (prev === undefined) {
+      if (!isCreate) {
+        // First sighting of a pre-existing file: the edit that triggered this is
+        // unmeasurable, and a zero-line row would just clutter the Files panel.
+        // The baseline is set now, so the next edit diffs properly.
+        this.onActivity()
+        return
+      }
+      added = lines.length
+      deleted = 0
+    } else {
+      ({ added, deleted } = lineBagDiff(prev, lines))
+    }
 
     this.onActivity()
+    if (added === 0 && deleted === 0) return
     this.storage.appendFileActivity(
       {
         path: uri.fsPath,
         language,
-        linesAdded: Math.max(0, delta),
-        linesDeleted: Math.max(0, -delta),
+        linesAdded: added,
+        linesDeleted: deleted,
         lastModified: Date.now(),
       },
       this.resolveProjectForUri(uri)
@@ -572,9 +624,9 @@ export class ActivityTracker {
       this.externalDebounce.delete(uri.fsPath)
     }
     this.externalCreated.delete(uri.fsPath)
-    const prev = this.externalLineCounts.get(uri.fsPath)
-    this.externalLineCounts.delete(uri.fsPath)
-    if (prev === undefined || prev === 0) return
+    const prev = this.externalBaselines.get(uri.fsPath)
+    this.externalBaselines.delete(uri.fsPath)
+    if (prev === undefined || prev.length === 0) return
     if (Date.now() - this.lastGitOpTime < GIT_OP_SUPPRESS_MS) return
 
     const segments = uri.path.split("/")
@@ -584,7 +636,7 @@ export class ActivityTracker {
 
     this.onActivity()
     this.storage.appendFileActivity(
-      { path: uri.fsPath, language, linesAdded: 0, linesDeleted: prev, lastModified: Date.now() },
+      { path: uri.fsPath, language, linesAdded: 0, linesDeleted: prev.length, lastModified: Date.now() },
       this.resolveProjectForUri(uri)
     )
   }

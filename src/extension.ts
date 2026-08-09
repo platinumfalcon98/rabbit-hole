@@ -1,5 +1,5 @@
 import * as vscode from "vscode"
-import { StorageService } from "./tracker/storageService"
+import { StorageService, dateKey } from "./tracker/storageService"
 import { ActivityTracker } from "./tracker/activityTracker"
 import { DashboardPanel } from "./dashboard/dashboardPanel"
 import { MiniPanel } from "./dashboard/miniPanel"
@@ -75,7 +75,7 @@ export function activate(context: vscode.ExtensionContext): void {
   const refreshMiniPanel = () => {
     const global = storage.getGlobalToday()
     const today = storage.getToday()
-    const todayKey = new Date().toISOString().slice(0, 10)
+    const todayKey = dateKey(new Date())
     const aggregate = storage.getAggregateRangeByDates(todayKey, todayKey)
     const aggToday = aggregate[0]
     const langEntries = Object.entries(today.languages)
