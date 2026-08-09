@@ -5,6 +5,7 @@ import { DashboardPanel } from "./dashboard/dashboardPanel"
 import { MiniPanel } from "./dashboard/miniPanel"
 import { handleMessage } from "./dashboard/messageHandler"
 import { MirrorService } from "./tracker/mirrorService"
+import { getDailyTargetMs } from "./shared/config"
 import { WebviewMessage } from "./shared/types"
 
 let mirror: MirrorService | null = null
@@ -29,24 +30,33 @@ export function activate(context: vscode.ExtensionContext): void {
   storage.updateStreak()
   storage.updateProjectStreak(storage.getCurrentProjectId())
 
-  // First-run: prompt the user to set a daily target (fires once per install)
-  const hasPrompted = context.globalState.get<boolean>("rabbithole:targetPrompted")
-  if (!hasPrompted) {
-    context.globalState.update("rabbithole:targetPrompted", true)
+  // Prompt for a daily target once, for anyone who has never chosen one. The
+  // default moved 5 → 20 in v0.4.0, so this also covers existing installs whose
+  // visible streak chain is about to recompute against the higher target.
+  // `rabbithole:targetPrompted` is already true everywhere and cannot carry it.
+  const hasMigrated = context.globalState.get<boolean>("rabbithole:targetDefaultMigrated")
+  const inspected = vscode.workspace
+    .getConfiguration("rabbithole")
+    .inspect<number>("dailyTargetMinutes")
+  const neverChosen = inspected?.globalValue === undefined
+    && inspected?.workspaceValue === undefined
+    && inspected?.workspaceFolderValue === undefined
+  if (!hasMigrated && neverChosen) {
+    context.globalState.update("rabbithole:targetDefaultMigrated", true)
     setTimeout(() => {
       vscode.window.showInputBox({
         title: "Rabbit Hole — Daily Coding Target",
-        prompt: "Set a daily active-coding target to power your streak. Leave blank to count any activity.",
-        placeHolder: "Minutes per day (e.g. 60)",
+        prompt: "Set your daily active-coding target. Days that reach it extend your streak.",
+        placeHolder: "Minutes per day (default 20)",
         validateInput: v => {
           if (!v.trim()) return null
           const n = parseInt(v)
-          return isNaN(n) || n <= 0 ? "Enter a positive number of minutes" : null
+          return isNaN(n) || n < 1 || n > 1440 ? "Enter a number of minutes between 1 and 1440" : null
         },
       }).then(value => {
         if (!value?.trim()) return
         const mins = parseInt(value)
-        if (!isNaN(mins) && mins > 0) {
+        if (!isNaN(mins) && mins >= 1 && mins <= 1440) {
           vscode.workspace
             .getConfiguration("rabbithole")
             .update("dailyTargetMinutes", mins, vscode.ConfigurationTarget.Global)
@@ -62,13 +72,8 @@ export function activate(context: vscode.ExtensionContext): void {
 
   const refreshStatusBar = () => {
     const global = storage.getGlobalToday()
-    const targetMins = vscode.workspace
-      .getConfiguration("rabbithole")
-      .get<number>("dailyTargetMinutes") ?? 0
     const activeText = formatDuration(global.activeTime)
-    statusBar.text = targetMins > 0
-      ? `🥕 ${activeText} / ${formatDuration(targetMins * 60_000)}`
-      : `🥕 ${activeText}`
+    statusBar.text = `🥕 ${activeText} / ${formatDuration(getDailyTargetMs())}`
     statusBar.color = tracker.isActivelyTracking ? "#22c55e" : undefined
   }
 

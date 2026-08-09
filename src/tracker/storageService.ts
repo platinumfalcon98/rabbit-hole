@@ -1,3 +1,5 @@
+import * as fs from "fs/promises"
+import * as path from "path"
 import * as vscode from "vscode"
 import {
   ActivitySession,
@@ -7,6 +9,7 @@ import {
   FileActivity,
   ProjectMeta,
 } from "../shared/types"
+import { clampDailyTargetMinutes, getDailyTargetMs, resolveProjectTargetMinutes } from "../shared/config"
 import { MirrorSink } from "./mirrorFormat"
 
 const ALL_AGENTS: AgentName[] = [
@@ -67,9 +70,17 @@ function globalKey(date: string): string {
 
 export const PROJECTS_KEY = "rabbithole:projects"
 
+const GLOBAL_PREFIX = "rabbithole:global:"
+const ANY_PREFIX = "rabbithole:"
+
+// One-shot UI flags. A wipe must not resurrect the first-run target prompt,
+// so these two survive clearAll.
+const PRESERVED_KEYS = ["rabbithole:targetPrompted", "rabbithole:targetDefaultMigrated"]
+
 export class StorageService {
   private currentProjectId = ""
   private mirror: MirrorSink | null = null
+  private lastBackupPath = ""
 
   constructor(private context: vscode.ExtensionContext) {}
 
@@ -343,22 +354,15 @@ export class StorageService {
   }
 
   updateStreak(): void {
-    const targetMinutes = vscode.workspace
-      .getConfiguration("rabbithole")
-      .get<number>("dailyTargetMinutes") ?? 0
-    const targetMs = targetMinutes * 60 * 1000
+    const targetMs = getDailyTargetMs()
 
     const globalToday = this.getGlobalDay(todayKey())
-    const todayMet = targetMs > 0
-      ? globalToday.activeTime >= targetMs
-      : globalToday.activeTime > 0
+    const todayMet = globalToday.activeTime >= targetMs
 
     const yd = new Date()
     yd.setDate(yd.getDate() - 1)
     const globalYesterday = this.getGlobalDay(dateKey(yd))
-    const yesterdayMet = targetMs > 0
-      ? globalYesterday.activeTime >= targetMs
-      : globalYesterday.activeTime > 0
+    const yesterdayMet = globalYesterday.activeTime >= targetMs
     const chainSoFar = yesterdayMet ? (globalYesterday.streak || 0) : 0
 
     const newStreak = todayMet ? chainSoFar + 1 : chainSoFar
@@ -374,22 +378,15 @@ export class StorageService {
     const project = projects.find(p => p.id === projectId)
     if (!project) return
 
-    const effectiveMinutes = project.dailyTargetMinutes !== undefined
-      ? project.dailyTargetMinutes
-      : vscode.workspace.getConfiguration("rabbithole").get<number>("dailyTargetMinutes") ?? 0
-    const targetMs = effectiveMinutes * 60_000
+    const targetMs = resolveProjectTargetMinutes(project.dailyTargetMinutes) * 60_000
 
     const todayLog = this.getLog(projectId, todayKey())
-    const todayMet = targetMs > 0
-      ? todayLog.activeTime >= targetMs
-      : todayLog.activeTime > 0
+    const todayMet = todayLog.activeTime >= targetMs
 
     const yd = new Date()
     yd.setDate(yd.getDate() - 1)
     const ydLog = this.getLog(projectId, dateKey(yd))
-    const yesterdayMet = targetMs > 0
-      ? ydLog.activeTime >= targetMs
-      : ydLog.activeTime > 0
+    const yesterdayMet = ydLog.activeTime >= targetMs
     const chainSoFar = yesterdayMet ? (ydLog.streak ?? 0) : 0
 
     const newStreak = todayMet ? chainSoFar + 1 : chainSoFar
@@ -415,7 +412,9 @@ export class StorageService {
     if (minutes === null || minutes === undefined) {
       delete project.dailyTargetMinutes
     } else {
-      project.dailyTargetMinutes = minutes
+      const clamped = clampDailyTargetMinutes(minutes)
+      if (clamped === null) return
+      project.dailyTargetMinutes = clamped
     }
     this.context.globalState.update(PROJECTS_KEY, projects)
     this.mirror?.markProjectsDirty()
@@ -450,6 +449,93 @@ export class StorageService {
       )
     }
     return rows.join("\n")
+  }
+
+  // ── Your data ─────────────────────────────────────────────────────────────
+
+  getStoragePath(): string {
+    return path.join(this.context.globalStorageUri.fsPath, "mirror")
+  }
+
+  // Path of the snapshot written by the most recent destructive op, so the
+  // caller can tell the user where their data went.
+  getLastBackupPath(): string {
+    return this.lastBackupPath
+  }
+
+  // globalState has no undo, so every destructive path snapshots first.
+  async backupToDisk(): Promise<string> {
+    const dir = path.join(this.context.globalStorageUri.fsPath, "backups")
+    await fs.mkdir(dir, { recursive: true })
+
+    const snapshot: Record<string, unknown> = {}
+    for (const key of this.context.globalState.keys()) {
+      if (key.startsWith(ANY_PREFIX)) snapshot[key] = this.context.globalState.get(key)
+    }
+
+    // ":" is illegal in Windows filenames, so the ISO stamp is flattened
+    const stamp = new Date().toISOString().replace(/:/g, "-")
+    const file = path.join(dir, `backup-${stamp}.json`)
+    await fs.writeFile(file, JSON.stringify(snapshot, null, 2), "utf8")
+    this.lastBackupPath = file
+    return file
+  }
+
+  async clearProject(projectId: string): Promise<void> {
+    await this.backupToDisk()
+
+    const prefix = `rabbithole:log:${projectId}:`
+    const affectedDates: string[] = []
+    for (const key of this.context.globalState.keys()) {
+      if (!key.startsWith(prefix)) continue
+      affectedDates.push(key.slice(prefix.length))
+      await this.context.globalState.update(key, undefined)
+    }
+
+    // Clearing history must not clear identity for the project being tracked.
+    // The tracker keeps writing under currentProjectId regardless of the
+    // registry, so unregistering it would send later sessions into logs no
+    // aggregate reads while their deltas still inflated the global day totals —
+    // global would silently stop equalling the sum of its projects.
+    const projects = this.getProjects()
+    const remaining = projectId === this.currentProjectId
+      ? projects.map(p => (p.id === projectId ? { ...p, streak: 0 } : p))
+      : projects.filter(p => p.id !== projectId)
+    await this.context.globalState.update(PROJECTS_KEY, remaining)
+
+    // Global day records are maintained by delta accumulation, not derived, so
+    // dropping a project's logs would otherwise leave cross-project totals
+    // permanently inflated. Recompute each affected day from what's left.
+    for (const date of affectedDates) {
+      const globalDay = this.getGlobalDay(date)
+      let activeTime = 0
+      for (const p of remaining) activeTime += this.getLog(p.id, date).activeTime
+      globalDay.activeTime = activeTime
+      // Historical streaks can't be meaningfully recomputed — leave them alone
+      await this.context.globalState.update(globalKey(date), globalDay)
+      this.mirror?.markDayDirty(date)
+    }
+
+    this.mirror?.markProjectsDirty()
+    this.updateStreak()
+  }
+
+  async clearAll(): Promise<void> {
+    await this.backupToDisk()
+
+    const affectedDates = new Set<string>()
+    for (const key of this.context.globalState.keys()) {
+      if (!key.startsWith(ANY_PREFIX) || PRESERVED_KEYS.includes(key)) continue
+      if (key.startsWith(GLOBAL_PREFIX)) {
+        affectedDates.add(key.slice(GLOBAL_PREFIX.length))
+      } else if (key.startsWith("rabbithole:log:")) {
+        affectedDates.add(key.slice(key.lastIndexOf(":") + 1))
+      }
+      await this.context.globalState.update(key, undefined)
+    }
+
+    for (const date of affectedDates) this.mirror?.markDayDirty(date)
+    this.mirror?.markProjectsDirty()
   }
 
   private getLog(projectId: string, date: string): DailyLog {

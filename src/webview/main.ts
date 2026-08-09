@@ -352,7 +352,7 @@ function getEffectiveTargetMs(): number {
   if (isSingle) {
     const proj = projects.find(p => p.id === selectedProjectIds[0])
     if (proj?.dailyTargetMinutes !== undefined) return proj.dailyTargetMinutes * 60_000
-    return 0   // no per-project target — any activity counts, no progress bar
+    // No own target — fall through to the global, matching updateProjectStreak's fallback.
   }
   return dailyTargetMs   // global
 }
@@ -448,29 +448,23 @@ function updateStatCards(logs: DailyLog[]): void {
   }
 
   const effectiveTargetMs = getEffectiveTargetMs()
-  const todayEarned = effectiveTargetMs > 0
-    ? lastLog.activeTime >= effectiveTargetMs
-    : lastLog.activeTime > 0
+  const todayEarned = lastLog.activeTime >= effectiveTargetMs
   const pill = document.getElementById("streak-pill")
   pill?.classList.toggle("hidden", currentPreset !== "today")
-  pill?.classList.toggle("streak-at-risk", !todayEarned && effectiveTargetMs > 0)
+  pill?.classList.toggle("streak-at-risk", !todayEarned)
   document.getElementById("streak-extended")?.classList.toggle("hidden", !todayEarned)
 
   if (streakTargetEl) {
-    if (effectiveTargetMs > 0) {
-      if (todayEarned) {
-        streakTargetEl.textContent = " · ✓"
-        streakTargetEl.className = "streak-target-met"
-      } else {
-        const atRisk = lastLog.streak
-        const progress = `${formatDuration(lastLog.activeTime)} / ${formatDuration(effectiveTargetMs)}`
-        streakTargetEl.textContent = atRisk > 0
-          ? ` · ${progress} · Streak at risk`
-          : ` · ${progress}`
-        streakTargetEl.className = "streak-target-pending"
-      }
+    if (todayEarned) {
+      streakTargetEl.textContent = " · ✓"
+      streakTargetEl.className = "streak-target-met"
     } else {
-      streakTargetEl.textContent = ""
+      const atRisk = lastLog.streak
+      const progress = `${formatDuration(lastLog.activeTime)} / ${formatDuration(effectiveTargetMs)}`
+      streakTargetEl.textContent = atRisk > 0
+        ? ` · ${progress} · Streak at risk`
+        : ` · ${progress}`
+      streakTargetEl.className = "streak-target-pending"
     }
   }
 }
@@ -737,7 +731,7 @@ function renderProjectsTab(): void {
             data-project-id="${p.id}"
             value="${p.dailyTargetMinutes ?? ""}"
             min="1" max="1440" step="5"
-            placeholder="global (${Math.round(dailyTargetMs / 60_000) || 5}m)"
+            placeholder="global (${Math.round(dailyTargetMs / 60_000)}m)"
           >
           <div class="stepper-btns">
             <button class="stepper-btn" tabindex="-1" aria-label="Increase" data-dir="up">
@@ -776,7 +770,12 @@ function renderProjectsTab(): void {
         const input = container.querySelector<HTMLInputElement>(`.project-target-input[data-project-id="${pid}"]`)
         if (!input) return
         const raw = input.value.trim()
-        const value = raw === "" ? null : parseInt(raw)
+        let value: number | null = null
+        if (raw !== "") {
+          const parsed = parseInt(raw)
+          if (isNaN(parsed)) return
+          value = parsed
+        }
         vscode.postMessage({ type: "updateProjectSetting", projectId: pid, key: "dailyTargetMinutes", value })
         applyBtn.textContent = "Saved ✓"
         applyBtn.disabled = true
@@ -931,6 +930,7 @@ window.addEventListener("message", (event: MessageEvent) => {
       }
       renderProjectDropdown()
       updateDropdownLabel()
+      renderClearProjectSelect()
       renderAll()
       break
 
@@ -1153,12 +1153,78 @@ type SettingsMsg = Extract<ExtensionMessage, { type: "settings" }>
 function populateSettings(msg: SettingsMsg): void {
   const dailyTarget  = document.getElementById("pref-daily-target")  as HTMLInputElement
   const idleThresh   = document.getElementById("pref-idle-threshold") as HTMLInputElement
-  const sessionExp   = document.getElementById("pref-session-expiry") as HTMLInputElement
 
-  if (dailyTarget)  dailyTarget.value  = msg.dailyTargetMinutes > 0 ? String(msg.dailyTargetMinutes) : ""
+  const storagePath  = document.getElementById("storage-path")
+
+  if (dailyTarget)  dailyTarget.value  = String(msg.dailyTargetMinutes)
   if (idleThresh)   idleThresh.value   = String(msg.idleThresholdMinutes)
-  if (sessionExp)   sessionExp.value   = String(msg.sessionExpiryMinutes)
+  if (storagePath)  storagePath.textContent = msg.storagePath
 }
+
+// ── Your data ──────────────────────────────────────────────────────────────
+
+function renderClearProjectSelect(): void {
+  const sel = document.getElementById("clear-project-select") as HTMLSelectElement | null
+  if (!sel) return
+  const prev = sel.value
+  sel.innerHTML = ""
+  for (const p of projects) {
+    const opt = document.createElement("option")
+    opt.value = p.id
+    opt.textContent = p.name
+    sel.appendChild(opt)
+  }
+  if (projects.some(p => p.id === prev)) sel.value = prev
+  syncClearProjectConfirm()
+}
+
+// Type-to-confirm: only an exact, case-sensitive match unlocks the button.
+function syncClearProjectConfirm(): void {
+  const sel   = document.getElementById("clear-project-select") as HTMLSelectElement | null
+  const input = document.getElementById("clear-project-confirm") as HTMLInputElement | null
+  const btn   = document.getElementById("clear-project-btn") as HTMLButtonElement | null
+  if (!sel || !input || !btn) return
+  const name = projects.find(p => p.id === sel.value)?.name ?? ""
+  btn.disabled = name === "" || input.value.trim() !== name
+}
+
+function syncClearAllConfirm(): void {
+  const input = document.getElementById("clear-all-confirm") as HTMLInputElement | null
+  const btn   = document.getElementById("clear-all-btn") as HTMLButtonElement | null
+  if (!input || !btn) return
+  btn.disabled = input.value.trim() !== "DELETE"
+}
+
+document.addEventListener("input", (e: Event) => {
+  const id = (e.target as HTMLElement).id
+  if (id === "clear-project-confirm") syncClearProjectConfirm()
+  else if (id === "clear-all-confirm") syncClearAllConfirm()
+})
+
+document.getElementById("clear-project-select")?.addEventListener("change", syncClearProjectConfirm)
+
+document.getElementById("reveal-storage")?.addEventListener("click", () => {
+  vscode.postMessage({ type: "revealStorage" })
+})
+
+document.addEventListener("click", (e: Event) => {
+  const btn = (e.target as HTMLElement).closest(".setting-danger") as HTMLButtonElement | null
+  if (!btn || btn.disabled) return
+
+  if (btn.id === "clear-project-btn") {
+    const sel   = document.getElementById("clear-project-select") as HTMLSelectElement | null
+    const input = document.getElementById("clear-project-confirm") as HTMLInputElement | null
+    if (!sel?.value) return
+    vscode.postMessage({ type: "clearProject", projectId: sel.value })
+    if (input) input.value = ""
+  } else if (btn.id === "clear-all-btn") {
+    const input = document.getElementById("clear-all-confirm") as HTMLInputElement | null
+    vscode.postMessage({ type: "clearAll" })
+    if (input) input.value = ""
+  }
+
+  btn.disabled = true
+})
 
 function flashSaved(el: HTMLInputElement): void {
   el.classList.remove("saved")
@@ -1168,7 +1234,7 @@ function flashSaved(el: HTMLInputElement): void {
 }
 
 // Enable Apply button when a settings input changes
-;["pref-daily-target", "pref-idle-threshold", "pref-session-expiry"].forEach(id => {
+;["pref-daily-target", "pref-idle-threshold"].forEach(id => {
   document.getElementById(id)?.addEventListener("input", () => {
     const btn = document.querySelector<HTMLButtonElement>(`.setting-apply[data-for="${id}"]`)
     if (btn) btn.disabled = false
@@ -1184,16 +1250,13 @@ document.addEventListener("click", (e: Event) => {
   if (!input) return
 
   if (inputId === "pref-daily-target") {
-    const raw = input.value.trim()
-    vscode.postMessage({ type: "updateSetting", key: "dailyTargetMinutes", value: raw === "" ? null : parseInt(raw) })
+    const val = parseInt(input.value)
+    if (isNaN(val) || val < 1) return
+    vscode.postMessage({ type: "updateSetting", key: "dailyTargetMinutes", value: val })
   } else if (inputId === "pref-idle-threshold") {
     const val = parseInt(input.value)
-    if (isNaN(val) || val <= 0) return
+    if (isNaN(val) || val < 1) return
     vscode.postMessage({ type: "updateSetting", key: "idleThresholdMinutes", value: val })
-  } else if (inputId === "pref-session-expiry") {
-    const val = parseInt(input.value)
-    if (isNaN(val) || val <= 0) return
-    vscode.postMessage({ type: "updateSetting", key: "sessionExpiryMinutes", value: val })
   }
 
   flashSaved(input)
@@ -1283,7 +1346,7 @@ function syncExportName(): void {
 
 document.getElementById("export-project-select")?.addEventListener("change", syncExportName)
 
-document.getElementById("export-pdf-btn")?.addEventListener("click", () => {
+function openExportModal(): void {
   const sel = document.getElementById("export-project-select") as HTMLSelectElement | null
   if (sel) {
     sel.innerHTML = ""
@@ -1302,7 +1365,10 @@ document.getElementById("export-pdf-btn")?.addEventListener("click", () => {
   }
   syncExportName()
   document.getElementById("pdf-modal-overlay")?.classList.remove("hidden")
-})
+}
+
+document.getElementById("export-pdf-btn")?.addEventListener("click", openExportModal)
+document.getElementById("export-data-btn")?.addEventListener("click", openExportModal)
 
 const exportNameInput = document.getElementById("export-display-name") as HTMLInputElement | null
 const exportNameHint  = document.getElementById("export-name-hint")

@@ -53,24 +53,19 @@ export class AgentDetector {
     this.context.subscriptions.push(watcher)
   }
 
+  // The global on/off switch and the per-agent toggle settings were removed in
+  // v0.4.0, so this runs ungated. Reading a deleted key would return undefined and
+  // silently classify everything as manual — if detection is ever revived, gate it
+  // on a new, deliberately declared setting instead.
   detect(profile: ChangeProfile): AgentEvent | null {
-    const config = vscode.workspace.getConfiguration("rabbithole")
-    if (!config.get<boolean>("detectAgents")) {
-      return this.makeEvent("manual", "high", profile)
-    }
-
-    const agentToggles = config.get<Record<string, boolean>>("agents") ?? {}
-
     // Layer 1 — Claude Code file watcher (HIGH confidence)
-    if (agentToggles["claudeCode"] !== false) {
-      if (Date.now() - this.claudeCodeSignalTime <= AGENT_COOLDOWN_MS) {
-        return this.makeEvent("claude-code", "high", profile)
-      }
+    if (Date.now() - this.claudeCodeSignalTime <= AGENT_COOLDOWN_MS) {
+      return this.makeEvent("claude-code", "high", profile)
     }
 
     // Layer 2 — Cursor detection via app name
     const isCursor = vscode.env.appName.toLowerCase().includes("cursor")
-    if (isCursor && agentToggles["cursor"] !== false) {
+    if (isCursor) {
       if (this.isLikelyAI(profile)) {
         return this.makeEvent("cursor", "high", profile)
       }
@@ -78,8 +73,6 @@ export class AgentDetector {
 
     // Layer 3 — Extension presence
     for (const [agentName, extId] of Object.entries(EXTENSION_IDS) as [AgentName, string][]) {
-      const toggleKey = agentName === "claude-code" ? "claudeCode" : agentName
-      if (agentToggles[toggleKey] === false) continue
       if (this.isExtensionActive(extId)) {
         if (this.matchesProfile(agentName, profile)) {
           return this.makeEvent(agentName, "high", profile)
@@ -88,7 +81,7 @@ export class AgentDetector {
     }
 
     // Layer 4 — Timing fingerprint (when multiple agents installed)
-    const installedAgents = this.getInstalledAgents(agentToggles)
+    const installedAgents = this.getInstalledAgents()
     if (installedAgents.length > 1) {
       const matched = this.matchBestProfile(installedAgents, profile)
       if (matched) {
@@ -171,19 +164,17 @@ export class AgentDetector {
     return null
   }
 
-  private getInstalledAgents(toggles: Record<string, boolean>): AgentName[] {
+  private getInstalledAgents(): AgentName[] {
     const installed: AgentName[] = []
-    if (toggles["claudeCode"] !== false &&
-        Date.now() - this.claudeCodeSignalTime <= AGENT_COOLDOWN_MS * 10) {
+    if (Date.now() - this.claudeCodeSignalTime <= AGENT_COOLDOWN_MS * 10) {
       installed.push("claude-code")
     }
     for (const [agentName, extId] of Object.entries(EXTENSION_IDS) as [AgentName, string][]) {
-      const toggleKey = agentName === "claude-code" ? "claudeCode" : agentName
-      if (toggles[toggleKey] !== false && this.isExtensionActive(extId)) {
+      if (this.isExtensionActive(extId)) {
         installed.push(agentName)
       }
     }
-    if (vscode.env.appName.toLowerCase().includes("cursor") && toggles["cursor"] !== false) {
+    if (vscode.env.appName.toLowerCase().includes("cursor")) {
       installed.push("cursor")
     }
     return installed

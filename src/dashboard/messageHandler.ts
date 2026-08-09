@@ -1,5 +1,7 @@
+import * as fs from "fs/promises"
 import * as vscode from "vscode"
 import { DailyLog, WebviewMessage } from "../shared/types"
+import { getDailyTargetMinutes, getDailyTargetMs, getIdleThresholdMs } from "../shared/config"
 import { StorageService } from "../tracker/storageService"
 import { DashboardPanel } from "./dashboardPanel"
 
@@ -55,8 +57,10 @@ export function handleMessage(
       currentStartDate = today
       currentEndDate = today
       currentProjectIds = []
+      // Settings first: the webview's dailyTargetMs starts at 0, and sendInit
+      // triggers the first streak render, which needs the real target.
+      sendSettings(storage, panel)
       sendInit(storage, panel)
-      sendSettings(panel)
       break
     }
 
@@ -116,7 +120,12 @@ export function handleMessage(
 
     case "updateSetting": {
       const cfg = vscode.workspace.getConfiguration("rabbithole")
-      cfg.update(msg.key, msg.value === null ? undefined : msg.value, vscode.ConfigurationTarget.Global)
+      cfg.update(msg.key, msg.value, vscode.ConfigurationTarget.Global).then(() => {
+        // Config writes are async; re-reading before this settles returns the old value.
+        storage.updateStreak()
+        storage.updateProjectStreak(storage.getCurrentProjectId())
+        sendSettings(storage, panel)
+      })
       break
     }
 
@@ -126,20 +135,55 @@ export function handleMessage(
       sendInit(storage, panel)
       break
     }
+
+    case "revealStorage": {
+      const dir = storage.getStoragePath()
+      // The mirror dir is created lazily on the first flush, so it may not
+      // exist yet — revealFileInOS on a missing path silently does nothing.
+      fs.mkdir(dir, { recursive: true }).then(() => {
+        vscode.commands.executeCommand("revealFileInOS", vscode.Uri.file(dir))
+      })
+      break
+    }
+
+    case "clearProject": {
+      const name = storage.getProjects().find(p => p.id === msg.projectId)?.name ?? "project"
+      storage.clearProject(msg.projectId).then(() => {
+        refreshAfterWipe(storage, panel)
+        vscode.window.showInformationMessage(
+          `Rabbit Hole: Cleared "${name}". Backup saved to ${storage.getLastBackupPath()}`
+        )
+      })
+      break
+    }
+
+    case "clearAll": {
+      storage.clearAll().then(() => {
+        refreshAfterWipe(storage, panel)
+        vscode.window.showInformationMessage(
+          `Rabbit Hole: All data cleared. Backup saved to ${storage.getLastBackupPath()}`
+        )
+      })
+      break
+    }
   }
 }
 
-function sendSettings(panel: DashboardPanel): void {
-  const cfg = vscode.workspace.getConfiguration("rabbithole")
-  const dailyTargetMinutes = cfg.get<number>("dailyTargetMinutes") ?? 0
+// Settings before init for the same reason as the ready case: sendInit renders
+// the streak, which needs the target the settings message carries.
+function refreshAfterWipe(storage: StorageService, panel: DashboardPanel): void {
+  sendSettings(storage, panel)
+  sendInit(storage, panel)
+}
+
+function sendSettings(storage: StorageService, panel: DashboardPanel): void {
+  const dailyTargetMinutes = getDailyTargetMinutes()
   panel.postMessage({
     type: "settings",
-    agentsEnabled: cfg.get<boolean>("detectAgents") ?? true,
-    dailyTargetMs: dailyTargetMinutes * 60_000,
+    dailyTargetMs: getDailyTargetMs(),
     dailyTargetMinutes,
-    idleThresholdMinutes: cfg.get<number>("idleThresholdMinutes") ?? 5,
-    sessionExpiryMinutes: cfg.get<number>("sessionExpiryMinutes") ?? 60,
-    agentToggles: cfg.get<Record<string, boolean>>("agents") ?? {},
+    idleThresholdMinutes: Math.round(getIdleThresholdMs() / 60_000),
+    storagePath: storage.getStoragePath(),
   })
 }
 

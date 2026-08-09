@@ -2,7 +2,7 @@
   "name": "rabbit-hole",
   "displayName": "Rabbit Hole",
   "description": "Dev time intelligence — automatic tracking, AI agent attribution, activity dashboard",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "publisher": "rabbit-hole",
   "license": "MIT",
   "repository": {
@@ -43,57 +43,24 @@
         "command": "rabbithole.openDashboard",
         "title": "Rabbit Hole: Open Dashboard",
         "icon": "$(clock)"
-      },
-      {
-        "command": "rabbithole.toggleAgentDetection",
-        "title": "Rabbit Hole: Toggle Agent Detection"
       }
     ],
     "configuration": {
       "title": "Rabbit Hole",
       "properties": {
-        "rabbithole.detectAgents": {
-          "type": "boolean",
-          "default": true,
-          "description": "Detect and log AI agent activity"
+        "rabbithole.dailyTargetMinutes": {
+          "type": "number",
+          "default": 20,
+          "minimum": 1,
+          "maximum": 1440,
+          "description": "Daily active-coding target in minutes. A day counts toward your streak once you reach it."
         },
         "rabbithole.idleThresholdMinutes": {
           "type": "number",
           "default": 5,
-          "description": "Minutes of inactivity before the active timer pauses"
-        },
-        "rabbithole.sessionExpiryMinutes": {
-          "type": "number",
-          "default": 60,
-          "description": "Minutes of inactivity before a paused session is closed and a new one starts on return"
-        },
-        "rabbithole.dailyTargetMinutes": {
-          "type": "number",
-          "default": 5,
-          "description": "Daily active-coding target in minutes. Streak only increments on days where you meet this target. Leave unset to count any activity."
-        },
-        "rabbithole.agents": {
-          "type": "object",
-          "default": {},
-          "properties": {
-            "claudeCode": {
-              "type": "boolean",
-              "default": true
-            },
-            "copilot": {
-              "type": "boolean",
-              "default": true
-            },
-            "cursor": {
-              "type": "boolean",
-              "default": true
-            },
-            "continue": {
-              "type": "boolean",
-              "default": true
-            }
-          },
-          "description": "Toggle detection per AI agent"
+          "minimum": 1,
+          "maximum": 60,
+          "description": "Pause the active timer after this many minutes with no activity."
         }
       }
     }

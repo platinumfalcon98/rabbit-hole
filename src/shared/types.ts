@@ -21,7 +21,7 @@ export interface ProjectMeta {
   name: string
   path: string
   detectionMethod: "git-remote" | "folder-hash" | "user-defined"
-  dailyTargetMinutes?: number   // per-project streak target; unset = any activity counts
+  dailyTargetMinutes?: number   // per-project streak target; unset = inherit the global target
   streak?: number               // current streak for this project (updated every 10s)
 }
 
@@ -66,7 +66,7 @@ export interface DailyLog {
 export type ExtensionMessage =
   | { type: "init"; data: DailyLog[]; heatmapData: DailyLog[]; projects: ProjectMeta[]; currentProjectId: string; projectTimestamps: Record<string, number>; projectActiveTimes: Record<string, number> }
   | { type: "update"; data: DailyLog; projectId: string; globalToday: { activeTime: number; streak: number } }
-  | { type: "settings"; agentsEnabled: boolean; dailyTargetMs: number; dailyTargetMinutes: number; idleThresholdMinutes: number; sessionExpiryMinutes: number; agentToggles: Record<string, boolean> }
+  | { type: "settings"; dailyTargetMs: number; dailyTargetMinutes: number; idleThresholdMinutes: number; storagePath: string }
   | { type: "pdfData"; logs: DailyLog[]; projectName: string; dateRange: { from: string; to: string } }
 
 export type RangePreset = "today" | "7d" | "30d" | "1y" | "custom"
@@ -79,5 +79,8 @@ export type WebviewMessage =
   | { type: "exportPdfRequest"; preset: "today" | "7d" | "30d" | "90d" | "custom"; customStart?: string; customEnd?: string; exportProjectId?: string }
   | { type: "writePdf"; base64: string; projectName: string }
   | { type: "writeJpg"; base64: string; projectName: string }
-  | { type: "updateSetting"; key: string; value: number | boolean | null | Record<string, boolean> }
+  | { type: "updateSetting"; key: "dailyTargetMinutes" | "idleThresholdMinutes"; value: number }
   | { type: "updateProjectSetting"; projectId: string; key: "dailyTargetMinutes"; value: number | null }
+  | { type: "revealStorage" }
+  | { type: "clearProject"; projectId: string }
+  | { type: "clearAll" }

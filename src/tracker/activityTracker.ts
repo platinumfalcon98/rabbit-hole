@@ -1,5 +1,6 @@
 import * as vscode from "vscode"
 import { ActivitySession, FileActivity } from "../shared/types"
+import { SESSION_EXPIRY_MS, getIdleThresholdMs } from "../shared/config"
 import { StorageService } from "./storageService"
 import { detectProject, clearDetectionCache } from "./projectDetector"
 
@@ -63,6 +64,17 @@ const EXCLUDED_LANGUAGE_IDS = new Set(["go.sum", "go.work.sum", "log"])
 // recording; without this the editor path would silently credit time to
 // generated files and to anything under node_modules/dist/out.
 function trackableLanguage(doc: vscode.TextDocument): string | undefined {
+  // Only documents backed by a real file on disk. VS Code opens virtual ones
+  // for diff views, output panels, settings editors and untitled buffers, and
+  // onDidChangeTextDocument fires for them exactly like any other document.
+  //
+  // The git extension's diff views are the case that made this necessary: they
+  // use scheme "git" with a path of "<realfile>.git", so opening a diff
+  // recorded churn against a file named "README.md.git" that has never existed.
+  // Every such row also carried language "plaintext", which is what a
+  // git-scheme document reports. The FileSystemWatcher path has always had this
+  // check (see onExternalFileChange); the editor path never did.
+  if (doc.uri.scheme !== "file") return undefined
   if (EXCLUDED_LANGUAGE_IDS.has(doc.languageId)) return undefined
   const segments = doc.uri.path.split("/")
   const basename = segments[segments.length - 1]
@@ -245,18 +257,6 @@ export class ActivityTracker {
     }
   }
 
-  private getIdleThresholdMs(): number {
-    const config = vscode.workspace.getConfiguration("rabbithole")
-    const minutes = config.get<number>("idleThresholdMinutes") ?? 5
-    return minutes * 60 * 1000
-  }
-
-  private getSessionExpiryMs(): number {
-    const config = vscode.workspace.getConfiguration("rabbithole")
-    const minutes = config.get<number>("sessionExpiryMinutes") ?? 60
-    return minutes * 60 * 1000
-  }
-
   private onActivity(): void {
     // Background agents writing files (and disk rewrites of open documents) fire
     // activity events while the window is blurred; counting them would accrue
@@ -398,7 +398,7 @@ export class ActivityTracker {
     this.currentSession!.activeTime = this.activeTimeAccumulated
     this.storage.appendSession(this.currentSession!)
     // After the full expiry period, close the session entirely
-    this.expiryTimer = setTimeout(() => this.expireSession(), this.getSessionExpiryMs())
+    this.expiryTimer = setTimeout(() => this.expireSession(), SESSION_EXPIRY_MS)
   }
 
   // Expiry: session stayed idle for the full expiry duration — close it.
@@ -643,7 +643,7 @@ export class ActivityTracker {
 
   private resetIdleTimer(): void {
     this.clearIdleTimer()
-    this.idleTimer = setTimeout(() => this.pauseSession(), this.getIdleThresholdMs())
+    this.idleTimer = setTimeout(() => this.pauseSession(), getIdleThresholdMs())
   }
 
   private clearIdleTimer(): void {

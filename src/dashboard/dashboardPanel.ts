@@ -568,11 +568,11 @@ export class DashboardPanel {
             <div class="setting-row">
               <div class="setting-meta">
                 <label class="setting-label" for="pref-daily-target">Daily target (all projects)</label>
-                <div class="setting-desc">Global streak target across all projects. Leave empty for any activity. Set per-project targets on the Projects tab.</div>
+                <div class="setting-desc">Streak target across all projects. Set per-project overrides on the Projects tab.</div>
               </div>
               <div class="setting-control">
                 <div class="stepper-wrapper">
-                  <input type="number" id="pref-daily-target" class="setting-input" min="0" max="1440" step="5" placeholder="unset">
+                  <input type="number" id="pref-daily-target" class="setting-input" min="1" max="1440" step="5">
                   <div class="stepper-btns">
                     <button class="stepper-btn" data-for="pref-daily-target" data-dir="up" tabindex="-1" aria-label="Increase">
                       <svg width="8" height="5" viewBox="0 0 8 5" fill="currentColor"><polygon points="4,0 8,5 0,5"/></svg>
@@ -588,8 +588,8 @@ export class DashboardPanel {
             </div>
             <div class="setting-row">
               <div class="setting-meta">
-                <label class="setting-label" for="pref-idle-threshold">Idle threshold</label>
-                <div class="setting-desc">Minutes of inactivity before the active timer pauses.</div>
+                <label class="setting-label" for="pref-idle-threshold">Pause after</label>
+                <div class="setting-desc">Minutes with no activity before the active timer pauses. Logged time is kept.</div>
               </div>
               <div class="setting-control">
                 <div class="stepper-wrapper">
@@ -607,25 +607,50 @@ export class DashboardPanel {
                 <button class="setting-apply" data-for="pref-idle-threshold" disabled>Apply</button>
               </div>
             </div>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <h3 class="settings-section-title">Your data</h3>
+          <div class="settings-card">
             <div class="setting-row">
               <div class="setting-meta">
-                <label class="setting-label" for="pref-session-expiry">Session expiry</label>
-                <div class="setting-desc">Minutes away before a paused session closes and a new one starts on return.</div>
+                <span class="setting-label">Storage location</span>
+                <div class="setting-desc">This is where your data lives. Everything is local — nothing is sent anywhere.</div>
+                <div class="setting-desc" id="storage-path" style="overflow-wrap:anywhere;user-select:text;margin-top:4px"></div>
               </div>
               <div class="setting-control">
-                <div class="stepper-wrapper">
-                  <input type="number" id="pref-session-expiry" class="setting-input" min="1" max="480" step="5">
-                  <div class="stepper-btns">
-                    <button class="stepper-btn" data-for="pref-session-expiry" data-dir="up" tabindex="-1" aria-label="Increase">
-                      <svg width="8" height="5" viewBox="0 0 8 5" fill="currentColor"><polygon points="4,0 8,5 0,5"/></svg>
-                    </button>
-                    <button class="stepper-btn" data-for="pref-session-expiry" data-dir="down" tabindex="-1" aria-label="Decrease">
-                      <svg width="8" height="5" viewBox="0 0 8 5" fill="currentColor"><polygon points="0,0 8,0 4,5"/></svg>
-                    </button>
-                  </div>
-                </div>
-                <span class="setting-unit">min</span>
-                <button class="setting-apply" data-for="pref-session-expiry" disabled>Apply</button>
+                <button class="setting-apply" id="reveal-storage">Reveal</button>
+              </div>
+            </div>
+            <div class="setting-row">
+              <div class="setting-meta">
+                <span class="setting-label">Export</span>
+                <div class="setting-desc">Save a share card or a full report of your activity.</div>
+              </div>
+              <div class="setting-control">
+                <button class="setting-apply" id="export-data-btn">Export data…</button>
+              </div>
+            </div>
+            <div class="setting-row">
+              <div class="setting-meta">
+                <label class="setting-label" for="clear-project-select">Clear a project's history</label>
+                <div class="setting-desc">Deletes every logged day for one project. Type the project's exact name to confirm. A backup is written first.</div>
+              </div>
+              <div class="setting-control">
+                <select id="clear-project-select" class="setting-input" style="width:130px;text-align:left;padding-right:10px"></select>
+                <input type="text" id="clear-project-confirm" class="setting-input" style="width:130px;text-align:left;padding-right:10px" placeholder="Project name" spellcheck="false" autocomplete="off">
+                <button class="setting-danger" id="clear-project-btn" disabled>Clear</button>
+              </div>
+            </div>
+            <div class="setting-row">
+              <div class="setting-meta">
+                <label class="setting-label" for="clear-all-confirm">Clear everything</label>
+                <div class="setting-desc">Deletes all projects and all logged history. Type DELETE to confirm. A backup is written first.</div>
+              </div>
+              <div class="setting-control">
+                <input type="text" id="clear-all-confirm" class="setting-input" style="width:130px;text-align:left;padding-right:10px" placeholder="DELETE" spellcheck="false" autocomplete="off">
+                <button class="setting-danger" id="clear-all-btn" disabled>Delete all</button>
               </div>
             </div>
           </div>

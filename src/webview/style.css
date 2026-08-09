@@ -1821,6 +1821,31 @@ body.vscode-high-contrast-light #heatmap-canvas svg text {
   background: rgba(var(--rh-accent-rgb), 0.1);
 }
 
+/* Destructive twin of .setting-apply — same shape, danger tint */
+.setting-danger {
+  padding: 3px 10px;
+  font-family: var(--vscode-font-family);
+  font-size: 0.75em;
+  border-radius: 4px;
+  border: 1px solid rgba(var(--rh-danger-rgb), 0.55);
+  cursor: pointer;
+  background: transparent;
+  color: rgba(var(--rh-danger-rgb), 0.9);
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+
+.setting-danger:disabled {
+  opacity: 0.35;
+  cursor: default;
+  color: var(--rh-text-dim);
+  border-color: var(--vscode-editorWidget-border);
+}
+
+.setting-danger:not(:disabled):hover {
+  background: rgba(var(--rh-danger-rgb), 0.12);
+}
+
 .setting-desc {
   font-size: 0.78em;
   color: var(--rh-text-dim);
