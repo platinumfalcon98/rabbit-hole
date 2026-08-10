@@ -2,7 +2,7 @@
   "name": "rabbit-hole",
   "displayName": "Rabbit Hole",
   "description": "Dev time intelligence — automatic tracking, AI agent attribution, activity dashboard",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "publisher": "rabbit-hole",
   "license": "MIT",
   "repository": {
@@ -13,8 +13,20 @@
     "vscode": "^1.85.0"
   },
   "categories": [
+    "Visualization",
     "Other"
   ],
+  "keywords": [
+    "time tracking",
+    "productivity",
+    "statistics",
+    "dashboard",
+    "streak"
+  ],
+  "bugs": {
+    "url": "https://github.com/platinumfalcon98/rabbit-hole/issues"
+  },
+  "homepage": "https://github.com/platinumfalcon98/rabbit-hole#readme",
   "activationEvents": [
     "onStartupFinished"
   ],
