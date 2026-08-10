@@ -8,6 +8,8 @@ node_modules/
 .vscode-test-profile/
 .vscode-test/
 scripts/
+test/
+tsconfig.test.json
 CLAUDE.md
 DESIGN.md
 DOCS_PREP.md

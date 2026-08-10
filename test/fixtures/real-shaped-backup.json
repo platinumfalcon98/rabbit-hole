@@ -1,0 +1,54 @@
+{
+  "rabbithole:projects": [
+    {
+      "id": "https://github.com/example/alpha.git",
+      "name": "alpha",
+      "path": "/repos/alpha",
+      "detectionMethod": "git-remote",
+      "streak": 3
+    },
+    {
+      "id": "beta-folder:7f57b2c5",
+      "name": "beta-folder",
+      "path": "/repos/beta-folder",
+      "detectionMethod": "folder-hash",
+      "streak": 0,
+      "dailyTargetMinutes": 45
+    }
+  ],
+  "rabbithole:log:2026-03-21": {
+    "date": "2026-03-21",
+    "totalTime": 600000,
+    "activeTime": 600000,
+    "streak": 0,
+    "languages": {},
+    "agents": {},
+    "files": [],
+    "sessions": []
+  },
+  "rabbithole:log:https://github.com/example/alpha.git:2026-03-22": {
+    "date": "2026-03-22",
+    "totalTime": 1800000,
+    "activeTime": 1800000,
+    "streak": 1,
+    "languages": { "typescript": { "time": 1800000, "linesAdded": 40, "linesDeleted": 5 } },
+    "agents": {},
+    "files": [],
+    "sessions": []
+  },
+  "rabbithole:log:beta-folder:7f57b2c5:2026-03-22": {
+    "date": "2026-03-22",
+    "totalTime": 1200000,
+    "activeTime": 1200000,
+    "streak": 1,
+    "languages": {},
+    "agents": {},
+    "files": [],
+    "sessions": []
+  },
+  "rabbithole:global:2026-03-21": { "date": "2026-03-21", "activeTime": 600000, "streak": 0 },
+  "rabbithole:global:2026-03-22": { "date": "2026-03-22", "activeTime": 3000000, "streak": 1 },
+  "rabbithole:targetPrompted": true,
+  "rabbithole:targetDefaultMigrated": true,
+  "rabbithole:userConfirmation": true
+}
