@@ -634,6 +634,42 @@ export class DashboardPanel {
             </div>
             <div class="setting-row">
               <div class="setting-meta">
+                <span class="setting-label">Back up everything</span>
+                <div class="setting-desc">Writes a complete, restorable copy of all your data to the backups folder.</div>
+              </div>
+              <div class="setting-control">
+                <button class="setting-apply" id="backup-all-btn">Create backup</button>
+              </div>
+            </div>
+            <div class="setting-row">
+              <div class="setting-meta">
+                <span class="setting-label">Back up some projects</span>
+                <div class="setting-desc">Writes a backup containing only the projects you pick — useful for moving one project to another machine.</div>
+              </div>
+              <div class="setting-control">
+                <button class="setting-apply" id="backup-projects-btn">Choose projects…</button>
+              </div>
+            </div>
+            <div class="setting-row">
+              <div class="setting-meta">
+                <span class="setting-label">Restore some projects</span>
+                <div class="setting-desc">Pick individual projects out of a backup — for undoing a clear, or bringing one project over from another machine. Projects you don't pick are left completely untouched.</div>
+              </div>
+              <div class="setting-control">
+                <button class="setting-apply" id="import-projects-btn">Choose projects…</button>
+              </div>
+            </div>
+            <div class="setting-row">
+              <div class="setting-meta">
+                <span class="setting-label">Restore everything</span>
+                <div class="setting-desc">Replace this machine's history with every project in a backup. Projects that aren't in the backup are still kept. A backup is written first.</div>
+              </div>
+              <div class="setting-control">
+                <button class="setting-apply" id="import-all-btn">Restore all…</button>
+              </div>
+            </div>
+            <div class="setting-row">
+              <div class="setting-meta">
                 <label class="setting-label" for="clear-project-select">Clear a project's history</label>
                 <div class="setting-desc">Deletes every logged day for one project. Type the project's exact name to confirm. A backup is written first.</div>
               </div>

@@ -25,6 +25,7 @@ export function activate(context: vscode.ExtensionContext): void {
   mirror.start()
 
   const tracker = new ActivityTracker(context, storage)
+  storage.setSessionDiscardHook(() => tracker.discardCurrentSession())
 
   tracker.start()
   storage.updateStreak()

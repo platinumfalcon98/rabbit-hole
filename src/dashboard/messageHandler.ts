@@ -2,7 +2,13 @@ import * as fs from "fs/promises"
 import * as vscode from "vscode"
 import { DailyLog, WebviewMessage } from "../shared/types"
 import { getDailyTargetMinutes, getDailyTargetMs, getIdleThresholdMs } from "../shared/config"
-import { StorageService } from "../tracker/storageService"
+import {
+  PROJECTS_KEY,
+  SnapshotSummary,
+  StorageService,
+  scopeSnapshotToProjects,
+  validateSnapshot,
+} from "../tracker/storageService"
 import { DashboardPanel } from "./dashboardPanel"
 
 // Module-level view state — persists for the lifetime of the panel
@@ -146,6 +152,16 @@ export function handleMessage(
       break
     }
 
+    case "createBackup": {
+      runBackup(storage, msg.scope)
+      break
+    }
+
+    case "importData": {
+      runImport(storage, panel, msg.scope)
+      break
+    }
+
     case "clearProject": {
       const name = storage.getProjects().find(p => p.id === msg.projectId)?.name ?? "project"
       storage.clearProject(msg.projectId).then(() => {
@@ -167,6 +183,154 @@ export function handleMessage(
       break
     }
   }
+}
+
+async function runBackup(storage: StorageService, scope: "projects" | "all"): Promise<void> {
+  let projectIds: string[] | undefined
+  let label: string | undefined
+
+  if (scope === "projects") {
+    const projects = storage.getProjects()
+    if (projects.length === 0) {
+      vscode.window.showErrorMessage("Rabbit Hole: There are no projects to back up yet.")
+      return
+    }
+    const picks = await vscode.window.showQuickPick(
+      projects.map(p => ({ label: p.name, id: p.id, picked: false })),
+      {
+        canPickMany: true,
+        title: "Back up projects",
+        placeHolder: "Tick the projects to include in this backup",
+      }
+    )
+    if (!picks || picks.length === 0) return
+    projectIds = picks.map(p => p.id)
+    label = picks.length === 1 ? picks[0].label : `${picks.length}-projects`
+  }
+
+  const file = await storage.backupToDisk(projectIds, label)
+  const what = projectIds
+    ? `${projectIds.length} ${projectIds.length === 1 ? "project" : "projects"}`
+    : "Full"
+  const choice = await vscode.window.showInformationMessage(
+    `Rabbit Hole: ${what} backup saved to ${file}`,
+    "Reveal"
+  )
+  if (choice === "Reveal") {
+    vscode.commands.executeCommand("revealFileInOS", vscode.Uri.file(file))
+  }
+}
+
+async function runImport(
+  storage: StorageService,
+  panel: DashboardPanel,
+  scope: "projects" | "all"
+): Promise<void> {
+  // Open in the backups folder — it is buried in globalStorage, and a restore
+  // almost always wants a file this extension wrote. The dir is created lazily
+  // by the first backup, and a defaultUri pointing at a missing path is ignored.
+  const backupsDir = storage.getBackupsPath()
+  await fs.mkdir(backupsDir, { recursive: true })
+
+  const picked = await vscode.window.showOpenDialog({
+    canSelectMany: false,
+    defaultUri: vscode.Uri.file(backupsDir),
+    openLabel: scope === "all" ? "Restore all" : "Choose projects",
+    title: scope === "all" ? "Restore everything from a backup" : "Restore projects from a backup",
+    filters: { "Rabbit Hole backup": ["json"] },
+  })
+  if (!picked || picked.length === 0) return
+
+  let summary: SnapshotSummary | null = null
+  let snapshot: Record<string, unknown> = {}
+  try {
+    snapshot = JSON.parse(await fs.readFile(picked[0].fsPath, "utf8"))
+    summary = validateSnapshot(snapshot)
+  } catch {
+    summary = null
+  }
+  if (!summary) {
+    vscode.window.showErrorMessage(
+      "Rabbit Hole: That file isn't a Rabbit Hole backup. Pick a backup-<date>.json from the backups folder."
+    )
+    return
+  }
+
+  // A backup is whole-store. "Restore everything" takes it as-is; "Restore some
+  // projects" narrows it, because importing all of them would revert every
+  // other project to its state when the backup was taken. The scope is chosen
+  // in Settings before the file picker, so it is never a surprise here.
+  let selectedIds = summary.projects.map(p => p.id)
+  if (scope === "projects" && summary.projects.length > 1) {
+    const known = new Map(storage.getProjects().map(p => [p.id, p.name]))
+    const inSnapshot = new Map(
+      (Array.isArray(snapshot[PROJECTS_KEY]) ? (snapshot[PROJECTS_KEY] as { id: string; name: string }[]) : [])
+        .filter(p => p && typeof p.id === "string")
+        .map(p => [p.id, p.name])
+    )
+    const picks = await vscode.window.showQuickPick(
+      summary.projects.map(p => ({
+        label: inSnapshot.get(p.id) ?? known.get(p.id) ?? p.id,
+        description: `${p.days} ${p.days === 1 ? "day" : "days"}`,
+        detail: known.has(p.id) ? undefined : "Not currently on this machine — will be added",
+        id: p.id,
+        // Nothing pre-selected: this row exists to restore specific projects,
+        // so each one should be a deliberate tick. "Restore everything" is the
+        // separate action for the all-of-it case.
+        picked: false,
+      })),
+      {
+        canPickMany: true,
+        title: "Restore projects",
+        placeHolder: "Tick the projects to restore — everything unticked is left untouched",
+      }
+    )
+    if (!picks || picks.length === 0) return
+    selectedIds = picks.map(p => p.id)
+  }
+
+  const scoped = scopeSnapshotToProjects(snapshot, selectedIds)
+  const scopedSummary = validateSnapshot(scoped)
+  if (!scopedSummary) {
+    vscode.window.showErrorMessage("Rabbit Hole: Nothing to import from that selection.")
+    return
+  }
+
+  const projectWord = scopedSummary.projects.length === 1 ? "project" : "projects"
+  const dayWord = scopedSummary.dates.length === 1 ? "day" : "days"
+  const names = scopedSummary.projects.length <= 3
+    ? scopedSummary.projects
+        .map(p => storage.getProjects().find(q => q.id === p.id)?.name ?? p.id)
+        .join(", ")
+    : `${scopedSummary.projects.length} ${projectWord}`
+  const confirmLabel = scope === "all" ? "Restore all" : "Restore"
+  // Native modal rather than the webview's type-to-confirm gate: the flow has
+  // already left the webview for the file picker.
+  const choice = await vscode.window.showWarningMessage(
+    scope === "all"
+      ? `Restore all ${scopedSummary.projects.length} ${projectWord} from this backup?`
+      : `Restore ${names} across ${scopedSummary.dates.length} ${dayWord}?`,
+    {
+      modal: true,
+      detail:
+        scope === "all"
+          ? `Every project in this backup replaces what is on this machine, across ${scopedSummary.dates.length} ${dayWord} — anything they have tracked since the backup was written is lost. Projects that are not in the backup are left untouched. A backup of your current data is written first.`
+          : "Only the projects you selected are touched. Everything else on this machine — including projects in this backup that you did not select — is left exactly as it is. A backup of your current data is written first.",
+    },
+    confirmLabel
+  )
+  // Anything other than the action button — Cancel, Esc, dismiss — aborts.
+  if (choice !== confirmLabel) return
+
+  const ok = await storage.importSnapshot(scoped)
+  if (!ok) {
+    vscode.window.showErrorMessage("Rabbit Hole: Import failed — nothing was changed.")
+    return
+  }
+  refreshAfterWipe(storage, panel)
+  vscode.window.showInformationMessage(
+    `Rabbit Hole: Restored ${names}. Previous data backed up to ${storage.getLastBackupPath()}`
+  )
 }
 
 // Settings before init for the same reason as the ready case: sendInit renders

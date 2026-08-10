@@ -438,6 +438,23 @@ export class ActivityTracker {
     this.activeTimeAccumulated = 0
   }
 
+  // Drop the in-memory session WITHOUT writing it. Called when the user deletes
+  // the data that session belongs to: endSession() would flush the very
+  // activeTime they just cleared, and saveCheckpoint() re-creates today's log
+  // from it within 10s — which is why clearing the currently-open project
+  // appeared to clear past dates but not today. Already-written time is
+  // untouched; this only ends the session, and the next activity opens a fresh one.
+  discardCurrentSession(): void {
+    this.clearIdleTimer()
+    this.clearExpiryTimer()
+    this.currentSession = null
+    this.isPaused = false
+    this.activeTimeAccumulated = 0
+    this.activeIntervalStart = 0
+    this.languageCurrent = ""
+    this.languageIntervalStart = 0
+  }
+
   // Write live activeTime + language time to storage so status bar / dashboard stays fresh.
   private saveCheckpoint(): void {
     if (!this.currentSession || this.isPaused) return

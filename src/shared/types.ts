@@ -83,5 +83,7 @@ export type WebviewMessage =
   | { type: "updateSetting"; key: "dailyTargetMinutes" | "idleThresholdMinutes"; value: number }
   | { type: "updateProjectSetting"; projectId: string; key: "dailyTargetMinutes"; value: number | null }
   | { type: "revealStorage" }
+  | { type: "createBackup"; scope: "projects" | "all" }
+  | { type: "importData"; scope: "projects" | "all" }
   | { type: "clearProject"; projectId: string }
   | { type: "clearAll" }

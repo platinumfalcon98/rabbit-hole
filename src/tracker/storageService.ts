@@ -75,16 +75,90 @@ function globalKey(date: string): string {
 export const PROJECTS_KEY = "rabbithole:projects"
 
 const GLOBAL_PREFIX = "rabbithole:global:"
+const LOG_PREFIX = "rabbithole:log:"
 const ANY_PREFIX = "rabbithole:"
+
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
 // One-shot UI flags. A wipe must not resurrect the first-run target prompt,
 // so these two survive clearAll.
 const PRESERVED_KEYS = ["rabbithole:targetPrompted", "rabbithole:targetDefaultMigrated"]
 
+export interface SnapshotSummary {
+  projects: { id: string; days: number }[]
+  dates: string[]
+}
+
+// Narrow a snapshot to a chosen set of projects, so restoring one project after
+// a mistaken clear doesn't revert the other eleven to their state when the
+// backup was taken. Legacy project-less log keys always pass through: nothing
+// reads them, so they can't conflict with a scoped restore, and dropping them
+// would lose history the backup holds. Non-log keys are carried along and
+// ignored by importSnapshot, exactly as in an unscoped import.
+export function scopeSnapshotToProjects(
+  snapshot: Record<string, unknown>,
+  projectIds: string[]
+): Record<string, unknown> {
+  const keep = new Set(projectIds)
+  const out: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(snapshot)) {
+    if (key.startsWith(LOG_PREFIX)) {
+      const pid = key.slice(LOG_PREFIX.length, key.lastIndexOf(":"))
+      if (pid && !keep.has(pid)) continue
+      out[key] = value
+    } else if (key === PROJECTS_KEY) {
+      if (Array.isArray(value)) {
+        out[key] = (value as ProjectMeta[]).filter(p => p && keep.has(p.id))
+      }
+    } else {
+      out[key] = value
+    }
+  }
+  return out
+}
+
+// A snapshot is JSON off disk that anyone could have hand-edited, so it is
+// checked in full before a single write happens: a malformed log value lands
+// in globalState silently and only surfaces much later as a render crash, far
+// from the import that caused it. Returns what the snapshot would touch, so
+// the caller can state the counts in its confirmation, or null if unusable.
+export function validateSnapshot(raw: unknown): SnapshotSummary | null {
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return null
+  const entries = Object.entries(raw as Record<string, unknown>)
+  if (!entries.some(([key]) => key.startsWith(ANY_PREFIX))) return null
+
+  const projectDays = new Map<string, number>()
+  const dates = new Set<string>()
+  for (const [key, value] of entries) {
+    if (!key.startsWith(LOG_PREFIX)) continue
+    // Project ids from git remotes contain colons; dates never do, so the
+    // last colon is the only reliable split point.
+    const cut = key.lastIndexOf(":")
+    const projectId = key.slice(LOG_PREFIX.length, cut)
+    const date = key.slice(cut + 1)
+    if (!DATE_RE.test(date)) return null
+    if (typeof value !== "object" || value === null || Array.isArray(value)) return null
+    const log = value as Partial<DailyLog>
+    if (typeof log.date !== "string" || typeof log.activeTime !== "number") return null
+    // Pre-multi-project installs wrote `rabbithole:log:<date>` with no project
+    // segment, so projectId comes out "". Those keys are inert (storageKey
+    // always writes a project id, so nothing reads them back) but they exist in
+    // real backups — rejecting the file over one would make every backup from
+    // an install with any history unimportable.
+    if (projectId) projectDays.set(projectId, (projectDays.get(projectId) ?? 0) + 1)
+    dates.add(date)
+  }
+  const projects = [...projectDays]
+    .map(([id, days]) => ({ id, days }))
+    .sort((a, b) => b.days - a.days)
+  return { projects, dates: [...dates] }
+}
+
 export class StorageService {
   private currentProjectId = ""
   private mirror: MirrorSink | null = null
   private lastBackupPath = ""
+  private discardSession: (() => void) | null = null
 
   constructor(private context: vscode.ExtensionContext) {}
 
@@ -92,6 +166,13 @@ export class StorageService {
   // best-effort JSON export and must never be allowed to fail a write path.
   setMirror(mirror: MirrorSink): void {
     this.mirror = mirror
+  }
+
+  // Lets the destructive/import paths drop the tracker's live session before
+  // they rewrite storage. Without it the 10s checkpoint writes the in-memory
+  // session straight back into the day that was just cleared.
+  setSessionDiscardHook(fn: () => void): void {
+    this.discardSession = fn
   }
 
   setCurrentProject(id: string): void {
@@ -360,11 +441,16 @@ export class StorageService {
   // Completed streak count for `date`, self-healing a provably-wrong stored 0.
   //
   // A day that met the target always has streak >= 1, so a stored 0 on a met
-  // day cannot be right. Clears and restores leave those behind: a day whose
-  // record is recreated gets its activeTime back but keeps the empty-record
-  // default of 0. Today's count derives from yesterday's, so one bad zero caps
-  // every day after it.
+  // day cannot be right. Clears and restores leave those behind: getGlobalDay
+  // returns streak 0 for a missing date, so an import that recreates a day's
+  // record sets activeTime from the delta but leaves the chain value at the
+  // empty-record default. Today's count derives from yesterday's, so one bad
+  // zero caps every day after it.
   //
+  // Walks back only until it finds a day that missed the target (chain broken,
+  // base 0) or one with a stored non-zero value (trusted, base that), then
+  // fills the gap forward and persists it. In the healthy case yesterday
+  // already has a value, so this stops after a single read.
   // The global chain lives in `rabbithole:global:*`, the per-project chain in
   // each project's DailyLog, but the algorithm is identical — so it is written
   // once here over a reader and a writer.
@@ -544,25 +630,122 @@ export class StorageService {
     return this.lastBackupPath
   }
 
-  // globalState has no undo, so every destructive path snapshots first.
-  async backupToDisk(): Promise<string> {
-    const dir = path.join(this.context.globalStorageUri.fsPath, "backups")
+  getBackupsPath(): string {
+    return path.join(this.context.globalStorageUri.fsPath, "backups")
+  }
+
+  // globalState has no undo, so every destructive path snapshots first — those
+  // callers pass no argument and get the whole store. `projectIds` is for the
+  // user-facing "back up some projects" action only; a destructive path must
+  // never take a partial safety net.
+  async backupToDisk(projectIds?: string[], label?: string): Promise<string> {
+    const dir = this.getBackupsPath()
     await fs.mkdir(dir, { recursive: true })
 
-    const snapshot: Record<string, unknown> = {}
+    let snapshot: Record<string, unknown> = {}
     for (const key of this.context.globalState.keys()) {
       if (key.startsWith(ANY_PREFIX)) snapshot[key] = this.context.globalState.get(key)
     }
+    if (projectIds) snapshot = scopeSnapshotToProjects(snapshot, projectIds)
 
     // ":" is illegal in Windows filenames, so the ISO stamp is flattened
     const stamp = new Date().toISOString().replace(/:/g, "-")
-    const file = path.join(dir, `backup-${stamp}.json`)
+    const slug = label ? `-${label.replace(/[^a-zA-Z0-9._-]+/g, "-").slice(0, 40)}` : ""
+    const file = path.join(dir, `backup${slug}-${stamp}.json`)
     await fs.writeFile(file, JSON.stringify(snapshot, null, 2), "utf8")
     this.lastBackupPath = file
     return file
   }
 
+  // The backup snapshot doubles as the import format: it holds the per-project
+  // logs verbatim, so a restore rebuilds every panel exactly. (The analytics
+  // export is not an import source — it merges projects, drops language
+  // attribution and caps at 90 days.) Because a snapshot only carries keys for
+  // the projects and dates it knows about, importing one from another machine
+  // merges history rather than overwriting this machine's.
+  //
+  // The order below is load-bearing; see the "Your data" notes in CLAUDE.md.
+  async importSnapshot(snapshot: Record<string, unknown>): Promise<boolean> {
+    if (!validateSnapshot(snapshot)) return false
+    // Same reason as clearProject: an in-flight session checkpointing over a
+    // just-restored day would mix live time into the imported values. Time
+    // already written to storage is kept — only the session boundary moves.
+    this.discardSession?.()
+    await this.backupToDisk()
+
+    // Per-project logs: replace wholesale, per the chosen conflict rule. The
+    // per-key before/after difference is what the global day records move by —
+    // see the note below on why this is a delta and not a recompute.
+    const globalDelta = new Map<string, number>()
+    for (const [key, value] of Object.entries(snapshot)) {
+      if (!key.startsWith(LOG_PREFIX)) continue
+      const date = key.slice(key.lastIndexOf(":") + 1)
+      const previous = this.context.globalState.get<DailyLog>(key)
+      const before = typeof previous?.activeTime === "number" ? previous.activeTime : 0
+      const after = (value as DailyLog).activeTime
+      await this.context.globalState.update(key, value)
+      globalDelta.set(date, (globalDelta.get(date) ?? 0) + (after - before))
+    }
+
+    // The registry is union-merged, never replaced: replacing it would drop
+    // the projects that only exist on this machine and orphan their logs from
+    // every aggregate read — including the global recompute just below.
+    const merged = this.getProjects()
+    const importedProjects = snapshot[PROJECTS_KEY]
+    if (Array.isArray(importedProjects)) {
+      for (const p of importedProjects as ProjectMeta[]) {
+        if (!p || typeof p.id !== "string") continue
+        const idx = merged.findIndex(m => m.id === p.id)
+        if (idx >= 0) merged[idx] = p
+        else merged.push(p)
+      }
+      await this.context.globalState.update(PROJECTS_KEY, merged)
+    }
+
+    // rabbithole:global:* is never copied from the snapshot — those records are
+    // cross-project aggregates, and a foreign machine's would erase whatever
+    // this machine's other projects contributed that day.
+    //
+    // It is moved by the imported delta rather than recomputed as the sum over
+    // the registry. A sum silently drops every contribution that isn't
+    // attributable to a *currently registered* project — orphaned logs, legacy
+    // project-less keys, projects not in this backup — so restoring one project
+    // rewrote unrelated historical days downward. That broke streaks: a past
+    // day pushed below the daily target snaps the chain, which is how a 2-day
+    // global streak came back as 1 after a restore. The delta only moves days
+    // by exactly what the import changed, and re-importing the same file is a
+    // no-op. (`clearProject` still recomputes — it removes whole projects and
+    // has to resync, and it has the registry it needs to do that correctly.)
+    for (const [date, delta] of globalDelta) {
+      if (delta === 0) continue
+      const existing = this.context.globalState.get<GlobalDay>(globalKey(date))
+      const globalDay = this.getGlobalDay(date)
+      globalDay.activeTime = Math.max(0, globalDay.activeTime + delta)
+      // An existing streak is this machine's and is never overwritten. But when
+      // there is no record at all — the day was cleared, or came from another
+      // machine — "leave it alone" would mean leaving getGlobalDay's default 0,
+      // and a 0 on a day that met the target breaks every later day's chain.
+      // The snapshot's value is the only evidence of what it was, so adopt it.
+      if (!existing) {
+        const imported = snapshot[globalKey(date)] as GlobalDay | undefined
+        if (imported && typeof imported.streak === "number") {
+          globalDay.streak = imported.streak
+        }
+      }
+      await this.context.globalState.update(globalKey(date), globalDay)
+      this.mirror?.markDayDirty(date)
+    }
+
+    this.mirror?.markProjectsDirty()
+    this.updateStreak()
+    return true
+  }
+
   async clearProject(projectId: string): Promise<void> {
+    // The tracker's live session belongs to the day being deleted, and the 10s
+    // checkpoint would write it straight back — clearing the currently-open
+    // project would wipe past dates but leave today intact.
+    if (projectId === this.currentProjectId) this.discardSession?.()
     await this.backupToDisk()
 
     const prefix = `rabbithole:log:${projectId}:`
@@ -602,6 +785,7 @@ export class StorageService {
   }
 
   async clearAll(): Promise<void> {
+    this.discardSession?.()
     await this.backupToDisk()
 
     const affectedDates = new Set<string>()
@@ -609,7 +793,7 @@ export class StorageService {
       if (!key.startsWith(ANY_PREFIX) || PRESERVED_KEYS.includes(key)) continue
       if (key.startsWith(GLOBAL_PREFIX)) {
         affectedDates.add(key.slice(GLOBAL_PREFIX.length))
-      } else if (key.startsWith("rabbithole:log:")) {
+      } else if (key.startsWith(LOG_PREFIX)) {
         affectedDates.add(key.slice(key.lastIndexOf(":") + 1))
       }
       await this.context.globalState.update(key, undefined)

@@ -1207,6 +1207,26 @@ document.getElementById("reveal-storage")?.addEventListener("click", () => {
   vscode.postMessage({ type: "revealStorage" })
 })
 
+document.getElementById("backup-all-btn")?.addEventListener("click", () => {
+  vscode.postMessage({ type: "createBackup", scope: "all" })
+})
+
+document.getElementById("backup-projects-btn")?.addEventListener("click", () => {
+  vscode.postMessage({ type: "createBackup", scope: "projects" })
+})
+
+// Two rows rather than one, so the scope of a restore is a deliberate choice
+// made up front instead of a QuickPick discovered mid-flow. No type-to-confirm
+// here — the host gates both behind a native modal, which the file picker has
+// to leave the webview for anyway.
+document.getElementById("import-projects-btn")?.addEventListener("click", () => {
+  vscode.postMessage({ type: "importData", scope: "projects" })
+})
+
+document.getElementById("import-all-btn")?.addEventListener("click", () => {
+  vscode.postMessage({ type: "importData", scope: "all" })
+})
+
 document.addEventListener("click", (e: Event) => {
   const btn = (e.target as HTMLElement).closest(".setting-danger") as HTMLButtonElement | null
   if (!btn || btn.disabled) return
