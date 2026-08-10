@@ -542,7 +542,11 @@ export class StorageService {
     if (!projectId) return emptyDailyLog(date)
     const stored = this.context.globalState.get<DailyLog>(storageKey(projectId, date))
     if (stored) {
-      const agents = stored.agents ?? ({} as Record<AgentName, AgentEvent[]>)
+      // Copy before back-filling: `stored` is the memento's live cached object,
+      // so filling the missing keys on `stored.agents` directly would make this
+      // read mutate the cache. Harmless while the normalization is idempotent —
+      // a non-idempotent one added later would silently diverge from disk.
+      const agents = { ...(stored.agents ?? {}) } as Record<AgentName, AgentEvent[]>
       for (const a of ALL_AGENTS) {
         if (!agents[a]) agents[a] = []
       }
