@@ -55,6 +55,7 @@ export interface DailyLog {
   totalTime: number                         // ms including idle
   activeTime: number                        // ms excluding idle
   streak: number                            // global streak on aggregate logs; per-project streak on project logs
+  targetMs?: number                         // daily target this day was judged against, stamped while it was still being earned; unset on days recorded before stamping existed
   languages: Record<string, LanguageStat>
   agents: Record<AgentName, AgentEvent[]>
   files: FileActivity[]

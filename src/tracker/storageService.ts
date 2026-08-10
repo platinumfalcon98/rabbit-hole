@@ -25,6 +25,10 @@ interface GlobalDay {
   date: string
   activeTime: number
   streak: number
+  // The daily target this day was judged against, stamped while it was still
+  // being earned. Undefined on days recorded before stamping existed — those
+  // fall back to the current target. See "Streak" in CLAUDE.md.
+  targetMs?: number
 }
 
 function emptyDailyLog(date: string): DailyLog {
@@ -353,6 +357,79 @@ export class StorageService {
     this.saveLog(this.currentProjectId, log)
   }
 
+  // Completed streak count for `date`, self-healing a provably-wrong stored 0.
+  //
+  // A day that met the target always has streak >= 1, so a stored 0 on a met
+  // day cannot be right. Clears and restores leave those behind: a day whose
+  // record is recreated gets its activeTime back but keeps the empty-record
+  // default of 0. Today's count derives from yesterday's, so one bad zero caps
+  // every day after it.
+  //
+  // The global chain lives in `rabbithole:global:*`, the per-project chain in
+  // each project's DailyLog, but the algorithm is identical — so it is written
+  // once here over a reader and a writer.
+  private chainEndingAt(
+    date: string,
+    fallbackTargetMs: number,
+    read: (date: string) => { activeTime: number; streak?: number; targetMs?: number },
+    persist: (date: string, streak: number) => void
+  ): number {
+    const MAX_WALK = 400
+    const pending: string[] = []
+    const cursor = new Date(`${date}T00:00:00`)
+    let base = 0
+
+    for (let i = 0; i < MAX_WALK; i++) {
+      const key = dateKey(cursor)
+      const day = read(key)
+      // Judge each past day against the bar it was actually set at the time,
+      // not today's. Raising the target must not un-earn a completed day.
+      const bar = day.targetMs ?? fallbackTargetMs
+      const streak = day.streak ?? 0
+      if (day.activeTime < bar) break                // chain broken here
+      if (streak > 0) { base = streak; break }       // trusted, stop walking
+      pending.push(key)                              // met, but chain value lost
+      cursor.setDate(cursor.getDate() - 1)
+    }
+
+    // pending is newest-first, so the oldest sits directly on top of base.
+    let value = base
+    for (let i = pending.length - 1; i >= 0; i--) {
+      value += 1
+      persist(pending[i], value)
+    }
+    return value
+  }
+
+  private globalChainEndingAt(date: string, targetMs: number): number {
+    return this.chainEndingAt(
+      date,
+      targetMs,
+      d => this.getGlobalDay(d),
+      (d, streak) => {
+        const day = this.getGlobalDay(d)
+        if (day.streak === streak) return
+        day.streak = streak
+        this.context.globalState.update(globalKey(d), day)
+        this.mirror?.markDayDirty(d)
+      }
+    )
+  }
+
+  private projectChainEndingAt(projectId: string, date: string, targetMs: number): number {
+    return this.chainEndingAt(
+      date,
+      targetMs,
+      d => this.getLog(projectId, d),
+      (d, streak) => {
+        const log = this.getLog(projectId, d)
+        if (log.streak === streak) return
+        log.streak = streak
+        this.saveLog(projectId, log)
+      }
+    )
+  }
+
   updateStreak(): void {
     const targetMs = getDailyTargetMs()
 
@@ -361,13 +438,15 @@ export class StorageService {
 
     const yd = new Date()
     yd.setDate(yd.getDate() - 1)
-    const globalYesterday = this.getGlobalDay(dateKey(yd))
-    const yesterdayMet = globalYesterday.activeTime >= targetMs
-    const chainSoFar = yesterdayMet ? (globalYesterday.streak || 0) : 0
+    const chainSoFar = this.globalChainEndingAt(dateKey(yd), targetMs)
 
     const newStreak = todayMet ? chainSoFar + 1 : chainSoFar
-    if (globalToday.streak !== newStreak) {
+    // Today is still in progress, so it is always judged against the live
+    // target — and the stamp is refreshed with it. Once the day is over there
+    // are no more writes, so the stamp freezes at the target it ended on.
+    if (globalToday.streak !== newStreak || globalToday.targetMs !== targetMs) {
       globalToday.streak = newStreak
+      globalToday.targetMs = targetMs
       this.saveGlobalDay(globalToday)
     }
   }
@@ -385,15 +464,17 @@ export class StorageService {
 
     const yd = new Date()
     yd.setDate(yd.getDate() - 1)
-    const ydLog = this.getLog(projectId, dateKey(yd))
-    const yesterdayMet = ydLog.activeTime >= targetMs
-    const chainSoFar = yesterdayMet ? (ydLog.streak ?? 0) : 0
+    // Same walk as the global chain: yesterday is judged against the target it
+    // was set at the time, and a provably-wrong stored 0 left behind by a clear
+    // or restore is repaired rather than allowed to cap every later day.
+    const chainSoFar = this.projectChainEndingAt(projectId, dateKey(yd), targetMs)
 
     const newStreak = todayMet ? chainSoFar + 1 : chainSoFar
 
     // Write streak into today's per-project DailyLog (enables history-based reading)
-    if (todayLog.streak !== newStreak) {
+    if (todayLog.streak !== newStreak || todayLog.targetMs !== targetMs) {
       todayLog.streak = newStreak
+      todayLog.targetMs = targetMs
       this.saveLog(projectId, todayLog)
     }
 
