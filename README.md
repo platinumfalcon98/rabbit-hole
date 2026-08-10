@@ -67,7 +67,46 @@ full control:
   name to confirm, and both write a backup first.
 
 A JSON mirror of your data is also maintained on disk, so you can read it with your own
-tools.
+tools — or with the CLI below.
+
+---
+
+## Companion CLI
+
+[**rabbithole-cli**](https://github.com/platinumfalcon98/rabbithole-cli) puts the same stats
+in your terminal, for when you don't want to open a dashboard to answer "how long have I
+been at this?".
+
+```sh
+brew install platinumfalcon98/tap/rabbithole      # macOS, Linux
+scoop bucket add platinumfalcon98 https://github.com/platinumfalcon98/scoop-bucket
+scoop install rabbithole                           # Windows
+```
+
+Prebuilt binaries for macOS, Linux and Windows on amd64 and arm64 are on the
+[releases page](https://github.com/platinumfalcon98/rabbithole-cli/releases), along with
+install scripts and a `go install` route.
+
+| Command | Shows |
+|---------|-------|
+| `rabbithole today` | Today's active time, languages, projects, sessions |
+| `rabbithole streak` | Current streak and progress toward your target |
+| `rabbithole week [n]` | The last 7 days as a bar chart, or the last `n` |
+| `rabbithole files [n]` | Files touched over that range, grouped by project |
+| `rabbithole projects` | Tracked projects and their recent activity |
+| `rabbithole doctor` | Check the data source for format drift |
+
+`today` and `week` take `--project` to narrow to one project, and every command takes
+`--json` for scripting:
+
+```sh
+rabbithole streak --json | jq -e '.targetMet' >/dev/null && echo "done for today"
+```
+
+The CLI **reads only** — it never writes to your data and never touches the network. It
+reads the JSON mirror this extension publishes, falling back to VS Code's storage directly
+for history that predates the mirror. It reports on what the extension has recorded; it
+does not track anything itself, so the extension is what you need installed.
 
 ---
 
