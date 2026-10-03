@@ -12,8 +12,13 @@ const listeners: Record<string, Listener[]> = {
   visibleRanges: [], workspaceFolders: [], openDoc: [],
 }
 
+// Disposing unregisters, so a stopped tracker stops hearing events — the persist
+// suite runs a second tracker after the first one stops, like a restart.
 function register(bucket: Listener[]) {
-  return (fn: Listener) => { bucket.push(fn); return { dispose() {} } }
+  return (fn: Listener) => {
+    bucket.push(fn)
+    return { dispose() { const i = bucket.indexOf(fn); if (i >= 0) bucket.splice(i, 1) } }
+  }
 }
 
 // Files the stubbed workspace.fs will serve, keyed by fsPath
@@ -60,9 +65,9 @@ export const workspace = {
   onDidOpenTextDocument: register(listeners.openDoc),
   onDidChangeWorkspaceFolders: register(listeners.workspaceFolders),
   createFileSystemWatcher: () => ({
-    onDidCreate: (fn: Listener) => { watcherHandlers.create.push(fn); return { dispose() {} } },
-    onDidChange: (fn: Listener) => { watcherHandlers.change.push(fn); return { dispose() {} } },
-    onDidDelete: (fn: Listener) => { watcherHandlers.delete.push(fn); return { dispose() {} } },
+    onDidCreate: register(watcherHandlers.create),
+    onDidChange: register(watcherHandlers.change),
+    onDidDelete: register(watcherHandlers.delete),
     dispose() {},
   }),
   fs: {

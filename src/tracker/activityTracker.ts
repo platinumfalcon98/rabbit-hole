@@ -4,6 +4,7 @@ import { SESSION_EXPIRY_MS, getIdleThresholdMs } from "../shared/config"
 import { StorageService, dateKey } from "./storageService"
 import { detectProject, clearDetectionCache } from "./projectDetector"
 import { LineHashes, LineLedger, hashLines } from "./lineLedger"
+import { ledgerFile, loadLedger, pruneLedgers, saveLedger } from "./ledgerStore"
 import {
   EXCLUDED_LANGUAGE_IDS, WorktreeInfo, isExcludedPath, isGitOpSignal, isGitPath, languageForFile, worktreeInfo,
 } from "./pathRules"
@@ -65,6 +66,8 @@ export class ActivityTracker {
   private pendingCreates = new Set<string>()
   private worktreeCopies = new Map<string, Set<string>>() // main-checkout path → worktree paths seen
   private lastGitOpTime = 0
+  private ledgerPath: string | undefined   // today's snapshots on disk (see restoreLedger)
+  private ledgerSaved = -1                 // ledger.changes() at the last save
 
   // Project tracking
   private currentProjectId = ""
@@ -84,6 +87,9 @@ export class ActivityTracker {
   start(): void {
     this.initProjects()
     this.storage.closeStaleSessions()
+    // Before any priming or measuring: a restored morning photo must win over
+    // the current content an open document would prime with.
+    this.restoreLedger()
 
     this.subscriptions.push(
       vscode.workspace.onDidChangeTextDocument(e => this.onTextChange(e)),
@@ -101,8 +107,13 @@ export class ActivityTracker {
       { dispose: () => this.stop() }
     )
 
-    // Checkpoint every 10s so storage stays fresh for status bar / dashboard
-    this.checkpointInterval = setInterval(() => this.saveCheckpoint(), 10_000)
+    // Checkpoint every 10s so storage stays fresh for status bar / dashboard.
+    // The snapshot save sits outside saveCheckpoint, which skips paused
+    // sessions — exactly when a background agent is editing files.
+    this.checkpointInterval = setInterval(() => {
+      this.persistLedger()
+      this.saveCheckpoint()
+    }, 10_000)
 
     this.isWindowFocused = vscode.window.state.focused
     if (vscode.window.state.focused) {
@@ -117,6 +128,7 @@ export class ActivityTracker {
     }
     for (const timer of this.measureTimers.values()) clearTimeout(timer)
     this.measureTimers.clear()
+    this.persistLedger()
     this.endSession()
     for (const d of this.subscriptions) d.dispose()
   }
@@ -525,6 +537,29 @@ export class ActivityTracker {
     let set = this.worktreeCopies.get(mainPath)
     if (!set) this.worktreeCopies.set(mainPath, (set = new Set()))
     set.add(worktreePath)
+  }
+
+  // Today's line snapshots survive a restart, so the first agent edit to each
+  // unopened file after reopening VS Code is still measured. Only a snapshot
+  // written today is used — comparing against an older one would credit days of
+  // changes to today. Edits made today while VS Code was closed DO count: they
+  // happened today.
+  private restoreLedger(): void {
+    const dir = this.context.globalStorageUri?.fsPath
+    const folders = vscode.workspace.workspaceFolders ?? []
+    if (!dir || folders.length === 0) return
+    this.ledgerPath = ledgerFile(dir, folders.map(f => f.uri.toString()))
+    const midnight = new Date()
+    midnight.setHours(0, 0, 0, 0)
+    pruneLedgers(this.ledgerPath, midnight.getTime())
+    this.ledger.restore(loadLedger(this.ledgerPath), dateKey(new Date()))
+    this.ledgerSaved = this.ledger.changes()
+  }
+
+  private persistLedger(): void {
+    if (!this.ledgerPath || this.ledger.changes() === this.ledgerSaved) return
+    saveLedger(this.ledgerPath, this.ledger.export(dateKey(new Date())))
+    this.ledgerSaved = this.ledger.changes()
   }
 
   // undefined = the file does not exist; null = exists but too large/unreadable.
