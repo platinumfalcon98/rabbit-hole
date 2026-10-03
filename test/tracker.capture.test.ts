@@ -152,6 +152,66 @@ describe("limits", () => {
     assert.strictEqual(callsFor("/repo/test/.out/import.js").length, 0))
 })
 
+describe("worktrees", () => {
+  const WT = "/repo/.claude/worktrees/wt1"
+  before(async () => {
+    v.__writeFile("/repo/src/w.ts", "a\nb\n")                    // main checkout copy (never edited here)
+    v.__writeFile(`${WT}/.git`, "gitdir: /repo/.git/worktrees/wt1\n")
+    // `git worktree add`: same content as main
+    v.__writeFile(`${WT}/src/w.ts`, "a\nb\n"); v.__fireCreate(`${WT}/src/w.ts`)
+    v.__writeFile(`${WT}/node_modules/x/i.js`, "x\n"); v.__fireCreate(`${WT}/node_modules/x/i.js`)
+    v.__writeFile("/repo/.claude/settings.local.json", "{}\n"); v.__fireChange("/repo/.claude/settings.local.json")
+    await sleep(DEBOUNCE_WAIT)
+  })
+
+  it("creating a worktree counts nothing", () =>
+    assert.strictEqual(callsFor("/repo/src/w.ts").length, 0))
+  it("a worktree's node_modules and the rest of .claude stay excluded", () => {
+    assert.strictEqual(fileCalls.filter(c => c.path.includes("node_modules")).length, 0)
+    assert.strictEqual(fileCalls.filter(c => c.path.includes("settings.local")).length, 0)
+  })
+
+  describe("editing in the worktree", () => {
+    before(async () => {
+      v.__writeFile(`${WT}/src/w.ts`, "a\nb\nc\nd\n"); v.__fireChange(`${WT}/src/w.ts`)
+      v.__writeFile(`${WT}/src/new.ts`, "n1\nn2\nn3\n"); v.__fireCreate(`${WT}/src/new.ts`)
+      await sleep(DEBOUNCE_WAIT)
+    })
+    it("counts live, credited under the main-checkout path", () =>
+      assert.deepStrictEqual(sum("/repo/src/w.ts"), { added: 2, deleted: 0 }))
+    it("a file new in the worktree counts as added", () =>
+      assert.deepStrictEqual(sum("/repo/src/new.ts"), { added: 3, deleted: 0 }))
+    it("no row uses the worktree path", () =>
+      assert.strictEqual(fileCalls.filter(c => c.path.includes("worktrees")).length, 0))
+  })
+
+  describe("merging into main (no git signal, e.g. cherry-pick)", () => {
+    let callsBefore = 0
+    before(async () => {
+      v.__fireChange("/repo/src/w.ts") // establish the main baseline first (first sighting)
+      await sleep(DEBOUNCE_WAIT)
+      callsBefore = callsFor("/repo/src/w.ts").length
+      v.__writeFile("/repo/src/w.ts", "a\nb\nc\nd\n"); v.__fireChange("/repo/src/w.ts")
+      await sleep(DEBOUNCE_WAIT)
+    })
+    it("the merged content is not counted a second time", () =>
+      assert.strictEqual(callsFor("/repo/src/w.ts").length, callsBefore))
+  })
+
+  describe("removing the worktree", () => {
+    let callsBefore = 0
+    before(async () => {
+      callsBefore = fileCalls.length
+      v.__fireDelete(`${WT}/.git`)
+      v.__fireDelete(`${WT}/src/w.ts`)
+      v.__fireDelete(`${WT}/src/new.ts`)
+      await sleep(DEBOUNCE_WAIT)
+    })
+    it("deleting the worktree's files counts nothing", () =>
+      assert.strictEqual(fileCalls.length, callsBefore))
+  })
+})
+
 // Must run LAST: the git-op window suppresses everything disk-originated for ~7s.
 describe("git operations", () => {
   before(async () => {
