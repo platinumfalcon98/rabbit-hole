@@ -74,64 +74,101 @@ describe("focus gate — a blurred window must not accrue active time", () => {
   })
 })
 
-describe("gross line counts — multiset diff, not net", () => {
-  let created: any, rewrite: any, appended: any, second: any
-  let beforeRewrite = 0, beforeReorder = 0, afterReorder = 0
-  let beforeFirstSight = 0, afterFirstSight = 0, beforeSecond = 0
+const callsFor = (path: string) => fileCalls.filter(c => c.path === path)
+const sum = (path: string) => callsFor(path).reduce(
+  (t, c) => ({ added: t.added + c.added, deleted: t.deleted + c.deleted }), { added: 0, deleted: 0 })
 
+describe("net per day through the watcher", () => {
   before(async () => {
-    await externalChange("/repo/src/b.ts", "a\nb\nc\nd\ne\n", true)
-    created = fileCalls[fileCalls.length - 1]
-
-    beforeRewrite = fileCalls.length
-    await externalChange("/repo/src/b.ts", "v\nw\nx\ny\nz\n")
-    rewrite = fileCalls[fileCalls.length - 1]
-
-    await externalChange("/repo/src/b.ts", "v\nw\nx\ny\nz\nnew1\nnew2\n")
-    appended = fileCalls[fileCalls.length - 1]
-
-    beforeReorder = fileCalls.length
-    await externalChange("/repo/src/b.ts", "new2\nnew1\nz\ny\nx\nw\nv\n")
-    afterReorder = fileCalls.length
-
-    // A change, not a create: the file is "pre-existing" as far as the tracker
-    // is concerned, so there is no baseline to diff against.
-    beforeFirstSight = fileCalls.length
-    await externalChange("/repo/src/c.ts", "pre\nexisting\nfile\n")
-    afterFirstSight = fileCalls.length
-
-    beforeSecond = fileCalls.length
-    await externalChange("/repo/src/c.ts", "pre\nexisting\nfile\nplus\n")
-    second = fileCalls[fileCalls.length - 1]
+    v.__writeFile("/repo/src/b.ts", "a\nb\nc\nd\ne\n"); v.__fireCreate("/repo/src/b.ts")
+    v.__writeFile("/repo/src/c.ts", "pre\nexisting\nfile\n"); v.__fireChange("/repo/src/c.ts")
+    v.__writeFile("/repo/src/crlf.ts", "x\ny\n"); v.__fireChange("/repo/src/crlf.ts")
+    await sleep(DEBOUNCE_WAIT)
+    v.__writeFile("/repo/src/b.ts", "v\nw\nx\ny\nz\n"); v.__fireChange("/repo/src/b.ts")       // rewrite today's lines
+    v.__writeFile("/repo/src/c.ts", "pre\nCHANGED\nfile\nplus\n"); v.__fireChange("/repo/src/c.ts")
+    v.__writeFile("/repo/src/crlf.ts", "x\r\ny\r\n"); v.__fireChange("/repo/src/crlf.ts")     // EOL flip only
+    await sleep(DEBOUNCE_WAIT)
   })
 
-  it("create records full line count as added", () => {
-    assert.strictEqual(created.added, 6) // 5 lines + trailing "" from split
-    assert.strictEqual(created.deleted, 0)
+  it("create counts real lines (no phantom trailing line)", () =>
+    assert.deepStrictEqual(callsFor("/repo/src/b.ts")[0], { path: "/repo/src/b.ts", added: 5, deleted: 0 }))
+  it("rewriting lines added today records nothing more", () =>
+    assert.strictEqual(callsFor("/repo/src/b.ts").length, 1))
+  it("first sighting records nothing; the next edit is net vs that baseline", () =>
+    assert.deepStrictEqual(sum("/repo/src/c.ts"), { added: 2, deleted: 1 }))
+  it("a CRLF<->LF flip records nothing", () =>
+    assert.strictEqual(callsFor("/repo/src/crlf.ts").length, 0))
+})
+
+describe("temp files and unseen deletes", () => {
+  before(async () => {
+    v.__writeFile("/repo/src/tmp.ts", "1\n2\n3\n"); v.__fireCreate("/repo/src/tmp.ts")
+    await sleep(DEBOUNCE_WAIT)
+    v.__fireDelete("/repo/src/tmp.ts")
+    v.__fireDelete("/repo/src/never-seen.ts")
+    await sleep(DEBOUNCE_WAIT)
   })
+  it("a file created and deleted the same day nets to zero", () =>
+    assert.deepStrictEqual(sum("/repo/src/tmp.ts"), { added: 0, deleted: 0 }))
+  it("delete of unseen file records nothing", () =>
+    assert.strictEqual(callsFor("/repo/src/never-seen.ts").length, 0))
+})
 
-  // The old net diff (lineCount - prev) scored this 0/0, systematically
-  // undercounting agent rewrites against typing.
-  it("in-place rewrite counts BOTH ways (a net diff would score 0/0)", () => {
-    assert.ok(fileCalls.length > beforeRewrite, "expected a call, got none")
-    assert.strictEqual(rewrite.added, 5)
-    assert.strictEqual(rewrite.deleted, 5)
+describe("open documents", () => {
+  const TEN = "l1\nl2\nl3\nl4\nl5\nl6\nl7\nl8\nl9\nl10\n"
+  before(async () => {
+    const reload = v.__openDoc("/repo/src/open.ts", TEN)
+    const typed = v.__openDoc("/repo/src/typed.ts", "const a = 1\n")
+    const both = v.__openDoc("/repo/src/both.ts", "x\n")
+    await sleep(50)
+    // Agent edits first and last line on disk; VS Code reloads (one span, ~10 lines).
+    v.__editDoc(reload, TEN.replace("l1\n", "L1\n").replace("l10\n", "L10\n"), false)
+    // Typing within a single line.
+    v.__editDoc(typed, "const a = 2\n", true)
+    // Agent writes an open file: watcher event AND reload both fire.
+    v.__writeFile("/repo/src/both.ts", "x\ny\n"); v.__fireChange("/repo/src/both.ts")
+    v.__editDoc(both, "x\ny\n", false)
+    await sleep(DEBOUNCE_WAIT)
   })
+  it("a reload of an open file counts only the changed lines (not the span)", () =>
+    assert.deepStrictEqual(sum("/repo/src/open.ts"), { added: 2, deleted: 2 }))
+  it("typing within a line counts 1/1 (it used to count 0/0)", () =>
+    assert.deepStrictEqual(sum("/repo/src/typed.ts"), { added: 1, deleted: 1 }))
+  it("open file written on disk counts once", () =>
+    assert.deepStrictEqual(sum("/repo/src/both.ts"), { added: 1, deleted: 0 }))
+})
 
-  it("pure append counts as added only", () => {
-    assert.strictEqual(appended.added, 2)
-    assert.strictEqual(appended.deleted, 0)
+describe("limits", () => {
+  before(async () => {
+    v.__writeFile("/repo/src/big.ts", "a\n"); v.__fireCreate("/repo/src/big.ts")
+    await sleep(DEBOUNCE_WAIT)
+    v.__writeFile("/repo/src/big.ts", "x".repeat(5 * 1024 * 1024 + 10)); v.__fireChange("/repo/src/big.ts")
+    v.__writeFile("/repo/test/.out/import.js", "a\nb\n"); v.__fireCreate("/repo/test/.out/import.js")
+    await sleep(DEBOUNCE_WAIT)
   })
+  it("oversized file is skipped, not deleted", () =>
+    assert.deepStrictEqual(sum("/repo/src/big.ts"), { added: 1, deleted: 0 }))
+  it("dot-prefixed build output is not counted", () =>
+    assert.strictEqual(callsFor("/repo/test/.out/import.js").length, 0))
+})
 
-  it("reordering the same lines records nothing", () =>
-    assert.strictEqual(afterReorder, beforeReorder))
-
-  it("first sighting of a pre-existing file records no row", () =>
-    assert.strictEqual(afterFirstSight, beforeFirstSight))
-
-  it("...but the NEXT edit diffs against that baseline", () => {
-    assert.ok(fileCalls.length > beforeSecond, "expected a call, got none")
-    assert.strictEqual(second.added, 1)
-    assert.strictEqual(second.deleted, 0)
+// Must run LAST: the git-op window suppresses everything disk-originated for ~7s.
+describe("git operations", () => {
+  before(async () => {
+    v.__writeFile("/repo/src/g.ts", "a\nb\n"); v.__fireChange("/repo/src/g.ts")          // first sighting
+    const open = v.__openDoc("/repo/src/gopen.ts", "a\n")
+    const typing = v.__openDoc("/repo/src/gtype.ts", "a\n")
+    await sleep(DEBOUNCE_WAIT)
+    v.__fireChange("/repo/.git/HEAD")                                                     // checkout
+    v.__writeFile("/repo/src/g.ts", "a\nb\nc\nd\n"); v.__fireChange("/repo/src/g.ts")
+    v.__editDoc(open, "a\nother\nbranch\n", false)                                         // reload of open file
+    v.__editDoc(typing, "a\nmine\n", true)                                                 // user typing meanwhile
+    await sleep(DEBOUNCE_WAIT)
   })
+  it("a checkout's working-tree change is not counted", () =>
+    assert.strictEqual(callsFor("/repo/src/g.ts").length, 0))
+  it("a checkout's reload of an OPEN file is not counted either", () =>
+    assert.strictEqual(callsFor("/repo/src/gopen.ts").length, 0))
+  it("typing during the checkout window still counts", () =>
+    assert.deepStrictEqual(sum("/repo/src/gtype.ts"), { added: 1, deleted: 0 }))
 })
