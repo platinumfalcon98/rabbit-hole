@@ -63,6 +63,11 @@ const SUITES = [
     entry: "test/tracker.ledger.test.ts",
     alias: { vscode: "test/stubs/vscode.ts", ledger: "src/tracker/lineLedger.ts" },
   },
+  {
+    name: "paths",
+    entry: "test/tracker.paths.test.ts",
+    alias: { vscode: "test/stubs/vscode.ts", paths: "src/tracker/pathRules.ts" },
+  },
 ]
 
 function parseArgs(argv) {
