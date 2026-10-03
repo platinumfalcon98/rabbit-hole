@@ -156,6 +156,86 @@ describe("memory", () => {
   })
 })
 
+// Today's snapshots survive a VS Code restart: without them, the first agent
+// edit to each unopened file after reopening is unmeasurable and lost.
+describe("export / restore (today only)", () => {
+  // JSON round trip, exactly as the snapshot file stores it.
+  const roundTrip = (l: any, day: string) => JSON.parse(JSON.stringify(l.export(day)))
+
+  it("an edit after restore is measured against the morning content", () => {
+    const a = new LineLedger()
+    a.observe("/f", h("a\nb\n"), { day: D1 })                 // morning photo
+    a.observe("/f", h("a\nb\nc\n"), { day: D1 })              // +1 credited
+    const b = new LineLedger()
+    assert.strictEqual(b.restore(roundTrip(a, D1), D1), true)
+    assert.deepStrictEqual(b.observe("/f", h("a\nb\nc\nd\n"), { day: D1 }), { added: 1, deleted: 0 })
+  })
+  it("an untouched photo restores too, so the first edit after restart counts", () => {
+    const a = new LineLedger()
+    a.observe("/f", h("x\n"), { day: D1 })
+    const b = new LineLedger()
+    b.restore(roundTrip(a, D1), D1)
+    assert.deepStrictEqual(b.observe("/f", h("x\ny\n"), { day: D1 }), { added: 1, deleted: 0 })
+  })
+  it("a snapshot from another day is ignored", () => {
+    const a = new LineLedger()
+    a.observe("/f", h("x\n"), { day: D1 })
+    const b = new LineLedger()
+    assert.strictEqual(b.restore(roundTrip(a, D1), D2), false)
+    assert.strictEqual(b.observe("/f", h("x\ny\n"), { day: D2 }), null) // first sighting again
+  })
+  it("only files seen today are exported", () => {
+    const a = new LineLedger()
+    a.observe("/old", h("x\n"), { day: D1 })
+    a.observe("/new", h("y\n"), { day: D2 })
+    assert.deepStrictEqual(Object.keys(a.export(D2).files), ["/new"])
+  })
+  it("a suppressed (git-op) baseline shift survives the round trip", () => {
+    const a = new LineLedger()
+    a.observe("/g", h("a\n"), { day: D1 })
+    a.observe("/g", h("a\nmine\n"), { day: D1 })                       // +1 authored
+    a.observe("/g", h("a\n"), { day: D1, suppress: true })              // branch switch
+    const b = new LineLedger()
+    b.restore(roundTrip(a, D1), D1)
+    assert.strictEqual(b.observe("/g", h("a\nmine\n"), { day: D1, suppress: true }), null) // switch back
+    assert.strictEqual(b.observe("/g", h("a\nmine\n"), { day: D1 }), null)                 // still exactly +1
+  })
+  it("wasEdited and deleted-file content survive the round trip", () => {
+    const a = new LineLedger()
+    a.observe("/w", h("a\n"), { day: D1 })
+    a.observe("/w", h("a\nb\n"), { day: D1 })
+    a.observe("/w", [], { day: D1 })
+    const b = new LineLedger()
+    b.restore(roundTrip(a, D1), D1)
+    assert.strictEqual(b.wasEdited("/w"), true)
+    assert.deepStrictEqual(b.lastPresent("/w"), h("a\nb\n"))
+  })
+  it("a malformed snapshot or entry is rejected without throwing", () => {
+    const b = new LineLedger()
+    assert.strictEqual(b.restore(null, D1), false)
+    assert.strictEqual(b.restore({ version: 1, day: D1, files: "nope" }, D1), false)
+    assert.strictEqual(
+      b.restore({ version: 1, day: D1, files: { "/bad": { last: "x" }, "/ok": { last: [1, 2], base: null, credited: { added: 0, deleted: 0 }, edited: false } } }, D1),
+      true)
+    assert.strictEqual(b.has("/bad"), false)
+    assert.strictEqual(b.has("/ok"), true)
+  })
+  it("a live entry is never overwritten by a restored one", () => {
+    const b = new LineLedger()
+    b.prime("/f", h("live\n"), D1)
+    const a = new LineLedger()
+    a.observe("/f", h("stale\n"), { day: D1 })
+    b.restore(roundTrip(a, D1), D1)
+    assert.deepStrictEqual(b.lastPresent("/f"), h("live\n"))
+  })
+  it("changes() moves whenever the ledger is mutated", () => {
+    const l = new LineLedger()
+    const c0 = l.changes()
+    l.observe("/f", h("a\n"), { day: D1 })
+    assert.notStrictEqual(l.changes(), c0)
+  })
+})
+
 describe("restart", () => {
   it("a fresh ledger (VS Code restarted) credits nothing on first sighting", () => {
     const l = new LineLedger()
