@@ -410,23 +410,35 @@ export class StorageService {
     }
   }
 
+  // `file` carries a signed delta: the tracker reports changes in per-day NET
+  // line counts, which shrink when today's lines are reverted. Rows and language
+  // totals are clamped at 0 — a count can only go negative if a delta was lost,
+  // and a negative number renders as nonsense. A row that nets to 0/0 (a temp
+  // file created and deleted) is dropped rather than cluttering the Files panel.
   appendFileActivity(file: FileActivity, projectId?: string): void {
     const targetProject = projectId ?? this.currentProjectId
     if (!targetProject) return
     const log = this.getLog(targetProject, todayKey())
-    const existing = log.files.findIndex(f => f.path === file.path)
-    if (existing >= 0) {
-      log.files[existing].linesAdded += file.linesAdded
-      log.files[existing].linesDeleted += file.linesDeleted
-      log.files[existing].lastModified = file.lastModified
-    } else {
-      log.files.push({ ...file })
+    const idx = log.files.findIndex(f => f.path === file.path)
+    if (idx >= 0) {
+      const existing = log.files[idx]
+      existing.linesAdded = Math.max(0, existing.linesAdded + file.linesAdded)
+      existing.linesDeleted = Math.max(0, existing.linesDeleted + file.linesDeleted)
+      existing.lastModified = file.lastModified
+      if (existing.linesAdded === 0 && existing.linesDeleted === 0) log.files.splice(idx, 1)
+    } else if (file.linesAdded > 0 || file.linesDeleted > 0) {
+      log.files.push({
+        ...file,
+        linesAdded: Math.max(0, file.linesAdded),
+        linesDeleted: Math.max(0, file.linesDeleted),
+      })
     }
     if (!log.languages[file.language]) {
       log.languages[file.language] = { time: 0, linesAdded: 0, linesDeleted: 0 }
     }
-    log.languages[file.language].linesAdded += file.linesAdded
-    log.languages[file.language].linesDeleted += file.linesDeleted
+    const lang = log.languages[file.language]
+    lang.linesAdded = Math.max(0, lang.linesAdded + file.linesAdded)
+    lang.linesDeleted = Math.max(0, lang.linesDeleted + file.linesDeleted)
     this.saveLog(targetProject, log)
   }
 

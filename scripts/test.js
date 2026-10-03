@@ -68,6 +68,11 @@ const SUITES = [
     entry: "test/tracker.paths.test.ts",
     alias: { vscode: "test/stubs/vscode.ts", paths: "src/tracker/pathRules.ts" },
   },
+  {
+    name: "files",
+    entry: "test/storage.files.test.ts",
+    alias: { vscode: "test/stubs/vscode.ts", storage: "src/tracker/storageService.ts" },
+  },
 ]
 
 function parseArgs(argv) {
