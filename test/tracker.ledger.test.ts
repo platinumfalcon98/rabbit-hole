@@ -106,6 +106,56 @@ describe("day rollover", () => {
   })
 })
 
+// The extension host is shared and long-lived: a per-line bag for every file
+// ever sighted would grow without bound. A bag is held only while a file has
+// something credited today.
+describe("memory", () => {
+  it("first sightings and primes hold no line bag", () => {
+    const l = new LineLedger()
+    l.observe("/a", h("a\nb\n"), { day: D1 })
+    l.prime("/b", h("c\n"), D1)
+    assert.deepStrictEqual(l.stats(), { files: 2, bags: 0 })
+  })
+  it("a suppressed change on an uncredited file holds no bag", () => {
+    const l = new LineLedger()
+    l.observe("/a", h("a\n"), { day: D1 })
+    l.observe("/a", h("a\nb\n"), { day: D1, suppress: true })
+    assert.deepStrictEqual(l.stats(), { files: 1, bags: 0 })
+  })
+  it("a file with credit today holds a bag; reverting to zero releases it", () => {
+    const l = new LineLedger()
+    l.observe("/a", h("a\n"), { day: D1 })
+    l.observe("/a", h("a\nb\n"), { day: D1 })
+    assert.strictEqual(l.stats().bags, 1)
+    l.observe("/a", h("a\n"), { day: D1 })
+    assert.strictEqual(l.stats().bags, 0)
+  })
+  it("a new day releases every bag", () => {
+    const l = new LineLedger()
+    l.observe("/a", h("a\n"), { day: D1 })
+    l.observe("/a", h("a\nb\n"), { day: D1 })
+    l.observe("/z", h("z\n"), { day: D2 }) // any activity on the new day
+    assert.strictEqual(l.stats().bags, 0)
+  })
+  it("wasEdited() is false for sightings, primes and suppressed changes", () => {
+    const l = new LineLedger()
+    l.observe("/a", h("a\n"), { day: D1 })
+    l.prime("/b", h("b\n"), D1)
+    l.observe("/a", h("a\nz\n"), { day: D1, suppress: true })
+    assert.strictEqual(l.wasEdited("/a"), false)
+    assert.strictEqual(l.wasEdited("/b"), false)
+  })
+  // Worktree work done in the evening and cherry-picked next morning must still
+  // be recognised as already credited.
+  it("wasEdited() survives a new day", () => {
+    const l = new LineLedger()
+    l.observe("/a", h("a\n"), { day: D1 })
+    l.observe("/a", h("a\nb\n"), { day: D1 })
+    l.observe("/z", h("z\n"), { day: D2 })
+    assert.strictEqual(l.wasEdited("/a"), true)
+  })
+})
+
 describe("restart", () => {
   it("a fresh ledger (VS Code restarted) credits nothing on first sighting", () => {
     const l = new LineLedger()

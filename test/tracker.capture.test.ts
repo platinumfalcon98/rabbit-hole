@@ -112,6 +112,20 @@ describe("temp files and unseen deletes", () => {
     assert.deepStrictEqual(sum("/repo/src/tmp.ts"), { added: 0, deleted: 0 }))
   it("delete of unseen file records nothing", () =>
     assert.strictEqual(callsFor("/repo/src/never-seen.ts").length, 0))
+
+  // VS Code keeps a deleted file's tab open ("(deleted)") with its old text, so
+  // measuring the buffer would never see the deletion.
+  describe("a temp file deleted while open in an editor", () => {
+    before(async () => {
+      v.__writeFile("/repo/src/opentmp.ts", "1\n2\n3\n"); v.__fireCreate("/repo/src/opentmp.ts")
+      await sleep(DEBOUNCE_WAIT)
+      v.__openDoc("/repo/src/opentmp.ts", "1\n2\n3\n")
+      v.__fireDelete("/repo/src/opentmp.ts")
+      await sleep(DEBOUNCE_WAIT)
+    })
+    it("still nets to zero", () =>
+      assert.deepStrictEqual(sum("/repo/src/opentmp.ts"), { added: 0, deleted: 0 }))
+  })
 })
 
 describe("open documents", () => {
@@ -161,7 +175,27 @@ describe("worktrees", () => {
     v.__writeFile(`${WT}/src/w.ts`, "a\nb\n"); v.__fireCreate(`${WT}/src/w.ts`)
     v.__writeFile(`${WT}/node_modules/x/i.js`, "x\n"); v.__fireCreate(`${WT}/node_modules/x/i.js`)
     v.__writeFile("/repo/.claude/settings.local.json", "{}\n"); v.__fireChange("/repo/.claude/settings.local.json")
+    // A second file the worktree never touches: its copy stays pristine.
+    v.__writeFile("/repo/src/p.ts", "p1\np2\n")
+    v.__writeFile(`${WT}/src/p.ts`, "p1\np2\n"); v.__fireCreate(`${WT}/src/p.ts`)
+    v.__fireChange("/repo/src/p.ts") // main baseline (first sighting)
     await sleep(DEBOUNCE_WAIT)
+  })
+
+  // An untouched worktree copy equals main's original content, so a revert in
+  // main (undo to clean, Discard Changes, `git checkout -- f`, `git stash`)
+  // must not be mistaken for a merge — the redo would then be credited twice.
+  describe("reverting main while a pristine worktree copy exists", () => {
+    before(async () => {
+      v.__writeFile("/repo/src/p.ts", "p1\np2\nx\ny\n"); v.__fireChange("/repo/src/p.ts")
+      await sleep(DEBOUNCE_WAIT)
+      v.__writeFile("/repo/src/p.ts", "p1\np2\n"); v.__fireChange("/repo/src/p.ts")
+      await sleep(DEBOUNCE_WAIT)
+      v.__writeFile("/repo/src/p.ts", "p1\np2\nx\ny\n"); v.__fireChange("/repo/src/p.ts")
+      await sleep(DEBOUNCE_WAIT)
+    })
+    it("edit, revert, redo nets to one edit (+2), not +4", () =>
+      assert.deepStrictEqual(sum("/repo/src/p.ts"), { added: 2, deleted: 0 }))
   })
 
   it("creating a worktree counts nothing", () =>

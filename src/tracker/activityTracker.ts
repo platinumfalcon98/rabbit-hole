@@ -466,7 +466,10 @@ export class ActivityTracker {
       const docLanguage = trackableLanguage(doc)
       if (!docLanguage) return
       language = docLanguage
-      hashes = hashLines(doc.getText())
+      // VS Code keeps a deleted file's tab open ("(deleted)") with its old
+      // text; measuring that buffer would never record the deletion, and a temp
+      // file an agent created, you opened, and the agent deleted kept its lines.
+      hashes = (await this.exists(path)) ? hashLines(doc.getText()) : []
       fromDisk = !doc.isDirty
     } else {
       const text = await this.readText(uri)
@@ -507,6 +510,11 @@ export class ActivityTracker {
     if (wt) return !(await this.exists(wt.gitFile))
     if (hashes.length === 0) return false
     for (const copy of this.worktreeCopies.get(path) ?? []) {
+      // Only a copy that was actually worked on is evidence of a merge. After
+      // `git worktree add` every untouched copy equals main's original content,
+      // so matching it would mistake an ordinary revert (undo to clean, Discard
+      // Changes, `git stash`) for a merge — and credit the redo twice.
+      if (!this.ledger.wasEdited(copy)) continue
       const theirs = this.ledger.lastPresent(copy)
       if (theirs && theirs.length === hashes.length && theirs.every((x, i) => x === hashes[i])) return true
     }

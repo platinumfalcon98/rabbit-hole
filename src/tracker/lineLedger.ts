@@ -23,12 +23,18 @@ export interface ObserveOptions {
   suppress?: boolean
 }
 
+// `base` is the signed multiset of start-of-day content, shifted by suppressed
+// changes. It is materialised only while the file has net change today; when
+// `base` is null it equals bag(last) by definition. The extension host is shared
+// and long-lived, so holding a per-line Map for every file ever sighted (every
+// file a branch switch touched, every document any extension opened) would grow
+// without bound — a bare hash array is what the old baselines cost.
 interface Entry {
-  day: string
-  base: Map<number, number> // signed multiset: start-of-day content, shifted by suppressed changes
+  base: Map<number, number> | null
   last: LineHashes          // latest observed content ([] once deleted)
   present: LineHashes       // latest content while the file existed
   credited: LineDelta       // net already reported for this file today
+  edited: boolean           // ever credited a change this session (survives midnight)
 }
 
 // FNV-1a 32-bit. Collisions (~0.3% across a 5000-line file) can mask a changed
@@ -80,8 +86,11 @@ function shift(base: Map<number, number>, from: LineHashes, to: LineHashes): voi
   for (const x of to) base.set(x, (base.get(x) ?? 0) + 1)
 }
 
+const ZERO: LineDelta = { added: 0, deleted: 0 }
+
 export class LineLedger {
   private entries = new Map<string, Entry>()
+  private day = ""
 
   has(path: string): boolean {
     return this.entries.has(path)
@@ -91,39 +100,68 @@ export class LineLedger {
     return this.entries.get(path)?.present
   }
 
+  // Whether an authored change to this file has been credited this session.
+  wasEdited(path: string): boolean {
+    return this.entries.get(path)?.edited ?? false
+  }
+
+  // Diagnostic: files tracked, and how many hold a materialised line bag.
+  stats(): { files: number; bags: number } {
+    let bags = 0
+    for (const e of this.entries.values()) if (e.base) bags++
+    return { files: this.entries.size, bags }
+  }
+
   // Record a sighting without crediting it (an editor opening a file), so the
   // first edit to an open file is measurable. No-op if already tracked.
   prime(path: string, hashes: LineHashes, day: string): void {
+    this.rollover(day)
     if (this.entries.has(path)) return
-    this.entries.set(path, { day, base: bag(hashes), last: hashes, present: hashes, credited: { added: 0, deleted: 0 } })
+    this.entries.set(path, { base: null, last: hashes, present: hashes, credited: ZERO, edited: false })
   }
 
   // The change to credit since the previous report (may be negative), or null
   // when there is nothing to credit.
   observe(path: string, hashes: LineHashes, opts: ObserveOptions): LineDelta | null {
+    this.rollover(opts.day)
     let e = this.entries.get(path)
     if (!e) {
       const start = opts.isCreate ? (opts.seed ?? []) : hashes
-      e = { day: opts.day, base: bag(start), last: start, present: start, credited: { added: 0, deleted: 0 } }
+      e = { base: null, last: start, present: start, credited: ZERO, edited: false }
       this.entries.set(path, e)
       // Pre-existing file with no baseline: the edit that brought us here is unmeasurable.
       if (!opts.isCreate) return null
     }
 
-    if (e.day !== opts.day) {
-      e.base = bag(e.last)
-      e.credited = { added: 0, deleted: 0 }
-      e.day = opts.day
+    if (opts.suppress) {
+      // With no bag, base == bag(last), and shifting it by (hashes - last)
+      // gives bag(hashes) — so it stays implicit.
+      if (e.base) shift(e.base, e.last, hashes)
+      e.last = hashes
+      if (hashes.length > 0) e.present = hashes
+      return null
     }
 
-    if (opts.suppress) shift(e.base, e.last, hashes)
+    const base = e.base ?? bag(e.last)
     e.last = hashes
     if (hashes.length > 0) e.present = hashes
-    if (opts.suppress) return null
-
-    const net = netDiff(e.base, hashes)
+    const net = netDiff(base, hashes)
+    // Net zero means current == base exactly, so the bag can be dropped.
+    e.base = net.added === 0 && net.deleted === 0 ? null : base
     const delta = { added: net.added - e.credited.added, deleted: net.deleted - e.credited.deleted }
     e.credited = net
-    return delta.added === 0 && delta.deleted === 0 ? null : delta
+    if (delta.added === 0 && delta.deleted === 0) return null
+    e.edited = true
+    return delta
+  }
+
+  // A new day starts every file from its last content: nothing credited, no bag.
+  private rollover(day: string): void {
+    if (day === this.day) return
+    this.day = day
+    for (const e of this.entries.values()) {
+      e.base = null
+      e.credited = ZERO
+    }
   }
 }
