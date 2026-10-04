@@ -3,7 +3,8 @@ import { StorageService, dateKey } from "./tracker/storageService"
 import { ActivityTracker } from "./tracker/activityTracker"
 import { DashboardPanel } from "./dashboard/dashboardPanel"
 import { MiniPanel } from "./dashboard/miniPanel"
-import { handleMessage } from "./dashboard/messageHandler"
+import { handleMessage, postYear, sendSettings } from "./dashboard/messageHandler"
+import { buildLive } from "./dashboard/payloads"
 import { MirrorService } from "./tracker/mirrorService"
 import { getDailyTargetMs } from "./shared/config"
 import { WebviewMessage } from "./shared/types"
@@ -123,6 +124,9 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.window.registerWebviewViewProvider(MiniPanel.viewId, miniPanel)
   )
 
+  // The year grid ends today; when the date changes the open dashboard needs a new one.
+  let yearDay = dateKey(new Date())
+
   // Live update interval — update streak, push to dashboard, refresh status bar & mini panel
   const interval = setInterval(() => {
     storage.updateStreak()
@@ -136,8 +140,25 @@ export function activate(context: vscode.ExtensionContext): void {
         projectId: storage.getCurrentProjectId(),
         globalToday: storage.getGlobalToday(),
       })
+      const panel = DashboardPanel.currentPanel
+      panel.postMessage({ type: "live", ...buildLive(storage, new Date()) })
+      const day = dateKey(new Date())
+      if (day !== yearDay) {
+        yearDay = day
+        postYear(storage, panel)
+      }
     }
   }, 10_000)
+
+  // Settings edited in settings.json or the Settings UI (not just from the
+  // dashboard) must reach the open webviews — the CRT settings especially.
+  context.subscriptions.push(
+    vscode.workspace.onDidChangeConfiguration(e => {
+      if (e.affectsConfiguration("rabbithole") && DashboardPanel.currentPanel) {
+        sendSettings(storage, DashboardPanel.currentPanel)
+      }
+    })
+  )
 
   context.subscriptions.push(
     vscode.commands.registerCommand("rabbithole.openDashboard", () => {

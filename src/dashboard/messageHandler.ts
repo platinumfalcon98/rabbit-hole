@@ -10,6 +10,7 @@ import {
   validateSnapshot,
 } from "../tracker/storageService"
 import { DashboardPanel } from "./dashboardPanel"
+import { buildRange, buildYear } from "./payloads"
 
 // Module-level view state — persists for the lifetime of the panel
 let currentStartDate = ""
@@ -67,6 +68,7 @@ export function handleMessage(
       // triggers the first streak render, which needs the real target.
       sendSettings(storage, panel)
       sendInit(storage, panel)
+      postYear(storage, panel)
       break
     }
 
@@ -75,6 +77,14 @@ export function handleMessage(
       currentStartDate = start
       currentEndDate = end
       sendInit(storage, panel)
+      break
+    }
+
+    case "requestDays": {
+      const range = buildRange(storage, msg.from, msg.to)
+      panel.postMessage(range
+        ? { type: "range", ...range }
+        : { type: "rangeRefused", from: msg.from, to: msg.to })
       break
     }
 
@@ -131,6 +141,7 @@ export function handleMessage(
         storage.updateStreak()
         storage.updateProjectStreak(storage.getCurrentProjectId())
         sendSettings(storage, panel)
+        postYear(storage, panel)
       })
       break
     }
@@ -146,6 +157,7 @@ export function handleMessage(
       storage.updateProjectTarget(msg.projectId, msg.value)
       storage.updateProjectStreak(msg.projectId)
       sendInit(storage, panel)
+      postYear(storage, panel)
       break
     }
 
@@ -160,7 +172,7 @@ export function handleMessage(
     }
 
     case "createBackup": {
-      runBackup(storage, msg.scope)
+      runBackup(storage, panel, msg.scope)
       break
     }
 
@@ -173,9 +185,7 @@ export function handleMessage(
       const name = storage.getProjects().find(p => p.id === msg.projectId)?.name ?? "project"
       storage.clearProject(msg.projectId).then(() => {
         refreshAfterWipe(storage, panel)
-        vscode.window.showInformationMessage(
-          `Rabbit Hole: Cleared "${name}". Backup saved to ${storage.getLastBackupPath()}`
-        )
+        tell(panel, true, `Rabbit Hole: Cleared "${name}". Backup saved to ${storage.getLastBackupPath()}`)
       })
       break
     }
@@ -183,23 +193,21 @@ export function handleMessage(
     case "clearAll": {
       storage.clearAll().then(() => {
         refreshAfterWipe(storage, panel)
-        vscode.window.showInformationMessage(
-          `Rabbit Hole: All data cleared. Backup saved to ${storage.getLastBackupPath()}`
-        )
+        tell(panel, true, `Rabbit Hole: All data cleared. Backup saved to ${storage.getLastBackupPath()}`)
       })
       break
     }
   }
 }
 
-async function runBackup(storage: StorageService, scope: "projects" | "all"): Promise<void> {
+async function runBackup(storage: StorageService, panel: DashboardPanel, scope: "projects" | "all"): Promise<void> {
   let projectIds: string[] | undefined
   let label: string | undefined
 
   if (scope === "projects") {
     const projects = storage.getProjects()
     if (projects.length === 0) {
-      vscode.window.showErrorMessage("Rabbit Hole: There are no projects to back up yet.")
+      tell(panel, false, "Rabbit Hole: There are no projects to back up yet.")
       return
     }
     const picks = await vscode.window.showQuickPick(
@@ -219,6 +227,7 @@ async function runBackup(storage: StorageService, scope: "projects" | "all"): Pr
   const what = projectIds
     ? `${projectIds.length} ${projectIds.length === 1 ? "project" : "projects"}`
     : "Full"
+  panel.postMessage({ type: "actionResult", ok: true, lines: [`${what} backup saved to ${file}`] })
   const choice = await vscode.window.showInformationMessage(
     `Rabbit Hole: ${what} backup saved to ${file}`,
     "Reveal"
@@ -257,9 +266,7 @@ async function runImport(
     summary = null
   }
   if (!summary) {
-    vscode.window.showErrorMessage(
-      "Rabbit Hole: That file isn't a Rabbit Hole backup. Pick a backup-<date>.json from the backups folder."
-    )
+    tell(panel, false, "Rabbit Hole: That file isn't a Rabbit Hole backup. Pick a backup-<date>.json from the backups folder.")
     return
   }
 
@@ -299,7 +306,7 @@ async function runImport(
   const scoped = scopeSnapshotToProjects(snapshot, selectedIds)
   const scopedSummary = validateSnapshot(scoped)
   if (!scopedSummary) {
-    vscode.window.showErrorMessage("Rabbit Hole: Nothing to import from that selection.")
+    tell(panel, false, "Rabbit Hole: Nothing to import from that selection.")
     return
   }
 
@@ -331,13 +338,11 @@ async function runImport(
 
   const ok = await storage.importSnapshot(scoped)
   if (!ok) {
-    vscode.window.showErrorMessage("Rabbit Hole: Import failed — nothing was changed.")
+    tell(panel, false, "Rabbit Hole: Import failed — nothing was changed.")
     return
   }
   refreshAfterWipe(storage, panel)
-  vscode.window.showInformationMessage(
-    `Rabbit Hole: Restored ${names}. Previous data backed up to ${storage.getLastBackupPath()}`
-  )
+  tell(panel, true, `Rabbit Hole: Restored ${names}. Previous data backed up to ${storage.getLastBackupPath()}`)
 }
 
 // Settings before init for the same reason as the ready case: sendInit renders
@@ -345,9 +350,10 @@ async function runImport(
 function refreshAfterWipe(storage: StorageService, panel: DashboardPanel): void {
   sendSettings(storage, panel)
   sendInit(storage, panel)
+  postYear(storage, panel)
 }
 
-function sendSettings(storage: StorageService, panel: DashboardPanel): void {
+export function sendSettings(storage: StorageService, panel: DashboardPanel): void {
   const dailyTargetMinutes = getDailyTargetMinutes()
   panel.postMessage({
     type: "settings",
@@ -357,6 +363,18 @@ function sendSettings(storage: StorageService, panel: DashboardPanel): void {
     storagePath: storage.getStoragePath(),
     crt: getCrtSettings(),
   })
+}
+
+export function postYear(storage: StorageService, panel: DashboardPanel): void {
+  panel.postMessage({ type: "year", ...buildYear(storage, new Date(), getDailyTargetMs()) })
+}
+
+// Shows the result the way it always has, and also hands it to the dashboard's
+// Settings output console so the user can see what an action actually did.
+function tell(panel: DashboardPanel, ok: boolean, text: string): void {
+  if (ok) vscode.window.showInformationMessage(text)
+  else vscode.window.showErrorMessage(text)
+  panel.postMessage({ type: "actionResult", ok, lines: [text.replace(/^Rabbit Hole: /, "")] })
 }
 
 function sendInit(storage: StorageService, panel: DashboardPanel): void {
