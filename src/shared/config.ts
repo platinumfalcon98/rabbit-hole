@@ -1,6 +1,7 @@
 // Imports `vscode` — never import this from `src/webview/*`. It sits beside
 // types.ts, which IS webview-shared; the proximity invites the mistake.
 import * as vscode from "vscode"
+import type { CrtEffect, CrtMask, CrtPitch, CrtSettings } from "./types"
 
 export const DAILY_TARGET_DEFAULT = 20
 export const SESSION_EXPIRY_MS = 60 * 60_000
@@ -41,4 +42,27 @@ export function resolveProjectTargetMinutes(override: number | undefined): numbe
 export function clampDailyTargetMinutes(raw: unknown): number | null {
   if (typeof raw !== "number" || !isFinite(raw)) return null
   return Math.min(DAILY_TARGET_MAX, Math.max(DAILY_TARGET_MIN, Math.round(raw)))
+}
+
+const CRT_MASKS: readonly CrtMask[] = ["slot", "grille", "shadow", "off"]
+const CRT_PITCHES: readonly CrtPitch[] = ["fine", "medium", "coarse"]
+const CRT_EFFECTS: readonly CrtEffect[] = ["scanlines", "bloom", "convergence", "roll", "flicker"]
+
+// Subtle by default: enough to read as a tube, never enough to cost legibility.
+export const CRT_DEFAULTS: CrtSettings = { mask: "slot", pitch: "fine", strength: 30, effects: ["scanlines", "bloom"] }
+
+export function getCrtSettings(): CrtSettings {
+  const cfg = vscode.workspace.getConfiguration("rabbithole")
+  const mask = cfg.get("crt.mask")
+  const pitch = cfg.get("crt.pitch")
+  const effects = cfg.get("crt.effects")
+  return {
+    mask: CRT_MASKS.includes(mask as CrtMask) ? (mask as CrtMask) : CRT_DEFAULTS.mask,
+    pitch: CRT_PITCHES.includes(pitch as CrtPitch) ? (pitch as CrtPitch) : CRT_DEFAULTS.pitch,
+    // clampMinutes is a generic integer clamp despite its name
+    strength: clampMinutes(cfg.get("crt.strength"), CRT_DEFAULTS.strength, 0, 100),
+    effects: Array.isArray(effects)
+      ? CRT_EFFECTS.filter(e => effects.includes(e))
+      : [...CRT_DEFAULTS.effects],
+  }
 }

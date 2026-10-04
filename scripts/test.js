@@ -44,6 +44,11 @@ const SUITES = [
     },
   },
   {
+    name: "crt",
+    entry: "test/config.crt.test.ts",
+    alias: { vscode: "test/stubs/vscode.ts", cfg: "src/shared/config.ts" },
+  },
+  {
     name: "clear",
     entry: "test/storage.clear.test.ts",
     alias: { vscode: "test/stubs/vscode.ts", storage: "src/tracker/storageService.ts" },

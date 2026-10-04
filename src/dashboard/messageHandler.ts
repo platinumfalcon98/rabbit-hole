@@ -1,7 +1,7 @@
 import * as fs from "fs/promises"
 import * as vscode from "vscode"
 import { DailyLog, WebviewMessage } from "../shared/types"
-import { getDailyTargetMinutes, getDailyTargetMs, getIdleThresholdMs } from "../shared/config"
+import { getCrtSettings, getDailyTargetMinutes, getDailyTargetMs, getIdleThresholdMs } from "../shared/config"
 import {
   PROJECTS_KEY,
   SnapshotSummary,
@@ -132,6 +132,13 @@ export function handleMessage(
         storage.updateProjectStreak(storage.getCurrentProjectId())
         sendSettings(storage, panel)
       })
+      break
+    }
+
+    case "updateCrtSetting": {
+      vscode.workspace.getConfiguration("rabbithole")
+        .update(`crt.${msg.key}`, msg.value, vscode.ConfigurationTarget.Global)
+        .then(() => sendSettings(storage, panel))
       break
     }
 
@@ -348,6 +355,7 @@ function sendSettings(storage: StorageService, panel: DashboardPanel): void {
     dailyTargetMinutes,
     idleThresholdMinutes: Math.round(getIdleThresholdMs() / 60_000),
     storagePath: storage.getStoragePath(),
+    crt: getCrtSettings(),
   })
 }
 

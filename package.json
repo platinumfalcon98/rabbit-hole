@@ -73,6 +73,38 @@
           "minimum": 1,
           "maximum": 60,
           "description": "Pause the active timer after this many minutes with no activity."
+        },
+        "rabbithole.crt.mask": {
+          "type": "string",
+          "enum": ["slot", "grille", "shadow", "off"],
+          "enumDescriptions": [
+            "Staggered RGB slots, as on most consumer TVs and terminals.",
+            "Unbroken vertical stripes (Trinitron).",
+            "Round dot triads.",
+            "No CRT effect."
+          ],
+          "default": "slot",
+          "description": "Phosphor mask drawn over the dashboard and sidebar."
+        },
+        "rabbithole.crt.pitch": {
+          "type": "string",
+          "enum": ["fine", "medium", "coarse"],
+          "default": "fine",
+          "description": "Size of the mask's phosphor cells."
+        },
+        "rabbithole.crt.strength": {
+          "type": "number",
+          "default": 30,
+          "minimum": 0,
+          "maximum": 100,
+          "description": "How strongly the mask darkens the screen, from 0 to 100."
+        },
+        "rabbithole.crt.effects": {
+          "type": "array",
+          "items": { "type": "string", "enum": ["scanlines", "bloom", "convergence", "roll", "flicker"] },
+          "uniqueItems": true,
+          "default": ["scanlines", "bloom"],
+          "description": "Extra CRT effects. Refresh roll and flicker are skipped when the OS asks for reduced motion."
         }
       }
     }

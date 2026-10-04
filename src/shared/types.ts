@@ -63,12 +63,23 @@ export interface DailyLog {
   sessions: ActivitySession[]
 }
 
+// ── CRT display (dashboard + sidebar) ─────────────────────────────────────
+export type CrtMask = "slot" | "grille" | "shadow" | "off"
+export type CrtPitch = "fine" | "medium" | "coarse"
+export type CrtEffect = "scanlines" | "bloom" | "convergence" | "roll" | "flicker"
+export interface CrtSettings {
+  mask: CrtMask
+  pitch: CrtPitch
+  strength: number      // 0–100
+  effects: CrtEffect[]  // canonical order, no duplicates
+}
+
 // ── Message Protocol ──────────────────────────────────────────────────────
 
 export type ExtensionMessage =
   | { type: "init"; data: DailyLog[]; heatmapData: DailyLog[]; projects: ProjectMeta[]; currentProjectId: string; projectTimestamps: Record<string, number>; projectActiveTimes: Record<string, number> }
   | { type: "update"; data: DailyLog; projectId: string; globalToday: { activeTime: number; streak: number } }
-  | { type: "settings"; dailyTargetMs: number; dailyTargetMinutes: number; idleThresholdMinutes: number; storagePath: string }
+  | { type: "settings"; dailyTargetMs: number; dailyTargetMinutes: number; idleThresholdMinutes: number; storagePath: string; crt: CrtSettings }
   | { type: "pdfData"; logs: DailyLog[]; projectName: string; dateRange: { from: string; to: string } }
 
 export type RangePreset = "today" | "7d" | "30d" | "1y" | "custom"
@@ -83,6 +94,7 @@ export type WebviewMessage =
   | { type: "writeJpg"; base64: string; projectName: string }
   | { type: "updateSetting"; key: "dailyTargetMinutes" | "idleThresholdMinutes"; value: number }
   | { type: "updateProjectSetting"; projectId: string; key: "dailyTargetMinutes"; value: number | null }
+  | { type: "updateCrtSetting"; key: "mask" | "pitch" | "strength" | "effects"; value: string | number | string[] }
   | { type: "revealStorage" }
   | { type: "createBackup"; scope: "projects" | "all" }
   | { type: "importData"; scope: "projects" | "all" }
