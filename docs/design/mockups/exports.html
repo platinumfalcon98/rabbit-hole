@@ -1,0 +1,474 @@
+<title>Rabbit Hole Exports</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Martian+Mono:wdth,wght@75..112.5,300..700&display=swap">
+<style>
+/* Layout: the export dialog as it opens over the dashboard, left; a live preview of the file it would write, right.
+   Both files are always the dark phosphor look, whatever the editor theme; the report adds today's hairline terminal frame. */
+:root {
+  --bg: #eef0e9; --panel: #f6f7f2; --rule: #b9c2b2; --ink: #12261b; --ink-dim: #4c6356; --ink-mute: #7b8e82;
+  --chrome: #8a5a00; --chrome-ink: #fff8e6; --add: #0f7a43; --del: #b4232f;
+  --mono: "Martian Mono", "Cascadia Mono", Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #050b08; --panel: #08110d; --rule: #22392d; --ink: #cfeedd; --ink-dim: #86a596; --ink-mute: #56705f;
+  --chrome: #ffb703; --chrome-ink: #1a1300; --add: #39d98a; --del: #ff6b6b; color-scheme: dark;
+}}
+:root[data-theme="dark"] {
+  --bg: #050b08; --panel: #08110d; --rule: #22392d; --ink: #cfeedd; --ink-dim: #86a596; --ink-mute: #56705f;
+  --chrome: #ffb703; --chrome-ink: #1a1300; --add: #39d98a; --del: #ff6b6b; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { background: var(--bg); color: var(--ink); font: 400 12.5px/1.55 var(--mono); font-variation-settings: "wdth" 87.5; padding-inline: 16px; padding-block: 24px 48px; }
+.wrap { max-width: 1180px; margin-inline: auto; display: grid; grid-template-columns: minmax(0, 340px) minmax(0, 1fr); gap: 28px; align-items: start; }
+@media (max-width: 900px) { .wrap { grid-template-columns: minmax(0, 1fr); } }
+:focus-visible { outline: 1px solid var(--chrome); outline-offset: 2px; }
+
+fieldset { margin: 0; min-width: 0; border: 1px solid var(--rule); background: var(--panel); padding: 10px 14px 14px; }
+legend { padding: 0 6px; color: var(--ink-dim); margin-left: -2px; }
+legend b { color: var(--chrome); font-weight: 600; }
+
+/* the dialog */
+.dialog { border-color: var(--chrome); position: sticky; top: env(safe-area-inset-top, 0px); }
+.dlg-row { display: grid; gap: 6px; padding-block: 8px; }
+.dlg-row + .dlg-row { border-top: 1px dashed var(--rule); }
+.dlg-row .k { color: var(--ink-dim); }
+.opts { display: flex; flex-wrap: wrap; gap: 2px; }
+.opts button { font: inherit; color: var(--ink-dim); background: none; border: 0; padding: 2px 8px; cursor: pointer; }
+.opts button[aria-pressed="true"] { background: var(--chrome); color: var(--chrome-ink); }
+.opts button:hover:not([aria-pressed="true"]) { color: var(--chrome); }
+.opts button:disabled { color: var(--ink-mute); opacity: .5; cursor: default; }
+.desc { color: var(--ink-mute); }
+.foot { display: flex; gap: 10px; justify-content: flex-end; align-items: center; margin-top: 10px; }
+.btn { font: inherit; background: none; border: 0; color: var(--ink); cursor: pointer; padding: 2px; }
+.btn::before { content: "[ "; color: var(--ink-mute); } .btn::after { content: " ]"; color: var(--ink-mute); }
+.btn.primary { background: var(--chrome); color: var(--chrome-ink); padding: 3px 10px; }
+.btn.primary::before, .btn.primary::after { content: none; }
+.dest { color: var(--ink-mute); overflow-wrap: anywhere; }
+.status { color: var(--add); min-height: 1.5em; }
+
+/* preview stage */
+.stage { display: grid; gap: 10px; min-width: 0; }
+.stage-head { display: flex; flex-wrap: wrap; gap: 4px 18px; align-items: baseline; color: var(--ink-dim); }
+.stage-head b { color: var(--ink); font-weight: 600; }
+.canvas { overflow: auto; padding: 18px; border: 1px dashed var(--rule); display: flex; gap: 22px; align-items: flex-start; justify-content: center; flex-wrap: wrap; }
+
+/* ── share card: fixed phosphor colours, it is an image ── */
+.card {
+  --c-bg: #050b08; --c-panel: #08110d; --c-rule: #22392d; --c-ink: #cfeedd; --c-dim: #86a596; --c-mute: #56705f;
+  --c-amber: #ffb703; --c-add: #39d98a; --c-del: #ff6b6b;
+  width: 420px; height: 620px; flex: none; position: relative; overflow: hidden;
+  background: var(--c-bg); color: var(--c-ink); padding: 22px 24px 18px; display: flex; flex-direction: column; gap: 12px;
+  text-shadow: 0 0 1px color-mix(in srgb, currentColor 80%, transparent), 0 0 7px color-mix(in srgb, currentColor 45%, transparent);
+  border-radius: 6px; box-shadow: 0 10px 40px rgba(0,0,0,.35);
+}
+.card::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: repeating-linear-gradient(to bottom, transparent 0 2px, rgba(0,0,0,.28) 2px 3px); }
+.card .top { display: flex; align-items: center; gap: 14px; }
+.card .top svg { filter: drop-shadow(0 0 3px rgba(255,139,0,.55)); flex: none; }
+.card .who { font-weight: 700; font-size: 16px; }
+.card .when { color: var(--c-dim); font-size: 11px; }
+.card .top .r { margin-left: auto; text-align: right; }
+.card fieldset { border-color: var(--c-rule); background: var(--c-panel); padding: 6px 12px 10px; }
+.card legend { color: var(--c-dim); font-size: 11px; }
+.card legend b { color: var(--c-amber); }
+.card .hero { display: flex; align-items: baseline; gap: 10px; }
+.card .hero .n { font-size: 64px; line-height: .95; font-weight: 700; font-variation-settings: "wdth" 75; color: var(--c-add); }
+.card .hero .k { color: var(--c-dim); }
+.card .hero.time .n { color: var(--c-ink); }
+.card .days { display: grid; grid-template-columns: repeat(14, 1fr); margin-top: 8px; font-size: 13px; text-align: center; }
+.card .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.card .v { font-size: 26px; line-height: 1.1; font-weight: 600; font-variation-settings: "wdth" 75; }
+.card .v.add { color: var(--c-add); } .card .v.del { color: var(--c-del); }
+.card .k2 { color: var(--c-dim); font-size: 11px; }
+.card .tape { display: grid; grid-template-columns: repeat(24, 1fr); font-size: 14px; line-height: 1; padding-top: 12px; }
+.card .tape span { text-align: center; transform: scaleY(2); transform-origin: bottom; display: block; overflow: hidden; }
+.card .tape .off { color: var(--c-mute); transform: none; opacity: .6; }
+.card .ticks { display: flex; justify-content: space-between; color: var(--c-mute); font-size: 9.5px; margin-top: 3px; }
+.card .cols { display: grid; gap: 2px; height: 74px; align-items: end; }
+.card .cols i { display: block; background: var(--c-add); }
+.card .cols i.under { background: var(--c-mute); } .card .cols i.now { background: var(--c-amber); }
+.card .heat { display: grid; grid-template-rows: repeat(7, 1fr); grid-auto-flow: column; gap: 2px; font-size: 13px; line-height: 1; color: var(--c-add); justify-content: center; }
+.card .heat span { width: 13px; height: 13px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.card .heat .z { color: var(--c-mute); } .card .heat .now { color: var(--c-amber); }
+.card .lsplit { display: flex; gap: 2px; height: 10px; margin-top: 4px; }
+.card .lsplit span { height: 100%; }
+.card .lkeys { display: flex; flex-wrap: wrap; gap: 2px 12px; margin-top: 7px; font-size: 10.5px; color: var(--c-dim); }
+.card .lkeys span { display: inline-flex; gap: 5px; align-items: center; }
+.card .lkeys i { width: 7px; height: 7px; display: inline-block; }
+.card .foot2 { margin-top: auto; display: flex; align-items: center; justify-content: center; gap: 6px; color: var(--c-mute); font-size: 10px; }
+.card .foot2 b { color: var(--c-ink); font-weight: 600; }
+
+/* ── report pages: fixed paper colours, it gets printed ── */
+.pages { display: grid; gap: 22px; justify-items: center; }
+.page-wrap { width: calc(595px * var(--z)); height: calc(842px * var(--z)); flex: none; }
+.page {
+  --p-bg: #06090a; --p-ink: #dcfbe6; --p-dim: #86a596; --p-mute: #5b7468; --p-rule: #22392d; --p-frame: #2c4436; --p-amber: #ffb703; --p-add: #39d98a; --p-del: #ff6b6b;
+  width: 595px; height: 842px; background: var(--p-bg); color: var(--p-ink); padding: 34px 38px 28px; transform: scale(var(--z)); transform-origin: top left;
+  display: flex; flex-direction: column; gap: 12px; font-size: 9.5px; line-height: 1.45; box-shadow: 0 8px 30px rgba(0,0,0,.35); position: relative; overflow: hidden;
+}
+.page::before { content: ""; position: absolute; inset: 20px; border: .75px solid var(--p-frame); border-radius: 6px; pointer-events: none; }
+.page fieldset { border-color: var(--p-rule); background: transparent; padding: 6px 10px 9px; }
+.page legend { color: var(--p-dim); font-size: 9.5px; }
+.page legend b { color: var(--p-amber); }
+.page .ph { display: flex; align-items: center; gap: 12px; border-bottom: 1px solid var(--p-frame); padding-bottom: 10px; }
+.page .ph .t { font-weight: 700; font-size: 15px; }
+.page .ph .s { color: var(--p-dim); }
+.page .ph .r { margin-left: auto; text-align: right; color: var(--p-dim); }
+.page .tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.page .tile { border: 1px solid var(--p-rule); padding: 6px 8px; }
+.page .tile .v { font-size: 17px; font-weight: 600; font-variation-settings: "wdth" 75; line-height: 1.15; }
+.page .tile .v.add { color: var(--p-add); } .page .tile .v.del { color: var(--p-del); }
+.page .tile .k { color: var(--p-dim); font-size: 8.5px; }
+.page .cols { display: grid; gap: 2px; height: 70px; align-items: end; }
+.page .cols i { display: block; background: var(--p-add); }
+.page .cols i.under { background: var(--p-mute); }
+.page .axis { display: flex; justify-content: space-between; color: var(--p-mute); font-size: 8px; margin-top: 3px; }
+.page .tape { display: grid; grid-template-columns: repeat(48, 1fr); font-size: 10px; line-height: 1; padding-top: 10px; }
+.page .tape span { text-align: center; transform: scaleY(2); transform-origin: bottom; display: block; overflow: hidden; }
+.page .tape .off { color: var(--p-mute); transform: none; }
+.page table { color: var(--p-ink); width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: inherit; }
+.page th { text-align: left; color: var(--p-dim); font-weight: 600; border-bottom: 1px solid var(--p-frame); padding: 2px 4px; }
+.page td { padding: 2px 4px; border-bottom: 1px solid color-mix(in srgb, var(--p-rule) 60%, transparent); white-space: nowrap; }
+.page td.num, .page th.num { text-align: right; }
+.page td .add { color: var(--p-add); } .page td .del { color: var(--p-del); }
+.page .bar { display: inline-block; height: 7px; vertical-align: middle; }
+.page .dir { color: var(--p-mute); }
+.page .heat { display: grid; grid-template-rows: repeat(7, 1fr); grid-auto-flow: column; gap: 1.5px; font-size: 9px; line-height: 1; color: var(--p-add); justify-content: center; }
+.page .heat { font-size: 12px; gap: 2px; }
+.page .heat span { width: 13px; height: 13px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.page .heat .z { color: var(--p-mute); }
+.page .pf span { white-space: nowrap; }
+.page .pf { margin-top: auto; display: flex; justify-content: space-between; align-items: center; color: var(--p-mute); border-top: 1px solid var(--p-frame); padding-top: 6px; }
+.page .note { color: var(--p-mute); }
+
+pre.text { margin: 0; width: min(100%, 760px); max-height: 560px; overflow: auto; background: var(--panel); border: 1px solid var(--rule); padding: 12px 14px; font: 11.5px/1.55 var(--mono); color: var(--ink); white-space: pre; }
+
+.notes { grid-column: 1 / -1; color: var(--ink-dim); max-width: 86ch; margin-top: 10px; }
+.notes h2 { font-size: 12.5px; color: var(--ink); margin: 0 0 6px; }
+.notes ul { margin: 0; padding-left: 2ch; } .notes li { margin-bottom: 5px; }
+.notes code { color: var(--ink); }
+</style>
+
+<div class="wrap">
+  <fieldset class="dialog" aria-label="Export dialog">
+    <legend><b>export</b></legend>
+    <div class="dlg-row">
+      <span class="k">format</span>
+      <div class="opts" role="group" aria-label="Format" id="fmt">
+        <button data-v="card" aria-pressed="true">share card</button><button data-v="report">report</button><button data-v="csv">csv</button><button data-v="json">json</button>
+      </div>
+      <span class="desc" id="fmt-desc"></span>
+    </div>
+    <div class="dlg-row">
+      <span class="k">range</span>
+      <div class="opts" role="group" aria-label="Range" id="rng">
+        <button data-v="1" aria-pressed="true">today</button><button data-v="7">7d</button><button data-v="30">30d</button><button data-v="90">90d</button>
+      </div>
+    </div>
+    <div class="dlg-row">
+      <span class="k">project</span>
+      <div class="opts" role="group" aria-label="Project" id="prj">
+        <button data-v="rh" aria-pressed="true">rabbit-hole</button><button data-v="all">all projects</button>
+      </div>
+    </div>
+    <div class="dlg-row">
+      <span class="k">saves as</span>
+      <span class="dest" id="dest"></span>
+    </div>
+    <div class="foot"><button class="btn" id="cancel">cancel</button><button class="btn primary" id="go">export</button></div>
+    <div class="status" id="status" aria-live="polite"></div>
+  </fieldset>
+
+  <section class="stage">
+    <div class="stage-head" id="stage-head"></div>
+    <div class="canvas" id="canvas"></div>
+  </section>
+
+  <div class="notes">
+    <h2>Fits inside the extension</h2>
+    <ul>
+      <li>The current exports don't use Chart.js. The share card is drawn on a canvas at 3× and the report is built with jsPDF, and both stay that way: only the drawing changes, from Press Start 2P, Unica One and Electrolize to Martian Mono, box-drawn panels and block glyphs.</li>
+      <li>The share card is always the dark phosphor screen, whatever the editor theme, because it is an image people post. It keeps faint scanlines but no phosphor mask, which would moiré once a social site rescales it.</li>
+      <li>The report keeps today's dark pages and their hairline terminal frame, now with TTY panels inside. It stays flat: no glow and no scanlines, which don't survive PDF viewers and printing. jsPDF needs a static TrueType file, so the report embeds a regular and a bold instance of Martian Mono cut from the variable font.</li>
+      <li>One day gets the day tape; a range gets one column per day (green: target met). The report adds sessions or days, top files as <code>git diff --stat</code>, and a heatmap for 30 and 90 days.</li>
+      <li>CSV and JSON keep today's columns and shape, plus the new per-session languages.</li>
+    </ul>
+    <p>All numbers are example data, matching the dashboard mockup.</p>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
+const NS = "http://www.w3.org/2000/svg";
+const fmt = m => { m = Math.round(m); return m >= 60 ? `${Math.floor(m / 60)}h${String(m % 60).padStart(2, "0")}m` : `${m}m`; };
+const hrs = m => m >= 600 ? Math.round(m / 60) + "h" : fmt(m);
+const hhmm = m => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(Math.round(m % 60)).padStart(2, "0")}`;
+const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"], WD = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const TODAY = new Date(2026, 9, 3);
+const addDays = (d, n) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+const isoD = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const dstr = d => `${WD[d.getDay()]} ${d.getDate()} ${MON[d.getMonth()]}`;
+
+/* the carrot, pixel for pixel from resources/rabbithole-icon.svg */
+const CARROT = [".........G....", ".........G..G.", "......BBBG.G..", ".....BOOOBG...", "....BBOOOOBGGG", "...BOOBOOOB...", "..BOOOOOOOB...", ".BOOOOBOOB....", ".OOOOOOBB.....", "BBBBBBBB......"];
+function carrot(scale) {
+  const svg = document.createElementNS(NS, "svg");
+  svg.setAttribute("width", 14 * scale); svg.setAttribute("height", 10 * scale); svg.setAttribute("viewBox", "0 0 14 10"); svg.setAttribute("shape-rendering", "crispEdges");
+  const PAL = { O: "#FF8B00", B: "#A5510C", G: "#01FF00" };
+  CARROT.forEach((row, y) => [...row].forEach((c, x) => { if (c === ".") return; const r = document.createElementNS(NS, "rect"); r.setAttribute("x", x); r.setAttribute("y", y); r.setAttribute("width", 1); r.setAttribute("height", 1); r.setAttribute("fill", PAL[c]); svg.append(r); }));
+  return svg;
+}
+
+/* example data: 90 days, seeded; today and this week match the dashboard mockup */
+function rng(seed) { return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const r = rng(4242);
+const PROJ = { rh: "rabbit-hole", cli: "rabbithole-cli", mk: "mekatrone" };
+const LANGS = ["TypeScript", "Go", "Markdown", "JSON", "CSS"];
+const days = [];
+for (let i = 90; i >= 0; i--) {
+  const d = addDays(TODAY, -i), wk = d.getDay() === 0 || d.getDay() === 6, on = r() < (wk ? .5 : .82);
+  const tot = on ? Math.round(20 + Math.pow(r(), 1.5) * 280) : 0;
+  const mk = d < new Date(2026, 8, 20) ? Math.round(tot * (.2 + r() * .3)) : 0, cli = Math.round((tot - mk) * (.1 + r() * .15));
+  days.push({ d, m: { rh: tot - mk - cli, cli, mk } });
+}
+const fixed = [{ rh: 81, cli: 14 }, { rh: 178, cli: 32 }, { rh: 21, cli: 4 }, { rh: 98, cli: 20, mk: 30 }, { rh: 221, cli: 39 }, { rh: 63, cli: 11 }, { rh: 192, cli: 28 }];
+fixed.forEach((m, k) => days[days.length - 7 + k].m = { rh: 0, cli: 0, mk: 0, ...m });
+days.forEach(x => {
+  const t = Object.values(x.m).reduce((a, b) => a + b, 0);
+  x.add = Math.round(t * (1.4 + r() * 1.2)); x.del = Math.round(x.add * (.3 + r() * .2));
+  x.rhAdd = Math.round(x.add * (x.m.rh / Math.max(1, t))); x.rhDel = Math.round(x.del * (x.m.rh / Math.max(1, t)));
+});
+const last = days[days.length - 1]; last.add = 458; last.del = 180; last.rhAdd = 412; last.rhDel = 168;
+const sessionsToday = [
+  { s: "08:41", e: "09:58", active: 64, p: "rh", langs: { TypeScript: 45, Markdown: 13, JSON: 6 } },
+  { s: "10:20", e: "12:05", active: 78, p: "rh", langs: { TypeScript: 66, CSS: 12 } },
+  { s: "14:02", e: "14:31", active: 22, p: "rh", langs: { Markdown: 22 } },
+  { s: "16:10", e: "16:58", active: 28, p: "rh", langs: { Go: 17, TypeScript: 11 } },
+  { s: "17:18", e: "17:51", active: 28, p: "cli", langs: { Go: 21, Markdown: 7 } },
+];
+const FILES = [["src/tracker/", "lineLedger.ts", 142, 61, "rh"], ["src/tracker/", "activityTracker.ts", 96, 58, "rh"], ["test/", "tracker.ledger.test.ts", 64, 14, "rh"],
+  ["", "CLAUDE.md", 38, 6, "rh"], ["cmd/rabbithole/", "main.go", 31, 8, "cli"], ["src/webview/", "style.css", 21, 12, "rh"], ["internal/mirror/", "read.go", 17, 4, "rh"],
+  ["src/tracker/", "ledgerStore.ts", 16, 8, "rh"], ["internal/store/", "read.go", 15, 4, "cli"], ["", "DESIGN.md", 14, 3, "rh"]];
+const TARGET = 20;
+
+function view(n, p) {
+  const list = days.slice(-n).map(x => {
+    const v = p === "all" ? Object.values(x.m).reduce((a, b) => a + b, 0) : x.m[p];
+    return { x, v, add: p === "all" ? x.add : x.rhAdd, del: p === "all" ? x.del : x.rhDel };
+  });
+  const total = list.reduce((a, q) => a + q.v, 0), active = list.filter(q => q.v > 0);
+  const add = list.reduce((a, q) => a + q.add, 0), del = list.reduce((a, q) => a + q.del, 0);
+  const best = list.reduce((b, q) => q.v > b.v ? q : b, list[0]);
+  const met = list.filter(q => q.v >= TARGET).length;
+  const share = [.56, .2, .13, .07, .04];
+  const langs = LANGS.map((l, i) => ({ n: l, t: total * share[i], a: Math.round(add * share[i]), r: Math.round(del * share[i]) }));
+  let streak = 0; for (let i = days.length - 1; i >= 0; i--) { const v = p === "all" ? Object.values(days[i].m).reduce((a, b) => a + b, 0) : days[i].m[p]; if (v >= TARGET) streak++; else break; }
+  const scale = Math.max(1, n / 3);
+  const files = FILES.filter(f => p === "all" || f[4] === p).map(([d, nm, a, rr, pj]) => [(p === "all" ? PROJ[pj] + "/" : "") + d, nm, Math.round(a * scale), Math.round(rr * scale)]);
+  const sessions = p === "all" ? sessionsToday : sessionsToday.filter(s => s.p === p);
+  const projects = Object.keys(PROJ).map(id => ({ id, t: list.reduce((a, q) => a + q.x.m[id], 0) })).filter(q => q.t > 0).sort((a, b) => b.t - a.t);
+  return { n, p, list, total, active, add, del, best, met, langs, streak: 12, files, sessions, projects };
+}
+
+/* ── shared marks ── */
+function tapeOf(sessions, cells) {
+  const span = 12 * 60, cell = span / cells, out = [];
+  for (let i = 0; i < cells; i++) {
+    const a = 7 * 60 + i * cell, b = a + cell, by = {};
+    let act = 0;
+    for (const s of sessions) {
+      const [h0, m0] = s.s.split(":").map(Number), [h1, m1] = s.e.split(":").map(Number), s0 = h0 * 60 + m0, s1 = h1 * 60 + m1, ov = Math.max(0, Math.min(b, s1) - Math.max(a, s0));
+      if (ov) { const v = ov * s.active / (s1 - s0); act += v; Object.entries(s.langs).forEach(([l, t]) => by[l] = (by[l] || 0) + v * t / s.active); }
+    }
+    const f = act / cell, top = Object.entries(by).sort((m, k) => k[1] - m[1])[0];
+    out.push({ ch: f >= .75 ? "█" : f >= .5 ? "▓" : f >= .25 ? "▒" : f > 0 ? "░" : "·", lang: top && top[0], off: !f });
+  }
+  return out;
+}
+const LCOL = { TypeScript: "#1fa866", Go: "#d0508f", Markdown: "#2a8fd0", JSON: "#8a6fe0", CSS: "#b87e00" };
+const LCOL_P = { TypeScript: "#0f8a4e", Go: "#c2357a", Markdown: "#1673b8", JSON: "#6a4fd0", CSS: "#b06a00" };
+function fs(legend, sub) { const f = el("fieldset"), l = el("legend"); l.append(el("b", null, legend)); if (sub) l.append(document.createTextNode(" " + sub)); f.append(l); return f; }
+function colsOf(list, cls) {
+  const max = Math.max(1, ...list.map(q => q.v)), g = el("div", "cols"); g.style.gridTemplateColumns = `repeat(${list.length}, 1fr)`;
+  list.forEach((q, i) => { const c = el("i", i === list.length - 1 && cls === "card" ? "now" : q.v >= TARGET ? "" : "under"); c.style.height = Math.max(q.v ? 2 : 0, q.v / max * 100) + "%"; g.append(c); });
+  return g;
+}
+function heatOf(list, weeks) {
+  const g = el("div", "heat"), firstIdx = list.length - weeks * 7 + ((7 - (TODAY.getDay() + 6) % 7 - 1));
+  const start = addDays(TODAY, -(weeks * 7 - 1) - ((6 - (TODAY.getDay() + 6) % 7)));
+  for (let i = 0; i < weeks * 7; i++) {
+    const d = addDays(start, i), q = list.find(z => isoD(z.x.d) === isoD(d));
+    const v = q ? q.v : 0, future = d > TODAY;
+    const s = el("span", future ? "" : isoD(d) === isoD(TODAY) ? "now" : v ? "" : "z", future ? "" : !q ? "·" : v === 0 ? "·" : v < 30 ? "░" : v < 90 ? "▒" : v < 180 ? "▓" : "█");
+    g.append(s);
+  }
+  return g;
+}
+const rangeLabel = v => v.n === 1 ? dstr(TODAY) : `${dstr(v.list[0].x.d)} – ${dstr(TODAY)}`;
+
+/* ── share card ── */
+function card(v) {
+  const c = el("div", "card");
+  const top = el("div", "top"); const id = el("div"); id.append(el("div", "who", v.p === "all" ? "all projects" : PROJ[v.p]), el("div", "when", rangeLabel(v)));
+  const rr = el("div", "r when", v.n === 1 ? "today" : `${v.n} days`);
+  top.append(carrot(5), id, rr); c.append(top);
+
+  if (v.n === 1) {
+    const f = fs("streak"); const h = el("div", "hero"); h.append(el("span", "n", String(v.streak)), el("span", "k", "days in a row"));
+    const ds = el("div", "days"); for (let i = 0; i < 14; i++) { const s = el("span", null, i === 13 ? "◆" : i === 1 ? "□" : "■"); s.style.color = i === 13 ? "var(--c-amber)" : i === 1 ? "var(--c-mute)" : "var(--c-add)"; ds.append(s); }
+    f.append(h, ds); c.append(f);
+  } else {
+    const f = fs(v.n + " days"); const h = el("div", "hero time"); h.append(el("span", "n", hrs(v.total)), el("span", "k", `active · ${v.active.length}/${v.n} days`));
+    f.append(h); c.append(f);
+  }
+  const g = el("div", "grid2");
+  const tile = (legend, val, cls, k) => { const f = fs(legend); f.append(el("div", "v " + (cls || ""), val)); if (k) f.append(el("div", "k2", k)); return f; };
+  if (v.n === 1) {
+    g.append(tile("active", fmt(v.total), "", `of ${TARGET}m target`), tile("sessions", String(v.sessions.length), "", `${v.sessions[0].s} – ${v.sessions[v.sessions.length - 1].e}`));
+  } else {
+    g.append(tile("per active day", fmt(v.total / Math.max(1, v.active.length))), tile("best day", fmt(v.best.v), "", dstr(v.best.x.d)));
+  }
+  g.append(tile("lines", "+" + v.add, "add", `−${v.del} removed`), tile("top language", v.langs[0].n, "", hrs(v.langs[0].t)));
+  c.append(g);
+
+  if (v.n === 1) {
+    const f = fs("day", "07–19"); const t = el("div", "tape");
+    tapeOf(v.sessions, 24).forEach(q => { const s = el("span", q.off ? "off" : "", q.ch); if (q.lang) s.style.color = LCOL[q.lang]; t.append(s); });
+    const ticks = el("div", "ticks"); ["07", "09", "11", "13", "15", "17", "19"].forEach(h => ticks.append(el("span", null, h)));
+    f.append(t, ticks); c.append(f);
+  } else if (v.n <= 30) {
+    const f = fs("each day", `target met on ${v.met}`); f.append(colsOf(v.list, "card")); c.append(f);
+  } else {
+    const f = fs("activity", "13 weeks"); f.append(heatOf(v.list, 13)); c.append(f);
+  }
+  const lf = fs("languages"), split = el("div", "lsplit"), keys = el("div", "lkeys");
+  v.langs.forEach(l => { const sg = el("span"); sg.style.cssText = `flex:${l.t};background:${LCOL[l.n]}`; split.append(sg); });
+  v.langs.slice(0, 3).forEach(l => { const k = el("span"), i = el("i"); i.style.background = LCOL[l.n]; k.append(i, document.createTextNode(`${l.n} ${Math.round(l.t / v.total * 100)}%`)); keys.append(k); });
+  lf.append(split, keys); c.append(lf);
+  const foot = el("div", "foot2"); foot.append(document.createTextNode("generated 3 Oct 2026 17:58 ·"), carrot(2), el("b", null, "rabbit hole"));
+  c.append(foot);
+  return c;
+}
+
+/* ── report ── */
+function page(v, k, total) {
+  const pg = el("div", "page");
+  const ph = el("div", "ph"); const t = el("div"); t.append(el("div", "t", "rabbit hole · report"), el("div", "s", `${v.p === "all" ? "all projects" : PROJ[v.p]} · ${rangeLabel(v)}`));
+  const r2 = el("div", "r", `page ${k} of ${total}`); const ic = carrot(4); ic.style.filter = "drop-shadow(0 0 3px rgba(255,139,0,.45))"; ph.append(ic, t, r2); pg.append(ph);
+  return pg;
+}
+function pfoot(pg) { const f = el("div", "pf"); const g = el("span"); g.style.cssText = "display:inline-flex;gap:6px;align-items:center"; g.append(carrot(2), document.createTextNode("generated 3 Oct 2026 17:58 by rabbit hole")); f.append(g, el("span", null, "local data only")); pg.append(f); }
+function report(v) {
+  const pages = [];
+  const p1 = page(v, 1, 2);
+  const tiles = el("div", "tiles");
+  const T = (val, k, cls) => { const d = el("div", "tile"); d.append(el("div", "v " + (cls || ""), val), el("div", "k", k)); tiles.append(d); };
+  T(v.n === 1 ? fmt(v.total) : hrs(v.total), "active time");
+  T(v.n === 1 ? v.streak + "d" : `${v.active.length}/${v.n}`, v.n === 1 ? "day streak" : "active days");
+  T(v.n === 1 ? String(v.sessions.length) : fmt(v.total / Math.max(1, v.active.length)), v.n === 1 ? "sessions" : "per active day");
+  T(v.langs[0].n, "top language");
+  T("+" + v.add.toLocaleString(), "lines added", "add"); T("−" + v.del.toLocaleString(), "lines removed", "del");
+  T(v.n === 1 ? hhmm(8 * 60 + 41) : fmt(v.best.v), v.n === 1 ? "first keystroke" : `best day, ${v.best.x.d.getDate()} ${MON[v.best.x.d.getMonth()]}`);
+  T(v.p === "all" ? PROJ[v.projects[0].id] : `${v.met}/${v.n}`, v.p === "all" ? "top project" : "days on target");
+  const sf = fs("summary"); sf.append(tiles); p1.append(sf);
+
+  if (v.n === 1) {
+    const f = fs("day", "07:00–19:00, 15-minute cells"); const t = el("div", "tape");
+    tapeOf(v.sessions, 48).forEach(q => { const s = el("span", q.off ? "off" : "", q.ch); if (q.lang) s.style.color = LCOL[q.lang]; t.append(s); });
+    const ax = el("div", "axis"); ["07", "09", "11", "13", "15", "17", "19"].forEach(h => ax.append(el("span", null, h)));
+    f.append(t, ax); p1.append(f);
+  } else {
+    const f = fs("each day", `target ${TARGET}m met on ${v.met} of ${v.n} days`); f.append(colsOf(v.list, "page"));
+    const ax = el("div", "axis"); ax.append(el("span", null, dstr(v.list[0].x.d)), el("span", null, dstr(TODAY))); f.append(ax); p1.append(f);
+  }
+
+  const lf = fs("languages"); const lt = el("table"); lt.innerHTML = "<thead><tr><th>language</th><th></th><th class='num'>time</th><th class='num'>added</th><th class='num'>removed</th></tr></thead>";
+  const lb = el("tbody"); const maxT = v.langs[0].t;
+  v.langs.forEach(l => { const tr = el("tr"); const bar = el("span", "bar"); bar.style.cssText = `width:${Math.round(l.t / maxT * 150)}px;background:${LCOL[l.n]}`; const tb = el("td"); tb.append(bar);
+    const ta = el("td", "num"); ta.append(el("span", "add", "+" + l.a)); const tr2 = el("td", "num"); tr2.append(el("span", "del", "−" + l.r));
+    tr.append(el("td", null, l.n), tb, el("td", "num", hrs(l.t)), ta, tr2); lb.append(tr); });
+  lt.append(lb); lf.append(lt); p1.append(lf);
+  if (v.p === "all") {
+    const pf2 = fs("projects"); const pt = el("table"); pt.innerHTML = "<thead><tr><th>project</th><th class='num'>time</th><th class='num'>share</th></tr></thead>";
+    const pb = el("tbody"); v.projects.forEach(q => { const tr = el("tr"); tr.append(el("td", null, PROJ[q.id]), el("td", "num", hrs(q.t)), el("td", "num", Math.round(q.t / v.total * 100) + "%")); pb.append(tr); });
+    pt.append(pb); pf2.append(pt); p1.append(pf2);
+  }
+  pfoot(p1); pages.push(p1);
+
+  const p2 = page(v, 2, 2);
+  if (v.n === 1) {
+    const sf2 = fs("sessions"); const st = el("table"); st.innerHTML = "<thead><tr><th>start</th><th>end</th><th class='num'>active</th><th>languages</th>" + (v.p === "all" ? "<th>project</th>" : "") + "</tr></thead>";
+    const sb = el("tbody"); v.sessions.forEach(s => { const tr = el("tr"); tr.append(el("td", null, s.s), el("td", null, s.e), el("td", "num", fmt(s.active)), el("td", null, Object.keys(s.langs).join(", "))); if (v.p === "all") tr.append(el("td", null, PROJ[s.p])); sb.append(tr); });
+    const tf = el("tr"); tf.append(el("td", null, "total"), el("td"), el("td", "num", fmt(v.total)), el("td")); sb.append(tf);
+    st.append(sb); sf2.append(st); p2.append(sf2);
+  } else {
+    const sf2 = fs("days", "newest first, active days only"); const st = el("table"); st.innerHTML = "<thead><tr><th>day</th><th class='num'>active</th><th class='num'>added</th><th class='num'>removed</th><th>target</th></tr></thead>";
+    const sb = el("tbody"); v.list.slice().reverse().filter(q => q.v).slice(0, v.n >= 30 ? 14 : 18).forEach(q => { const tr = el("tr"); const ta = el("td", "num"); ta.append(el("span", "add", "+" + q.add)); const td2 = el("td", "num"); td2.append(el("span", "del", "−" + q.del));
+      tr.append(el("td", null, dstr(q.x.d)), el("td", "num", fmt(q.v)), ta, td2, el("td", null, q.v >= TARGET ? "met" : "under")); sb.append(tr); });
+    st.append(sb); sf2.append(st);
+    { const shown = v.n >= 30 ? 14 : 18; if (v.active.length > shown) sf2.append(el("div", "note", `… and ${v.active.length - shown} earlier active days`)); }
+    p2.append(sf2);
+  }
+  const ff = fs("files", "git diff --stat"); const ft = el("table"); const fb = el("tbody"); const maxF = Math.max(...v.files.map(f => f[2] + f[3]));
+  v.files.slice(0, 10).forEach(([d, n, a, rr]) => { const tr = el("tr"); const p = el("td"); p.append(el("span", "dir", d), document.createTextNode(n));
+    const g = el("td"); const W = 28, na = Math.max(1, Math.round(a / maxF * W)), nr = Math.max(1, Math.round(rr / maxF * W)); g.append(el("span", "add", "+".repeat(na)), el("span", "del", "-".repeat(nr)));
+    tr.append(p, el("td", "num", String(a + rr)), g); fb.append(tr); });
+  ft.append(fb); ff.append(ft); ff.append(el("div", "note", `${v.files.length} files changed, ${v.add} insertions(+), ${v.del} deletions(-)`)); p2.append(ff);
+  if (v.n >= 30) { const hf = fs("activity", v.n === 90 ? "13 weeks" : "5 weeks"); hf.append(heatOf(v.list, v.n === 90 ? 13 : 5)); p2.append(hf); }
+  pfoot(p2); pages.push(p2);
+  return pages;
+}
+
+/* ── csv / json ── */
+function csv(v) {
+  const rows = ["date,project,active_minutes,lines_added,lines_deleted,sessions,top_language"];
+  v.list.forEach(q => { if (!q.v) return; rows.push(`${isoD(q.x.d)},${v.p === "all" ? "all" : PROJ[v.p]},${q.v},${q.add},${q.del},${Math.max(1, Math.round(q.v / 50))},TypeScript`); });
+  return rows.join("\n");
+}
+function json(v) {
+  const days2 = v.list.filter(q => q.v).slice(-2).map(q => ({
+    date: isoD(q.x.d), activeTime: q.v * 60000, linesAdded: q.add, linesDeleted: q.del,
+    sessions: (isoD(q.x.d) === isoD(TODAY) ? v.sessions : []).map(s => ({ start: s.s, end: s.e, activeTime: s.active * 60000, languages: Object.fromEntries(Object.entries(s.langs).map(([l, t]) => [l, t * 60000])) })),
+  }));
+  return JSON.stringify({ exportedAt: "2026-10-03T17:58:00", project: v.p === "all" ? "all projects" : PROJ[v.p], range: { from: isoD(v.list[0].x.d), to: isoD(TODAY) }, days: days2, note: `… ${v.list.filter(q => q.v).length} active days in the full file` }, null, 2);
+}
+
+/* ── dialog ── */
+const state = { fmt: "card", n: 1, p: "rh" };
+const DESC = { card: "a 420×620 image to post, drawn at 3×", report: "an A4 PDF to keep or print", csv: "one row per active day", json: "the full data, including sessions" };
+const EXT = { card: "jpg", report: "pdf", csv: "csv", json: "json" };
+function render() {
+  const v = view(state.n, state.p);
+  $("fmt-desc").textContent = DESC[state.fmt];
+  $("dest").textContent = `~\\Downloads\\rabbithole-${state.p === "all" ? "all-projects" : PROJ[state.p]}-${state.n === 1 ? "2026-10-03" : state.n + "d"}.${EXT[state.fmt]}`;
+  $("rng").querySelector('[data-v="90"]').disabled = state.fmt === "card";
+  const head = $("stage-head"); head.replaceChildren();
+  const b = el("b", null, { card: "share card", report: "report", csv: "csv", json: "json" }[state.fmt]);
+  head.append(b, el("span", null, rangeLabel(v)), el("span", null, state.p === "all" ? "all projects" : PROJ[state.p]));
+  const cv = $("canvas"); cv.replaceChildren();
+  if (state.fmt === "card") cv.append(card(v));
+  else if (state.fmt === "report") {
+    const z = Math.min(1, Math.max(.45, (cv.clientWidth - 40) / 595));
+    const wrapP = el("div", "pages");
+    report(v).forEach(pg => { const w = el("div", "page-wrap"); w.style.setProperty("--z", z); pg.style.setProperty("--z", z); w.append(pg); wrapP.append(w); });
+    cv.append(wrapP);
+  } else { const pre = el("pre", "text"); pre.textContent = state.fmt === "csv" ? csv(v) : json(v); cv.append(pre); }
+}
+function group(id, key, cast) {
+  $(id).addEventListener("click", e => {
+    const b = e.target.closest("button"); if (!b || b.disabled) return;
+    state[key] = cast(b.dataset.v);
+    $(id).querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", x === b));
+    if (state.fmt === "card" && state.n === 90) { state.n = 30; $("rng").querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", x.dataset.v === "30")); }
+    $("status").textContent = "";
+    render();
+  });
+}
+group("fmt", "fmt", String); group("rng", "n", Number); group("prj", "p", String);
+$("go").addEventListener("click", () => $("status").textContent = `saved ${$("dest").textContent.split("\\").pop()} (mockup: nothing was written)`);
+$("cancel").addEventListener("click", () => $("status").textContent = "");
+addEventListener("resize", () => { if (state.fmt === "report") render(); });
+render();
+</script>

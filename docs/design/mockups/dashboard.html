@@ -1,0 +1,1683 @@
+<title>Rabbit Hole TTY</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Martian+Mono:wdth,wght@75..112.5,300..700&display=swap">
+<style>
+/* Layout: one terminal screen. Panels are box-drawn fieldsets with the title cut into the top rule (btop/htop),
+   a 24h block-character "day tape" is the hero, and git's own `diff --stat` is the file list. */
+:root {
+  --conv: 0 0 0 transparent;        /* convergence error, set by the display menu */
+  --boost: 1;                       /* brightness the mask removes, given back */
+  --line: 3px;                      /* scanline period */
+  --bg: #eef0e9;          /* paper terminal */
+  --panel: #f6f7f2;
+  --rule: #b9c2b2;
+  --ink: #12261b;
+  --ink-dim: #4c6356;
+  --ink-mute: #7b8e82;
+  --chrome: #8a5a00;      /* amber = "you can click this" */
+  --chrome-ink: #fff8e6;
+  --add: #0f7a43;
+  --del: #b4232f;
+  --lang-ts: #0f8a4e; --lang-md: #1673b8; --lang-css: #b06a00; --lang-go: #c2357a; --lang-json: #6a4fd0; --lang-other: #8b968f;
+  --glow: 0 0 0 transparent;
+  --scan: rgba(20,40,30,.10);       /* scanline darkness */
+  --bezel: #c9cdbf;                 /* what the rounded tube corners reveal */
+  --vig: rgba(40,50,40,.22);        /* edge falloff */
+  --glare: rgba(255,255,255,.35);
+  --roll: rgba(255,255,255,0);
+  --mask-strength: .28;             /* paper screens get a lighter mask */
+  --mono: "Martian Mono", "Cascadia Mono", Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #050b08; --panel: #08110d; --rule: #22392d;
+  --ink: #cfeedd; --ink-dim: #86a596; --ink-mute: #56705f;
+  --chrome: #ffb703; --chrome-ink: #1a1300;
+  --add: #39d98a; --del: #ff6b6b;
+  --lang-ts: #1fa866; --lang-md: #2a8fd0; --lang-css: #b87e00; --lang-go: #d0508f; --lang-json: #8a6fe0; --lang-other: #4f6459;
+  --glow: 0 0 1px color-mix(in srgb, currentColor 80%, transparent), 0 0 7px color-mix(in srgb, currentColor 50%, transparent), 0 0 18px color-mix(in srgb, currentColor 18%, transparent);
+  --scan: rgba(0,0,0,.42);
+  --bezel: #010201;
+  --vig: rgba(0,0,0,.62);
+  --glare: rgba(190,255,220,.05);
+  --roll: rgba(150,255,190,.035);
+  --mask-strength: .55;
+  color-scheme: dark;
+}}
+:root[data-theme="dark"] {
+  --bg: #050b08; --panel: #08110d; --rule: #22392d;
+  --ink: #cfeedd; --ink-dim: #86a596; --ink-mute: #56705f;
+  --chrome: #ffb703; --chrome-ink: #1a1300;
+  --add: #39d98a; --del: #ff6b6b;
+  --lang-ts: #1fa866; --lang-md: #2a8fd0; --lang-css: #b87e00; --lang-go: #d0508f; --lang-json: #8a6fe0; --lang-other: #4f6459;
+  --glow: 0 0 1px color-mix(in srgb, currentColor 80%, transparent), 0 0 7px color-mix(in srgb, currentColor 50%, transparent), 0 0 18px color-mix(in srgb, currentColor 18%, transparent);
+  --scan: rgba(0,0,0,.42);
+  --bezel: #010201;
+  --vig: rgba(0,0,0,.62);
+  --glare: rgba(190,255,220,.05);
+  --roll: rgba(150,255,190,.035);
+  --mask-strength: .55;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+table { font-size: inherit; }
+body {
+  background: var(--bg); color: var(--ink);
+  font: 400 12.5px/1.55 var(--mono); font-variation-settings: "wdth" 87.5;
+  padding-inline: 16px; padding-block: 20px 40px;
+  text-shadow: var(--conv), var(--glow);
+}
+.screen { max-width: 1120px; margin-inline: auto; position: relative; filter: brightness(var(--boost)); }
+
+/* CRT stack, back to front: phosphor mask (canvas), scanlines, rolling refresh band, glass.
+   All fixed to the viewport, which plays the tube; none of it takes pointer events. */
+.crt { position: fixed; inset: 0; pointer-events: none; }
+#mask { z-index: 50; width: 100vw; height: 100vh; mix-blend-mode: multiply; }
+.crt-scan { z-index: 51;
+  background: repeating-linear-gradient(to bottom,
+    transparent 0, transparent calc(var(--line) * .35),
+    var(--scan) calc(var(--line) * .62), transparent calc(var(--line) * .92), transparent var(--line)); }
+.crt-roll { z-index: 52; overflow: hidden; }
+.crt-roll::before { content: ""; position: absolute; left: 0; right: 0; height: 28vh; top: -28vh;
+  background: linear-gradient(to bottom, transparent, var(--roll) 70%, transparent); mix-blend-mode: screen; }
+.crt-glass { z-index: 53; border-radius: 34px / 28px;
+  box-shadow: 0 0 0 80px var(--bezel), inset 0 0 18px var(--vig), inset 0 0 120px var(--vig);
+  background:
+    radial-gradient(ellipse 60% 35% at 28% 4%, var(--glare), transparent 70%),
+    radial-gradient(ellipse at 50% 50%, transparent 58%, var(--vig) 125%); }
+html:not(.fx-scan) .crt-scan, html:not(.fx-roll) .crt-roll, html.mask-off #mask { display: none; }
+@media (prefers-reduced-motion: no-preference) {
+  html.fx-roll .crt-roll::before { animation: roll 7.5s linear infinite; }
+  @keyframes roll { to { transform: translateY(156vh); } }
+  html.fx-flicker .screen { animation: flicker .11s steps(2) infinite; }
+  @keyframes flicker { 50% { opacity: .965; } }
+}
+@media (forced-colors: active) { .crt { display: none; } .screen { filter: none; } }
+
+/* the display menu, styled like a monitor OSD */
+.osd { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 8px 18px; align-items: center; }
+.osd .k { color: var(--ink-dim); }
+.osd .opts { display: flex; flex-wrap: wrap; gap: 2px; align-items: center; }
+.osd button { font: inherit; color: var(--ink-dim); background: none; border: 0; padding: 1px 8px; cursor: pointer; text-shadow: inherit; }
+.osd button[aria-pressed="true"] { background: var(--chrome); color: var(--chrome-ink); text-shadow: none; }
+.osd button:hover:not([aria-pressed="true"]) { color: var(--chrome); }
+.osd input[type=range] { accent-color: var(--chrome); width: min(260px, 100%); }
+.osd output { color: var(--ink); min-width: 4ch; margin-left: 10px; font-variant-numeric: tabular-nums; }
+.osd .why { grid-column: 1 / -1; color: var(--ink-mute); margin: 4px 0 0; max-width: 80ch; }
+
+/* top status line, like a tmux bar */
+.bar { display: flex; flex-wrap: wrap; gap: 4px 18px; align-items: baseline; padding: 6px 2px 14px; color: var(--ink-dim); }
+.bar .proj { color: var(--ink); font-weight: 600; }
+.bar .spacer { flex: 1; }
+.tabs { display: flex; gap: 2px; }
+.tabs button, .range button {
+  font: inherit; color: var(--ink-dim); background: none; border: 0; padding: 2px 8px; cursor: pointer; text-shadow: inherit;
+}
+.tabs button[aria-pressed="true"], .range button[aria-pressed="true"] { background: var(--chrome); color: var(--chrome-ink); text-shadow: none; }
+.tabs button:hover:not([aria-pressed="true"]), .range button:hover:not([aria-pressed="true"]) { color: var(--chrome); }
+button:focus-visible, [tabindex]:focus-visible { outline: 1px solid var(--chrome); outline-offset: 2px; }
+.range { display: flex; gap: 2px; }
+.hint { color: var(--ink-mute); }
+
+/* box-drawn panels: fieldset/legend gives the btop "title in the border" for free */
+.grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 14px; }
+fieldset {
+  margin: 0; min-width: 0; border: 1px solid var(--rule); background: var(--panel);
+  padding: 10px 14px 14px; border-radius: 0;
+}
+legend { padding: 0 6px; color: var(--ink-dim); margin-left: -2px; }
+legend b { color: var(--chrome); font-weight: 600; }
+.span-12 { grid-column: span 12; } .span-8 { grid-column: span 8; } .span-4 { grid-column: span 4; }
+.span-7 { grid-column: span 7; } .span-5 { grid-column: span 5; } .span-6 { grid-column: span 6; }
+@media (max-width: 860px) { .grid > * { grid-column: span 12; } }
+
+/* hero: the day tape */
+.tape-head { display: flex; flex-wrap: wrap; gap: 6px 28px; align-items: baseline; margin-bottom: 10px; }
+.big { font-size: 40px; line-height: 1; font-weight: 600; font-variation-settings: "wdth" 75; letter-spacing: -.01em; }
+.big small { font-size: 15px; font-weight: 400; color: var(--ink-dim); margin-left: 2px; }
+.kv { color: var(--ink-dim); }
+.kv b { color: var(--ink); font-weight: 600; }
+.tape-wrap { overflow-x: auto; container-type: inline-size; }
+/* glyph size follows the cell width so 48 cells always fit; scaleY makes the tape tall without widening it */
+.tape { display: grid; grid-template-columns: repeat(var(--cells, 48), minmax(0, 1fr)); line-height: 1; padding-top: 22px;
+  font-size: min(26px, calc(100cqi / var(--cells, 48) / .66)); }
+.tape span { text-align: center; cursor: default; overflow: hidden; display: block; transform: scaleY(2.2); transform-origin: bottom; }
+.tape span:hover, .tape span:focus-visible { background: color-mix(in srgb, var(--ink) 10%, transparent); }
+.tape .off { color: var(--ink-mute); opacity: .55; transform: none; }
+.ticks { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); color: var(--ink-mute); font-size: 10.5px; margin-top: 4px; }
+.target { margin-top: 12px; color: var(--ink-dim); }
+.target .meter { color: var(--add); letter-spacing: 1px; }
+.target .meter i { font-style: normal; color: var(--ink-mute); }
+
+/* streak: a numeral and a row of day marks, no decoration */
+.streak .big { color: var(--add); }
+.days { display: grid; grid-template-columns: repeat(14, 1fr); gap: 3px; margin: 12px 0 6px; font-size: 15px; }
+.days span { text-align: center; }
+.days .hit { color: var(--add); } .days .miss { color: var(--ink-mute); } .days .now { color: var(--chrome); }
+.streak p { margin: 8px 0 0; color: var(--ink-dim); }
+
+/* lines */
+.diff { display: flex; gap: 22px; align-items: baseline; flex-wrap: wrap; }
+.add { color: var(--add); } .del { color: var(--del); }
+.week { margin-top: 14px; display: grid; gap: 3px; }
+.week .row { display: grid; grid-template-columns: 3.2em 1fr 7.5em; gap: 10px; align-items: center; cursor: default; }
+.week .row:hover, .week .row:focus-visible { background: color-mix(in srgb, var(--ink) 7%, transparent); }
+.week .d { color: var(--ink-dim); }
+.week .n { text-align: right; font-variant-numeric: tabular-nums; color: var(--ink-dim); }
+.week .now .d { color: var(--chrome); }
+.week .bars { white-space: nowrap; overflow: hidden; }
+
+/* languages */
+.lang { display: grid; gap: 6px; }
+.lang .row { display: grid; grid-template-columns: 8em 1fr 4.4em 6.4em; gap: 10px; align-items: center; cursor: default; }
+.lang .row:hover, .lang .row:focus-visible { background: color-mix(in srgb, var(--ink) 7%, transparent); }
+.lang .name { display: flex; gap: 6px; align-items: center; }
+.lang .key { width: 8px; height: 8px; flex: none; }
+.lang .track { height: 10px; background: color-mix(in srgb, var(--ink) 8%, transparent); }
+.lang .fill { height: 100%; }
+.lang .t, .lang .l { text-align: right; font-variant-numeric: tabular-nums; }
+.lang .t { color: var(--ink); } .lang .l { color: var(--ink-dim); }
+.lang .hdr { color: var(--ink-mute); font-size: 10.5px; }
+.lang .hdr:hover { background: none; }
+
+/* git diff --stat */
+.stat { width: 100%; table-layout: fixed; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.stat td { padding: 1px 0; white-space: nowrap; }
+.stat td.path { color: var(--ink); padding-right: 12px; overflow: hidden; text-overflow: ellipsis; max-width: 0; width: 55%; }
+.stat td.path .dir { color: var(--ink-mute); }
+.stat td.sep { color: var(--ink-mute); padding-right: 8px; }
+.stat td.num { text-align: right; padding-right: 10px; color: var(--ink-dim); }
+.stat td.g { overflow: hidden; }
+.stat tr:hover td { background: color-mix(in srgb, var(--ink) 7%, transparent); }
+.stat tfoot td { color: var(--ink-dim); padding-top: 8px; white-space: normal; }
+
+/* sessions as a log */
+.log { margin: 0; padding: 0; list-style: none; display: grid; gap: 2px; }
+.log li { display: grid; grid-template-columns: 7.6em 4.2em 1fr; gap: 10px; }
+.log .when { color: var(--ink-dim); }
+.log .dur { text-align: right; font-variant-numeric: tabular-nums; }
+.log .langs { display: flex; height: 8px; align-self: center; gap: 2px; }
+.log .langs span { height: 100%; }
+
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 12px; color: var(--ink-dim); font-size: 11px; }
+.legend span { display: inline-flex; gap: 6px; align-items: center; }
+.legend i { width: 8px; height: 8px; display: inline-block; }
+
+.notes { margin-top: 26px; color: var(--ink-dim); max-width: 78ch; }
+.notes h2 { font-size: 12.5px; font-weight: 600; color: var(--ink); margin: 0 0 6px; }
+.notes ul { margin: 0; padding-left: 2ch; }
+.notes li { margin-bottom: 4px; }
+.notes .example { color: var(--ink-mute); margin-top: 10px; }
+
+#tip {
+  position: fixed; pointer-events: none; z-index: 10; background: var(--panel); color: var(--ink);
+  border: 1px solid var(--chrome); padding: 6px 9px; font-size: 11.5px; line-height: 1.45; max-width: 260px;
+  text-shadow: none;
+}
+#tip strong { font-weight: 600; }
+#tip .sub { color: var(--ink-dim); }
+
+[hidden] { display: none !important; }
+:root { --p1: var(--lang-ts); --p2: var(--lang-md); --p3: var(--lang-css); --p4: var(--lang-go); }
+
+/* shared controls: option groups and bracketed command buttons */
+.filters { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; margin-bottom: 14px; color: var(--ink-dim); }
+.opts { display: flex; flex-wrap: wrap; gap: 2px; align-items: center; }
+.opts button, .btn { font: inherit; color: var(--ink-dim); background: none; border: 0; padding: 2px 8px; cursor: pointer; text-shadow: inherit; }
+.opts button[aria-pressed="true"] { background: var(--chrome); color: var(--chrome-ink); text-shadow: none; }
+.opts button:hover:not([aria-pressed="true"]), .btn:hover:not(:disabled) { color: var(--chrome); }
+.btn { color: var(--ink); padding-inline: 2px; }
+.btn::before { content: "[ "; color: var(--ink-mute); }
+.btn::after { content: " ]"; color: var(--ink-mute); }
+.btn.step::before, .btn.step::after { content: none; }
+.btn.step { padding-inline: 6px; color: var(--ink-dim); }
+.btn:disabled { color: var(--ink-mute); cursor: default; }
+.btn.ok { color: var(--add); }
+.btn.danger { color: var(--del); }
+.btn.danger:hover:not(:disabled) { background: var(--del); color: var(--bg); text-shadow: none; }
+.btn.danger:disabled { color: var(--ink-mute); }
+.tin {
+  font: inherit; color: var(--ink); background: var(--panel); border: 1px solid var(--rule); padding: 1px 6px;
+  width: 7ch; text-align: right; text-shadow: inherit; -moz-appearance: textfield; border-radius: 0;
+}
+.tin::-webkit-inner-spin-button, .tin::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.tin:focus { border-color: var(--chrome); outline: none; }
+.tin.wide { width: 16ch; text-align: left; }
+select.tin { width: auto; text-align: left; }
+.tin::placeholder { color: var(--ink-mute); }
+.unit { color: var(--ink-dim); }
+
+/* activity: year stats */
+.ystats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px 24px; }
+.ystat .v { font-size: 30px; line-height: 1.1; font-weight: 600; font-variation-settings: "wdth" 75; }
+.ystat .k { color: var(--ink-dim); }
+.ystat .s { color: var(--ink-mute); font-size: 11.5px; }
+@media (max-width: 760px) { .ystats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* activity: heatmap of block glyphs, one hue, density carries the magnitude */
+.heat-wrap { overflow-x: auto; }
+.heat-inner { display: grid; grid-template-columns: 3em minmax(0, 1fr); gap: 4px 8px; }
+.months { display: grid; grid-template-columns: repeat(var(--weeks, 53), minmax(0, 1fr)); color: var(--ink-mute); font-size: 10.5px; }
+.months span { white-space: nowrap; }
+.wd { display: grid; grid-template-rows: repeat(7, 1fr); gap: 2px; color: var(--ink-mute); font-size: 10.5px; }
+.wd span { display: flex; align-items: center; }
+.heat { display: grid; grid-template-rows: repeat(7, auto); grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 2px; color: var(--add); }
+.heat span { aspect-ratio: 1; display: flex; align-items: center; justify-content: center; overflow: hidden; line-height: 1; cursor: default; }
+.heat span:hover { outline: 1px solid var(--ink); outline-offset: 0; }
+.heat .z, .heat-key .z { color: var(--ink-mute); }
+.heat .now, .heat-key .now { color: var(--chrome); }
+.heat .fut { visibility: hidden; }
+.heat-key b { font-weight: 400; color: var(--add); }
+
+/* activity: project split */
+.split { display: flex; gap: 2px; height: 14px; margin-bottom: 14px; }
+.split span { height: 100%; min-width: 2px; }
+.prows { display: grid; gap: 6px; }
+.prow { display: grid; grid-template-columns: 12em minmax(0, 1fr) 4.6em 4em 7.5em; gap: 10px; align-items: center; }
+.prow:hover, .prow:focus-visible { background: color-mix(in srgb, var(--ink) 7%, transparent); }
+.prow .name { display: flex; gap: 6px; align-items: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.prow .key { width: 8px; height: 8px; flex: none; }
+.prow .track { height: 10px; background: color-mix(in srgb, var(--ink) 8%, transparent); }
+.prow .fill { height: 100%; display: block; }
+.prow .t, .prow .pct, .prow .dd { text-align: right; font-variant-numeric: tabular-nums; }
+.prow .pct, .prow .dd { color: var(--ink-dim); }
+.prow.hdr { color: var(--ink-mute); font-size: 10.5px; }
+.prow.hdr:hover { background: none; }
+.prow.sel .name { color: var(--chrome); }
+@media (max-width: 700px) { .prow { grid-template-columns: 11.5em minmax(0, 1fr) 4.6em; } .prow .pct, .prow .dd { display: none; } }
+
+/* projects: cards */
+.pcard legend .ago { color: var(--ink-mute); }
+.pcard .path { color: var(--ink-mute); overflow-wrap: anywhere; margin-bottom: 10px; }
+.pcard .stats { display: flex; flex-wrap: wrap; gap: 4px 28px; align-items: baseline; }
+.pcard .v { font-size: 26px; line-height: 1.1; font-weight: 600; font-variation-settings: "wdth" 75; }
+.pcard .v.zero { color: var(--ink-mute); }
+.pcard .k { color: var(--ink-dim); }
+.pcard .risk { color: var(--chrome); }
+.spark { display: grid; grid-template-columns: repeat(14, minmax(0, 1fr)); font-size: 22px; line-height: 1; margin-top: 12px; max-width: 360px; }
+.spark span { text-align: center; cursor: default; }
+.spark span:hover { background: color-mix(in srgb, var(--ink) 10%, transparent); }
+.spark .z { color: var(--ink-mute); opacity: .6; }
+.spark-axis { display: flex; justify-content: space-between; max-width: 360px; color: var(--ink-mute); font-size: 10.5px; margin-top: 3px; }
+.pcard .target { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; margin-top: 14px; padding-top: 10px; border-top: 1px dashed var(--rule); }
+.pcard .target .lbl { color: var(--ink-dim); margin-right: 4px; }
+.pcard .target .hint { color: var(--ink-mute); flex-basis: 100%; }
+.pcard .foot { margin-top: 10px; }
+
+/* settings */
+.set { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 24px; align-items: center; padding-block: 10px; }
+.set + .set { border-top: 1px dashed var(--rule); }
+.set .name { color: var(--ink); font-weight: 600; }
+.set .desc { color: var(--ink-dim); max-width: 64ch; }
+.set .spath { color: var(--ink); overflow-wrap: anywhere; margin-top: 4px; user-select: text; }
+.set .ctl { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: flex-end; }
+@media (max-width: 700px) { .set { grid-template-columns: minmax(0, 1fr); } .set .ctl { justify-content: flex-start; } }
+fieldset.danger { border-color: color-mix(in srgb, var(--del) 55%, var(--rule)); }
+fieldset.danger legend b { color: var(--del); }
+.console { min-height: 5.5em; color: var(--ink-dim); white-space: pre-wrap; overflow-wrap: anywhere; }
+.console .cmd { color: var(--ink); }
+.console .cmd::before { content: "$ "; color: var(--chrome); }
+.console .ok { color: var(--add); }
+.console .bad { color: var(--del); }
+.console .cursor::after { content: "█"; color: var(--add); }
+@media (prefers-reduced-motion: no-preference) { .console .cursor::after { animation: blink 1.1s steps(1) infinite; } @keyframes blink { 50% { opacity: 0; } } }
+
+/* range view: one segmented column per day, like a VU meter */
+.cols { display: grid; grid-template-columns: repeat(var(--n, 7), minmax(0, 1fr)); gap: var(--gap, 4px); height: 128px; margin-top: 4px; }
+.cols .c { display: flex; flex-direction: column-reverse; gap: 2px; cursor: pointer; min-width: 0; }
+.cols .c i { flex: 1; background: color-mix(in srgb, var(--ink) 7%, transparent); }
+.cols .c i.on { background: currentColor; }
+.cols .c i.part { background: linear-gradient(to top, currentColor var(--f), color-mix(in srgb, var(--ink) 7%, transparent) var(--f)); }
+.cols .c.met { color: var(--add); } .cols .c.under { color: var(--ink-mute); } .cols .c.now { color: var(--chrome); }
+.cols .c:hover i:not(.on):not(.part) { background: color-mix(in srgb, var(--ink) 14%, transparent); }
+.cols-axis { display: grid; grid-template-columns: repeat(var(--n, 7), minmax(0, 1fr)); gap: var(--gap, 4px); color: var(--ink-mute); font-size: 10.5px; margin-top: 4px; }
+.cols-axis span { text-align: center; white-space: nowrap; }
+.cols-axis span.mon { text-align: left; }
+.cols-axis span.now { color: var(--chrome); }
+.tod-k { margin-top: 18px; color: var(--ink-dim); }
+.tod-k span { color: var(--ink-mute); }
+.tape-head .btn { margin-left: auto; }
+.week.wide .row { grid-template-columns: 5.6em 1fr 8.6em; }
+.log.daylog { max-height: 19.5em; overflow-y: auto; }
+.log .dur.z { color: var(--ink-mute); }
+.legend i.met { background: var(--add); } .legend i.under { background: var(--ink-mute); } .legend i.now { background: var(--chrome); }
+
+/* project picker: the project name in the status line opens it */
+.projpick { position: relative; display: flex; gap: 4px 18px; align-items: baseline; flex-wrap: wrap; }
+.bar .proj { font: inherit; font-weight: 600; color: var(--ink); background: none; border: 0; padding: 2px 6px 2px 0; cursor: pointer; text-shadow: inherit; display: inline-flex; gap: 7px; align-items: center; }
+.bar .proj:hover, .bar .proj[aria-expanded="true"] { color: var(--chrome); }
+.bar .proj .caret { color: var(--chrome); font-weight: 400; }
+.key.hollow { background: transparent !important; outline: 1px solid var(--ink-mute); outline-offset: -1px; }
+.proj .key { width: 8px; height: 8px; flex: none; display: inline-block; }
+.pmenu { position: absolute; left: 0; top: calc(100% + 4px); z-index: 20; width: min(380px, calc(100vw - 32px)); background: var(--panel); border: 1px solid var(--chrome);
+  padding: 6px 0; box-shadow: 0 10px 30px rgba(0,0,0,.28); }
+.pm-h { color: var(--ink-mute); font-size: 10.5px; text-align: right; padding: 0 12px 2px; }
+.pm-item { font: inherit; color: var(--ink); background: none; border: 0; width: 100%; text-align: left; cursor: pointer; text-shadow: inherit;
+  display: grid; grid-template-columns: 8px minmax(0, 1fr) auto; gap: 10px; align-items: baseline; padding: 5px 12px; }
+.pm-item .key { width: 8px; height: 8px; display: inline-block; }
+.pm-item small { display: block; color: var(--ink-mute); font-size: 10.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pm-item .pm-t { font-variant-numeric: tabular-nums; color: var(--ink-dim); }
+.pm-item .pm-t.z { color: var(--ink-mute); }
+.pm-item:hover, .pm-item:focus-visible { background: color-mix(in srgb, var(--ink) 8%, transparent); outline: none; }
+.pm-item[aria-selected="true"] { background: var(--chrome); color: var(--chrome-ink); text-shadow: none; }
+.pm-item[aria-selected="true"] small, .pm-item[aria-selected="true"] .pm-t { color: var(--chrome-ink); }
+.log.multi li { grid-template-columns: 7.6em 4.2em minmax(0, 1fr) 7.5em; }
+.log .pj { color: var(--ink-mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; gap: 6px; align-items: center; }
+.log .pj i { width: 8px; height: 8px; flex: none; }
+
+/* range picker: a two-month calendar dropped from the status line */
+.bar { position: relative; }
+.picker { position: absolute; right: 0; top: calc(100% - 8px); z-index: 20; background: var(--panel); border: 1px solid var(--chrome);
+  padding: 10px 14px 12px; box-shadow: 0 10px 30px rgba(0,0,0,.28); max-width: calc(100vw - 32px); color: var(--ink); }
+.pk-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.pk-head .spacer, .pk-foot .spacer { flex: 1; }
+.pk-months { display: flex; gap: 26px; flex-wrap: wrap; }
+.pk-title { color: var(--ink-dim); margin-bottom: 4px; text-align: center; }
+.pk-grid { display: grid; grid-template-columns: repeat(7, 3.4ch); gap: 2px 0; }
+.pk-wd { color: var(--ink-mute); font-size: 10.5px; text-align: center; }
+.pk-d { font: inherit; background: none; border: 0; color: var(--ink); padding: 3px 0; cursor: pointer; text-shadow: inherit; text-align: center; }
+.pk-d.z { color: var(--ink-mute); }
+.pk-d.today { text-decoration: underline; text-underline-offset: 3px; }
+.pk-d.in { background: color-mix(in srgb, var(--chrome) 22%, transparent); }
+.pk-d.end { background: var(--chrome); color: var(--chrome-ink); text-shadow: none; }
+.pk-d:disabled { opacity: .3; cursor: default; }
+.pk-d:hover:not(:disabled):not(.end) { color: var(--chrome); }
+.pk-foot { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; margin-top: 10px; padding-top: 8px; border-top: 1px dashed var(--rule); }
+#pk-sel { color: var(--ink-dim); }
+
+/* the carrot heads the status line, so it is on every tab */
+.bar .brand { display: inline-flex; align-self: center; margin-right: 2px; }
+.bar .brand svg { display: block; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .bar .brand svg { filter: drop-shadow(0 0 3px rgba(255,139,0,.55)) drop-shadow(0 0 9px rgba(255,139,0,.22)); } }
+:root[data-theme="dark"] .bar .brand svg { filter: drop-shadow(0 0 3px rgba(255,139,0,.55)) drop-shadow(0 0 9px rgba(255,139,0,.22)); }
+
+/* cards that scroll on their own get a scrollbar that belongs to the terminal */
+.log.daylog { scrollbar-width: thin; scrollbar-color: var(--rule) transparent; padding-right: 6px; }
+.log.daylog::-webkit-scrollbar { width: 8px; }
+.log.daylog::-webkit-scrollbar-track { background: transparent; }
+.log.daylog::-webkit-scrollbar-thumb { background: var(--rule); }
+.log.daylog::-webkit-scrollbar-thumb:hover { background: var(--ink-mute); }
+
+/* reactive focus: hovering a project or a language narrows every other panel to it */
+.log .dtrack { align-self: center; height: 8px; display: block; min-width: 0; }
+.log .dbar { display: flex; gap: 2px; height: 100%; }
+.log .dbar span { height: 100%; min-width: 2px; }
+[data-hl] { cursor: default; }
+.legend [data-hl] { padding: 0 3px; }
+.legend [data-hl]:hover, .legend [data-hl]:focus-visible { color: var(--ink); }
+.dim { opacity: .32; }
+.legend .focus { color: var(--ink); }
+.lang .l { white-space: nowrap; }
+.lang.wide .row { grid-template-columns: 8em 1fr 4.4em 10.5em; }
+.prows .prow, .split span { transition: opacity .12s; }
+@media (prefers-reduced-motion: reduce) { .prows .prow, .split span { transition: none; } }
+</style>
+
+<div class="screen">
+  <div class="bar">
+    <span class="brand" title="Rabbit Hole"><svg id="brand-icon" width="28" height="20" viewBox="0 0 14 10" shape-rendering="crispEdges" role="img" aria-label="Rabbit Hole"></svg></span>
+    <div class="projpick">
+      <button class="proj" id="proj-btn" aria-haspopup="listbox" aria-expanded="false" aria-label="Project shown"><i class="key" id="proj-key"></i><span id="proj-name">rabbit-hole</span><span class="caret">▾</span></button>
+      <span id="branch">accurate-line-counts</span>
+      <div class="pmenu" id="pmenu" role="listbox" aria-label="Project" hidden></div>
+    </div>
+    <nav class="tabs" aria-label="Dashboard sections">
+      <button aria-pressed="true">overview</button><button>activity</button><button>projects</button><button>settings</button>
+    </nav>
+    <span class="spacer"></span>
+    <div class="range" role="group" aria-label="Date range">
+      <button aria-pressed="true" id="r-today">today</button><button id="r-yday">yesterday</button><button id="r-7d">7d</button><button id="r-30d">30d</button><button id="r-cal" aria-haspopup="dialog" aria-expanded="false">pick…</button>
+    </div>
+    <div class="picker" id="picker" role="dialog" aria-label="Pick a date range" hidden>
+      <div class="pk-head">
+        <button class="btn step" id="pk-prev" aria-label="Earlier months">‹</button>
+        <span class="hint">click a start day, then an end day</span>
+        <span class="spacer"></span>
+        <button class="btn step" id="pk-next" aria-label="Later months">›</button>
+      </div>
+      <div class="pk-months" id="pk-months"></div>
+      <div class="pk-foot">
+        <span id="pk-sel"></span><span class="spacer"></span>
+        <button class="btn" id="pk-cancel">cancel</button><button class="btn" id="pk-apply" disabled>apply</button>
+      </div>
+    </div>
+  </div>
+
+  <section class="tab" data-tab="overview">
+  <div class="grid">
+    <fieldset class="span-8">
+      <legend><b id="hero-k">day</b> <span id="hero-when">Sat 3 Oct</span></legend>
+      <div class="tape-head" id="hero-head"></div>
+      <div id="cols-wrap" hidden>
+        <div class="cols" id="cols" role="img" aria-label="Active time per day in the range"></div>
+        <div class="cols-axis" id="cols-axis" aria-hidden="true"></div>
+      </div>
+      <div class="tod-k" id="tod-k" hidden>time of day <span>· where an average active day's time lands</span></div>
+      <div class="tape-wrap">
+        <div class="tape" id="tape" role="img" aria-label="Active time across the day in 15-minute blocks, 07:00 to 19:00"></div>
+        <div class="ticks" id="ticks"></div>
+      </div>
+      <div class="target" id="target"></div>
+      <div class="legend" id="tape-legend"></div>
+    </fieldset>
+
+    <fieldset class="span-4 streak">
+      <legend><b>streak</b></legend>
+      <div class="big"><span id="streak-n">12</span><small>days</small></div>
+      <div class="days" id="days" aria-label="Last 14 days against the 20 minute target"></div>
+      <p id="streak-long"></p>
+      <p id="streak-range" hidden></p>
+    </fieldset>
+
+    <fieldset class="span-7">
+      <legend><b>lines</b> <span id="lines-when">net per file, today</span></legend>
+      <div class="diff">
+        <span class="big add" id="ln-add">+412</span>
+        <span class="big del" id="ln-del">−168</span>
+        <span class="kv">net <b id="ln-net">+244</b></span>
+      </div>
+      <div class="week" id="week" aria-label="Lines added and removed"></div>
+    </fieldset>
+
+    <fieldset class="span-5">
+      <legend><b>languages</b> <span id="lang-when"></span></legend>
+      <div class="lang" id="lang"></div>
+    </fieldset>
+
+    <fieldset class="span-7">
+      <legend><b>files</b> <span id="files-when">git diff --stat</span></legend>
+      <table class="stat" id="stat"></table>
+    </fieldset>
+
+    <fieldset class="span-5">
+      <legend><b id="log-k">sessions</b> <span id="log-when"></span></legend>
+      <ul class="log" id="log"></ul>
+    </fieldset>
+  </div>
+
+  </section>
+
+  <section class="tab" data-tab="activity" hidden>
+    <div class="filters">
+      <span>project</span>
+      <div class="opts" role="group" aria-label="Project filter" id="act-filter"></div>
+    </div>
+    <div class="grid">
+      <fieldset class="span-12">
+        <legend><b>year</b> past 12 months<span id="ystats-who"></span></legend>
+        <div class="ystats" id="ystats"></div>
+      </fieldset>
+
+      <fieldset class="span-12">
+        <legend><b>activity</b> <span id="heat-range">daily active time, past 12 months</span></legend>
+        <div class="heat-wrap">
+          <div class="heat-inner">
+            <span></span>
+            <div class="months" id="months"></div>
+            <div class="wd" aria-hidden="true"><span>mon</span><span></span><span>wed</span><span></span><span>fri</span><span></span><span>sun</span></div>
+            <div class="heat" id="heat" role="img" aria-label="Active time per day for the past year, one cell per day"></div>
+          </div>
+        </div>
+        <div class="legend heat-key">
+          <span><b class="z">·</b> none</span><span><b>░</b> under 30m</span><span><b>▒</b> under 1h30</span><span><b>▓</b> under 3h</span><span><b>█</b> 3h or more</span><span><b class="now">█</b> today</span>
+        </div>
+      </fieldset>
+
+      <fieldset class="span-12">
+        <legend><b>projects</b> share of active time, past 12 months</legend>
+        <div class="split" id="split" aria-hidden="true"></div>
+        <div class="prows" id="prows"></div>
+      </fieldset>
+    </div>
+  </section>
+
+  <section class="tab" data-tab="projects" hidden>
+    <div class="filters">
+      <span>sort</span>
+      <div class="opts" role="group" aria-label="Sort projects by" id="sort">
+        <button data-v="time" aria-pressed="true">active time</button><button data-v="last">last active</button><button data-v="name">name</button>
+      </div>
+    </div>
+    <div class="grid" id="pcards"></div>
+  </section>
+
+  <section class="tab" data-tab="settings" hidden>
+    <div class="grid">
+      <fieldset class="span-12">
+        <legend><b>tracking</b></legend>
+        <div class="set">
+          <div><label class="name" for="pref-target">daily target</label><div class="desc">Streak target across all projects. Projects can override it on the projects tab.</div></div>
+          <div class="ctl">
+            <button class="btn step" data-for="pref-target" data-step="-5" aria-label="Decrease daily target">−</button>
+            <input class="tin" id="pref-target" type="number" min="1" max="1440" step="5" value="20" data-saved="20">
+            <button class="btn step" data-for="pref-target" data-step="5" aria-label="Increase daily target">+</button>
+            <span class="unit">min</span>
+            <button class="btn" data-apply="pref-target" data-label="daily target" disabled>apply</button>
+          </div>
+        </div>
+        <div class="set">
+          <div><label class="name" for="pref-idle">pause after</label><div class="desc">Minutes with no activity before the active timer pauses. Logged time is kept.</div></div>
+          <div class="ctl">
+            <button class="btn step" data-for="pref-idle" data-step="-1" aria-label="Decrease pause threshold">−</button>
+            <input class="tin" id="pref-idle" type="number" min="1" max="60" step="1" value="5" data-saved="5">
+            <button class="btn step" data-for="pref-idle" data-step="1" aria-label="Increase pause threshold">+</button>
+            <span class="unit">min</span>
+            <button class="btn" data-apply="pref-idle" data-label="pause after" disabled>apply</button>
+          </div>
+        </div>
+      </fieldset>
+
+      <fieldset class="span-12">
+        <legend><b>display</b> crt</legend>
+    <div class="osd">
+      <span class="k">mask</span>
+      <div class="opts" role="group" aria-label="Phosphor mask" data-key="mask">
+        <button data-v="slot">slot mask</button><button data-v="grille">aperture grille</button><button data-v="dot">shadow mask</button><button data-v="off">off</button>
+      </div>
+      <span class="k">pitch</span>
+      <div class="opts" role="group" aria-label="Mask pitch" data-key="pitch">
+        <button data-v="1">fine</button><button data-v="2">medium</button><button data-v="3">coarse</button>
+      </div>
+      <span class="k"><label for="strength">strength</label></span>
+      <div class="opts"><input id="strength" type="range" min="0" max="100" step="1"><output id="strength-out" for="strength"></output></div>
+      <span class="k">effects</span>
+      <div class="opts" role="group" aria-label="Effects" data-key="fx">
+        <button data-v="scan">scanlines</button><button data-v="glow">bloom</button><button data-v="conv">convergence</button><button data-v="roll">refresh roll</button><button data-v="flicker">flicker</button>
+      </div>
+      <p class="why">Slot mask: staggered RGB slots, as on most consumer TVs and terminals. Aperture grille: unbroken vertical stripes (Trinitron). Shadow mask: round dot triads. The mask is drawn per device pixel, so lean in close.</p>
+    </div>
+      </fieldset>
+
+      <fieldset class="span-12">
+        <legend><b>your data</b> stored on this machine only</legend>
+        <div class="set">
+          <div><span class="name">storage location</span><div class="desc">Everything Rabbit Hole records lives here. Nothing is sent anywhere.</div><div class="spath">%APPDATA%\Code\User\globalStorage\rabbit-hole.rabbit-hole</div></div>
+          <div class="ctl"><button class="btn" data-log="reveal">reveal</button></div>
+        </div>
+        <div class="set">
+          <div><span class="name">export</span><div class="desc">Save a share card or a full report as JPG, CSV or JSON.</div></div>
+          <div class="ctl"><button class="btn" data-log="export">export…</button></div>
+        </div>
+        <div class="set">
+          <div><span class="name">back up everything</span><div class="desc">Writes a complete, restorable copy of all your data to the backups folder.</div></div>
+          <div class="ctl"><button class="btn" data-log="backup-all">create backup</button></div>
+        </div>
+        <div class="set">
+          <div><span class="name">back up some projects</span><div class="desc">A backup with only the projects you pick. Useful for moving one project to another machine.</div></div>
+          <div class="ctl"><button class="btn" data-log="backup-some">choose projects…</button></div>
+        </div>
+        <div class="set">
+          <div><span class="name">restore some projects</span><div class="desc">Pick projects out of a backup to undo a clear or bring one over. Projects you don't pick are left untouched.</div></div>
+          <div class="ctl"><button class="btn" data-log="restore-some">choose projects…</button></div>
+        </div>
+        <div class="set">
+          <div><span class="name">restore everything</span><div class="desc">Replaces this machine's history with every project in a backup. Projects not in the backup are kept. A backup is written first.</div></div>
+          <div class="ctl"><button class="btn" data-log="restore-all">restore all…</button></div>
+        </div>
+      </fieldset>
+
+      <fieldset class="span-12 danger">
+        <legend><b>danger</b> a backup is written before either of these runs</legend>
+        <div class="set">
+          <div><label class="name" for="clear-proj">clear a project's history</label><div class="desc">Deletes every logged day for one project. Type its exact name to confirm.</div></div>
+          <div class="ctl">
+            <select class="tin" id="clear-proj"></select>
+            <input class="tin wide" id="clear-proj-confirm" type="text" placeholder="project name" spellcheck="false" autocomplete="off" aria-label="Type the project name to confirm">
+            <button class="btn danger" id="clear-proj-btn" disabled>clear</button>
+          </div>
+        </div>
+        <div class="set">
+          <div><label class="name" for="clear-all-confirm">clear everything</label><div class="desc">Deletes all projects and all logged history. Type DELETE to confirm.</div></div>
+          <div class="ctl">
+            <input class="tin wide" id="clear-all-confirm" type="text" placeholder="DELETE" spellcheck="false" autocomplete="off">
+            <button class="btn danger" id="clear-all-btn" disabled>delete all</button>
+          </div>
+        </div>
+      </fieldset>
+
+      <fieldset class="span-12">
+        <legend><b>output</b></legend>
+        <div class="console" id="console" aria-live="polite"></div>
+      </fieldset>
+    </div>
+  </section>
+
+
+  <div class="notes">
+    <h2>Fits inside a VS Code webview</h2>
+    <ul>
+      <li>One bundled OFL font (Martian Mono, ~90 KB woff2) loaded through the existing <code>font-src ${cspSource}</code>. No network.</li>
+      <li>Every chart is text or plain DOM. Chart.js can be dropped entirely, which shrinks the webview bundle and kills the canvas glow workaround.</li>
+      <li>The <code>fieldset</code>/<code>legend</code> box titles and block glyphs (█▓▒░) render identically in Electron on every OS.</li>
+      <li>The CRT is four fixed layers over the webview. The phosphor mask is a <code>&lt;canvas&gt;</code> pattern blended with <code>multiply</code> and redrawn only on resize; a canvas needs no CSP change, where a mask image would need <code>img-src data:</code>. Scanlines, the refresh roll and the glass are CSS gradients.</li>
+      <li>The mask darkens what it covers, so the page gets the brightness back through <code>filter: brightness()</code>. Mask and strength would be one setting, with “off” one click away.</li>
+      <li>Ranges swap the day tape for one segmented column per day (green: target met) and keep the tape underneath as an average active day, so <em>when</em> you work survives the aggregation. Click a column to open that day. Lines go per day up to two weeks, per week beyond; sessions become one line per day.</li>
+      <li>Hover a project or a language (a legend key, a segment of a day's bar, a language row) and every other panel narrows to it: the columns, the day tape, lines, languages and files. The panel under the pointer keeps its rows and dims the rest, and panels hold their height, so nothing moves while you look. On the activity tab, hovering a project row does the same to the year and the heatmap.</li>
+      <li>The days card scrolls on its own. That is plain <code>overflow-y: auto</code>, which a VS Code webview handles like any page, with a scrollbar drawn in the terminal's colours.</li>
+      <li>Light themes get a paper terminal with a faint mask; dark themes get the full tube. High contrast and <code>forced-colors</code> remove every layer; reduced motion stops the roll and flicker.</li>
+    </ul>
+    <p class="example">All numbers are example data shaped like a real day on this repo.</p>
+  </div>
+</div>
+<div id="tip" hidden></div>
+<canvas class="crt" id="mask" aria-hidden="true"></canvas>
+<div class="crt crt-scan" aria-hidden="true"></div>
+<div class="crt crt-roll" aria-hidden="true"></div>
+<div class="crt crt-glass" aria-hidden="true"></div>
+
+<script>
+const LANG = {
+  TypeScript: "--lang-ts", Markdown: "--lang-md", CSS: "--lang-css", Go: "--lang-go", JSON: "--lang-json", Shell: "--lang-other"
+};
+const sessions = [
+  { s: "08:41", e: "09:58", active: 64, mix: { TypeScript: .7, Markdown: .2, JSON: .1 } },
+  { s: "10:20", e: "12:05", active: 78, mix: { TypeScript: .85, CSS: .15 } },
+  { s: "14:02", e: "14:31", active: 22, mix: { Markdown: 1 } },
+  { s: "16:10", e: "16:58", active: 28, mix: { Go: .6, TypeScript: .4 } },
+];
+const langs = [
+  ["TypeScript", 122, 318, 141], ["Markdown", 35, 52, 9], ["Go", 17, 17, 4], ["CSS", 12, 21, 12], ["JSON", 6, 4, 2]
+];
+const files = [
+  ["src/tracker/", "lineLedger.ts", 142, 61], ["src/tracker/", "activityTracker.ts", 96, 58],
+  ["test/", "tracker.ledger.test.ts", 64, 14], ["", "CLAUDE.md", 38, 6], ["src/webview/", "style.css", 21, 12],
+  ["internal/mirror/", "read.go", 17, 4], ["src/tracker/", "ledgerStore.ts", 16, 8], ["", "DESIGN.md", 14, 3], ["", "package.json", 4, 2]
+];
+const week = [["Sun", 180, 60], ["Mon", 540, 210], ["Tue", 30, 4], ["Wed", 320, 190], ["Thu", 610, 280], ["Fri", 90, 40], ["Sat", 412, 168]];
+
+const $ = id => document.getElementById(id);
+const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
+const mins = t => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
+const fmt = m => (m >= 60 ? Math.floor(m / 60) + "h" : "") + String(Math.round(m % 60)).padStart(m >= 60 ? 2 : 1, "0") + "m";
+const topLang = mix => Object.entries(mix).sort((a, b) => b[1] - a[1])[0][0];
+
+/* tooltip: same content on hover and keyboard focus */
+const tip = $("tip");
+function bindTip(node, build) {
+  node.tabIndex = 0;
+  const show = (x, y) => { tip.replaceChildren(...build()); tip.hidden = false; place(x, y); };
+  const place = (x, y) => {
+    const r = tip.getBoundingClientRect();
+    tip.style.left = Math.min(x + 14, innerWidth - r.width - 8) + "px";
+    tip.style.top = Math.max(8, y - r.height - 10) + "px";
+  };
+  node.addEventListener("pointermove", e => show(e.clientX, e.clientY));
+  node.addEventListener("pointerleave", () => tip.hidden = true);
+  node.addEventListener("focus", () => { const r = node.getBoundingClientRect(); show(r.left, r.top); });
+  node.addEventListener("blur", () => tip.hidden = true);
+}
+const line = (strong, sub) => { const d = el("div"); d.append(el("strong", null, strong)); if (sub) d.append(el("span", "sub", " " + sub)); return d; };
+
+/* ── overview: the same panels render a single day or a range ── */
+const pad2 = n => String(n).padStart(2, "0");
+const hhmm = m => pad2(Math.floor(m / 60)) + ":" + pad2(Math.round(m % 60));
+const fmtAvg = m => m <= 0 ? "0m" : m < 1 ? "<1m" : fmt(m);
+const kv = (k, v) => { const s = el("span", "kv", k + " "); s.append(el("b", null, String(v))); return s; };
+
+/* the day tape: 07:00–19:00. 48 cells of 15 min when there is room, 24 cells of 30 min when there isn't,
+   so the whole working day is always visible without scrolling. For a range it shows the average active day. */
+const TAPE_START = 7 * 60, TAPE_SPAN = 12 * 60;
+let tapeCells = 0, tapeSrc = { list: sessions, per: 1 };
+function renderTape(force) {
+  const w = $("tape").parentElement.clientWidth; if (!w) return;
+  const cells = w < 620 ? 24 : 48;
+  if (cells === tapeCells && force !== true) return;
+  tapeCells = cells;
+  const CELL = TAPE_SPAN / cells, tape = $("tape"), avg = tapeSrc.per > 1;
+  tape.style.setProperty("--cells", cells);
+  const slots = [];
+  for (let i = 0; i < cells; i++) {
+    const a = TAPE_START + i * CELL, b = a + CELL, mixT = {};
+    let act = 0;
+    for (const s of tapeSrc.list) {
+      const s0 = mins(s.s), s1 = mins(s.e), ov = Math.max(0, Math.min(b, s1) - Math.max(a, s0));
+      if (ov) { const v = ov * s.active / (s1 - s0); act += v; for (const [n, f] of Object.entries(s.mix)) mixT[n] = (mixT[n] || 0) + v * f; }
+    }
+    slots.push({ a, act: act / tapeSrc.per, mixT });
+  }
+  // a single day is measured against the cell; an average day against its busiest cell, or it would be all ░
+  // under a focus the average day is scaled to the whole day's busiest slot, so the tape shows a share
+  let peak = CELL;
+  if (avg) {
+    const src = tapeSrc.base || tapeSrc.list; peak = 1e-9;
+    for (let i = 0; i < cells; i++) {
+      const a = TAPE_START + i * CELL, b = a + CELL; let act = 0;
+      for (const s of src) { const s0 = mins(s.s), s1 = mins(s.e), ov = Math.max(0, Math.min(b, s1) - Math.max(a, s0)); if (ov) act += ov * s.active / (s1 - s0); }
+      peak = Math.max(peak, act / tapeSrc.per);
+    }
+  }
+  tape.replaceChildren(...slots.map(({ a, act, mixT }) => {
+    const f = act / peak, top = act ? topLang(mixT) : null;
+    const c = el("span", f ? "" : "off", f >= .75 ? "█" : f >= .5 ? "▓" : f >= .25 ? "▒" : f > 0 ? "░" : "·");
+    if (top) c.style.color = `var(${tapeSrc.color || LANG[top]})`;
+    bindTip(c, () => act ? [line(fmtAvg(act) + " active", avg ? `of ${CELL}m, average day` : `of ${CELL}m`), el("div", "sub", `${hhmm(a)} · mostly ${top}`)] : [el("div", "sub", `${hhmm(a)} · idle`)]);
+    return c;
+  }));
+  $("tape-key").textContent = avg
+    ? `each cell is ${CELL} min; █ marks the busiest slots`
+    : `each cell is ${CELL} min: █ ${Math.ceil(CELL * .75)}m+ active … ░ under ${Math.ceil(CELL * .25)}m`;
+}
+for (let h = 7; h < 19; h += 1) $("ticks").append(el("span", null, String(h).padStart(2, "0")));
+const legend = (host, names) => names.forEach(n => {
+  const s = el("span"); s.dataset.hl = "l:" + n; s.tabIndex = 0; const i = el("i"); i.style.background = `var(${LANG[n]})`; s.append(i, document.createTextNode(n)); host.append(s);
+});
+new ResizeObserver(() => renderTape()).observe($("tape").parentElement);
+
+const charWidth = host => { const p = el("span", null, "+".repeat(40)); p.style.cssText = "position:absolute;visibility:hidden;white-space:pre"; host.append(p); const w = p.getBoundingClientRect().width / 40; p.remove(); return w || 8; };
+const runs = (a, r, max, cols) => { const na = a ? Math.max(1, Math.round(a / max * cols)) : 0; const nr = r ? Math.max(1, Math.min(cols - na, Math.round(r / max * cols))) : 0; return [na, nr]; };
+
+/* lines: + and − runs scaled to the biggest row and to the width available */
+let weekBars = [], weekMax = 1;
+function renderLineRows(rows, wide) {
+  weekMax = Math.max(1, ...rows.map(r => r.a + r.r));
+  $("week").classList.toggle("wide", !!wide);
+  $("week").replaceChildren();
+  weekBars = rows.map(({ label, a, r, now, sub }) => {
+    const row = el("div", "row" + (now ? " now" : ""));
+    const bars = el("span", "bars");
+    row.append(el("span", "d", label), bars, el("span", "n", `+${a} −${r}`));
+    bindTip(row, () => [line(`+${a}  −${r}`, sub), el("div", "sub", `net ${a - r >= 0 ? "+" : ""}${a - r}`)]);
+    $("week").append(row);
+    return { bars, a, r };
+  });
+  fillWeek();
+}
+function fillWeek() {
+  if (!weekBars.length) return;
+  const w = weekBars[0].bars.clientWidth; if (!w) return;
+  const cols = Math.max(6, Math.floor(w / charWidth(weekBars[0].bars)) - 1);
+  weekBars.forEach(({ bars, a, r }) => { const [na, nr] = runs(a, r, weekMax, cols); bars.replaceChildren(el("span", "add", "+".repeat(na)), el("span", "del", "-".repeat(nr))); });
+}
+new ResizeObserver(fillWeek).observe($("week"));
+
+/* languages */
+function renderLangs(list, total, scope, base) {
+  base = base || list;
+  const maxT = Math.max(1, ...base.map(l => l.t)), many = total >= 600;
+  list = base.map(b => list.find(l => l.n === b.n) || { n: b.n, t: 0, a: 0, r: 0 });
+  $("lang").classList.toggle("wide", list.some(l => l.a >= 1000 || l.r >= 1000));
+  const hdr = el("div", "row hdr"); hdr.append(el("span", null, "language"), el("span"), el("span", "t", "time"), el("span", "l", "lines"));
+  $("lang").replaceChildren(hdr, ...list.map(({ n, t, a, r }) => {
+    const row = el("div", "row" + (hl && hl.k === "l" && hl.id !== n ? " dim" : "")); row.dataset.hl = "l:" + n;
+    const name = el("span", "name"); const k = el("i", "key"); k.style.background = `var(${LANG[n]})`; name.append(k, document.createTextNode(n));
+    const track = el("span", "track"); const fill = el("span", "fill"); fill.style.cssText = `display:block;width:${t / maxT * 100}%;background:var(${LANG[n]})`;
+    track.append(fill);
+    row.append(name, track, el("span", "t", t ? (many ? hours(t) : fmt(t)) : "·"), el("span", "l", t ? `+${a} −${r}` : ""));
+    bindTip(row, () => [line(fmt(t), n), el("div", "sub", `${Math.round(t / Math.max(1, total) * 100)}% of ${scope} · +${a} −${r} lines`)]);
+    return row;
+  }));
+  if (!list.length) $("lang").append(el("div", "hint", "no activity"));
+}
+
+/* git diff --stat: the graph column gets whatever the path, count and divider leave over */
+let statGraphs = [], statMax = 1;
+const SHOW_FILES = 9;
+function renderStat(list) {
+  const shown = list.slice(0, SHOW_FILES);
+  statMax = Math.max(1, ...shown.map(f => f[2] + f[3]));
+  const tb = el("tbody");
+  statGraphs = shown.map(([dir, name, a, r]) => {
+    const tr = el("tr");
+    const p = el("td", "path"); if (dir) p.append(el("span", "dir", dir)); p.append(document.createTextNode(name));
+    const g = el("td", "g");
+    tr.append(p, el("td", "sep", "|"), el("td", "num", String(a + r)), g);
+    tb.append(tr);
+    return { g, a, r };
+  });
+  const A = list.reduce((s, f) => s + f[2], 0), R = list.reduce((s, f) => s + f[3], 0);
+  const tf = el("tfoot"), fr = el("tr");
+  const fc = el("td", null, list.length
+    ? `${list.length} files changed, ${A} insertions(+), ${R} deletions(-)` + (list.length > SHOW_FILES ? ` · ${list.length - SHOW_FILES} smaller not shown` : "")
+    : "no changes");
+  fc.colSpan = 4; fr.append(fc); tf.append(fr);
+  const cg = el("colgroup");
+  ["55%", "2ch", "6.5ch", ""].forEach(w => { const c = el("col"); if (w) c.style.width = w; cg.append(c); });
+  $("stat").replaceChildren(cg, tb, tf);
+  fillStat();
+}
+function fillStat() {
+  if (!statGraphs.length) return;
+  statGraphs.forEach(({ g }) => g.replaceChildren());
+  const w = statGraphs[0].g.clientWidth; if (!w) return;
+  const cols = Math.max(4, Math.floor(w / charWidth(statGraphs[0].g)) - 1);
+  statGraphs.forEach(({ g, a, r }) => { const [na, nr] = runs(a, r, statMax, cols); g.append(el("span", "add", "+".repeat(na)), el("span", "del", "-".repeat(nr))); });
+}
+new ResizeObserver(fillStat).observe($("stat"));
+
+/* sessions for a day; one line per day for a range */
+const mixBar = mix => { const bar = el("span", "langs"); Object.entries(mix).forEach(([n, f]) => { if (!f) return; const b = el("span"); b.style.cssText = `flex:${f};background:var(${LANG[n]})`; bar.append(b); }); return bar; };
+function sessionBar(s) {
+  const bar = el("span", "langs");
+  Object.entries(s.mix).forEach(([n, f]) => {
+    if (!f) return;
+    const b = el("span"); b.dataset.hl = "l:" + n;
+    b.style.cssText = `flex:${f};background:var(${LANG[n]})` + (hl && hl.k === "l" && hl.id !== n ? ";opacity:.15" : "");
+    bar.append(b);
+  });
+  return bar;
+}
+function renderSessionLog(ss) {
+  $("log").classList.remove("daylog");
+  $("log").replaceChildren(...ss.map(s => {
+    const off = hl && (hl.k === "p" ? s.p !== hl.id : !s.mix[hl.id]);
+    const li = el("li", off ? "dim" : "");
+    li.append(el("span", "when", `${s.s}–${s.e}`), el("span", "dur", fmt(s.active)), sessionBar(s));
+    const pr = PROJ.find(q => q.id === s.p);
+    if ($("log").classList.contains("multi") && pr) { const pj = el("span", "pj"), k = el("i"); pj.dataset.hl = "p:" + pr.id; k.style.background = `var(${pr.color})`; pj.append(k, document.createTextNode(pr.name)); li.append(pj); }
+    bindTip(li, () => [line(fmt(s.active) + " active", `${s.s}–${s.e}${pr ? " · " + pr.name : ""}`), ...Object.entries(s.mix).map(([n, f]) => el("div", "sub", `${n} ${fmt(s.active * f)}`))]);
+    return li;
+  }));
+  if (!ss.length) $("log").append(el("li", "hint", "no sessions"));
+}
+
+/* CRT display */
+const root = document.documentElement;
+const crt = { mask: "slot", pitch: "1", strength: null, fx: { scan: true, glow: true, conv: true, roll: true, flicker: false } };
+try { Object.assign(crt, JSON.parse(localStorage.getItem("rh-crt") || "{}")); } catch (e) {}
+const save = () => { try { localStorage.setItem("rh-crt", JSON.stringify(crt)); } catch (e) {} };
+const themeStrength = () => parseFloat(getComputedStyle(root).getPropertyValue("--mask-strength")) || .5;
+
+function drawMask() {
+  const c = $("mask"), dpr = window.devicePixelRatio || 1;
+  c.width = Math.round(innerWidth * dpr); c.height = Math.round(innerHeight * dpr);
+  const ctx = c.getContext("2d");
+  const s = crt.strength ?? themeStrength();
+  const off = crt.mask === "off" || s === 0;
+  root.classList.toggle("mask-off", off);
+  // the mask removes light; give back roughly what it removes so mid-tones stay put
+  root.style.setProperty("--boost", off ? 1 : (1 + s * (crt.mask === "dot" ? 1.1 : .85)).toFixed(3));
+  root.style.setProperty("--line", (3 * Number(crt.pitch)) + "px");
+  if (off) return;
+  const hi = 255, lo = Math.round(255 * (1 - s)), dark = Math.round(255 * (1 - s * .9));
+  const R = `rgb(${hi},${lo},${lo})`, G = `rgb(${lo},${hi},${lo})`, B = `rgb(${lo},${lo},${hi})`, K = `rgb(${dark},${dark},${dark})`;
+  const u = Math.max(1, Math.round(Number(crt.pitch) * dpr)); // one phosphor column, in device px
+  const t = document.createElement("canvas"), x = t.getContext("2d");
+  if (crt.mask === "grille") {
+    t.width = 3 * u; t.height = 1;
+    [R, G, B].forEach((col, i) => { x.fillStyle = col; x.fillRect(i * u, 0, u, 1); });
+  } else if (crt.mask === "slot") {
+    const P = 4 * u; t.width = 6 * u; t.height = P;
+    [R, G, B, R, G, B].forEach((col, i) => { x.fillStyle = col; x.fillRect(i * u, 0, u, P); });
+    x.fillStyle = K; x.fillRect(0, 0, 3 * u, u); x.fillRect(3 * u, P / 2, 3 * u, u); // staggered slot breaks
+  } else { // shadow mask: delta triads
+    const cell = 2 * u; t.width = 3 * cell; t.height = 2 * cell;
+    x.fillStyle = K; x.fillRect(0, 0, t.width, t.height);
+    const dot = (cx, cy, col) => { x.fillStyle = col; x.beginPath(); x.arc(cx, cy, cell * .46, 0, Math.PI * 2); x.fill(); };
+    [R, G, B].forEach((col, i) => dot(i * cell + cell / 2, cell / 2, col));
+    [B, R, G].forEach((col, i) => { const cx = (i + 1) * cell; dot(cx % t.width, cell * 1.5, col); if (cx === t.width) dot(t.width, cell * 1.5, col); });
+  }
+  ctx.fillStyle = ctx.createPattern(t, "repeat");
+  ctx.fillRect(0, 0, c.width, c.height);
+}
+
+function applyCrt() {
+  for (const k of Object.keys(crt.fx)) root.classList.toggle("fx-" + k, !!crt.fx[k]);
+  root.style.setProperty("--conv", crt.fx.conv ? "-.6px 0 0 rgba(255,40,70,.32), .6px 0 0 rgba(40,150,255,.32)" : "0 0 0 transparent");
+  if (crt.fx.glow) root.style.removeProperty("--glow"); else root.style.setProperty("--glow", "0 0 0 transparent");
+  document.querySelectorAll(".osd [data-key]").forEach(g => g.querySelectorAll("button").forEach(b => {
+    const k = g.dataset.key, v = b.dataset.v;
+    b.setAttribute("aria-pressed", k === "fx" ? !!crt.fx[v] : String(crt[k]) === v);
+  }));
+  const pct = Math.round((crt.strength ?? themeStrength()) * 100);
+  $("strength").value = pct; $("strength-out").textContent = pct + "%";
+  drawMask();
+}
+document.querySelectorAll(".osd [data-key]").forEach(g => g.addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  if (g.dataset.key === "fx") crt.fx[b.dataset.v] = !crt.fx[b.dataset.v]; else crt[g.dataset.key] = b.dataset.v;
+  save(); applyCrt();
+}));
+$("strength").addEventListener("input", e => { crt.strength = e.target.value / 100; save(); applyCrt(); });
+addEventListener("resize", drawMask);
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applyCrt);
+new MutationObserver(applyCrt).observe(root, { attributes: true, attributeFilter: ["data-theme"] });
+applyCrt();
+
+
+/* ── tabs ── */
+const TAB_NAMES = ["overview", "activity", "projects", "settings"];
+function showTab(name) {
+  if (!TAB_NAMES.includes(name)) name = "overview";
+  document.querySelectorAll("section.tab").forEach(s => s.hidden = s.dataset.tab !== name);
+  document.querySelectorAll(".tabs button").forEach(b => b.setAttribute("aria-pressed", b.textContent === name));
+  document.querySelector(".range").hidden = name !== "overview";
+  tip.hidden = true;
+  try { history.replaceState(null, "", "#" + name); } catch (e) {}
+  if (name === "activity") sizeHeat();
+}
+document.querySelectorAll(".tabs button").forEach(b => b.addEventListener("click", () => showTab(b.textContent)));
+
+/* one tooltip for dense marks (heatmap, sparklines): hover only, no tab stop per cell */
+function tipAt(x, y, nodes) {
+  tip.replaceChildren(...nodes); tip.hidden = false;
+  const r = tip.getBoundingClientRect();
+  tip.style.left = Math.min(x + 14, innerWidth - r.width - 8) + "px";
+  tip.style.top = Math.max(8, y - r.height - 10) + "px";
+}
+function delegateTip(host, build) {
+  host.addEventListener("pointermove", e => { const c = e.target.closest("[data-i]"); if (!c || !host.contains(c)) { tip.hidden = true; return; } tipAt(e.clientX, e.clientY, build(c)); });
+  host.addEventListener("pointerleave", () => tip.hidden = true);
+}
+
+/* ── example year: seeded, shaped to agree with the overview ── */
+function rng(seed) { return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const rand = rng(20261003);
+const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const WD = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const TODAY = new Date(2026, 9, 3);
+const addDays = (d, n) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const dstr = d => `${WD[d.getDay()]} ${d.getDate()} ${MON[d.getMonth()]}`;
+const YEAR_START = (() => { const d = addDays(TODAY, -364); return addDays(d, -((d.getDay() + 6) % 7)); })(); // a Monday
+const GLOBAL_TARGET = 20;
+const PROJ = [
+  { id: "rh", name: "rabbit-hole", path: "~\\Documents\\rabbitHole", color: "--p1", ago: "2 min ago", rank: 0, target: null },
+  { id: "cli", name: "rabbithole-cli", path: "~\\Documents\\rabbithole-cli", color: "--p2", ago: "4 h ago", rank: 1, target: 15 },
+  { id: "mk", name: "mekatrone", path: "~\\code\\mekatrone", color: "--p3", ago: "3 days ago", rank: 2, target: null },
+  { id: "dot", name: "dotfiles", path: "~\\.dotfiles", color: "--p4", ago: "16 days ago", rank: 3, target: null },
+];
+const days = [];
+for (let d = YEAR_START; d <= TODAY; d = addDays(d, 1)) {
+  const weekend = d.getDay() === 0 || d.getDay() === 6;
+  const total = rand() < (weekend ? .55 : .8) ? Math.round(18 + Math.pow(rand(), 1.6) * 300) : 0;
+  const t = d.getTime();
+  const w = { rh: t >= new Date(2026, 3, 1).getTime() ? 1 : .25, mk: t < new Date(2026, 6, 1).getTime() ? 1.2 : .12, cli: t >= new Date(2026, 5, 15).getTime() ? .45 : 0, dot: rand() < .08 ? .5 : 0 };
+  days.push({ date: d, iso: iso(d), total, w });
+}
+const at = d => days[days.findIndex(x => x.iso === iso(d))];
+const inRecord = d => d >= new Date(2026, 6, 5) && d <= new Date(2026, 7, 4);
+at(new Date(2026, 6, 4)).total = 0; at(new Date(2026, 7, 5)).total = 0;
+days.forEach(x => { if (inRecord(x.date) && x.total < 25) x.total = 25 + Math.round(rand() * 200); });
+at(addDays(TODAY, -12)).total = 0;
+for (let k = -11; k <= -7; k++) { const x = at(addDays(TODAY, k)); if (x.total < 25) x.total = 40 + Math.round(rand() * 150); }
+[95, 210, 25, 148, 260, 74, 192].forEach((v, k) => at(addDays(TODAY, k - 6)).total = v);
+{ let run = 0; days.forEach(x => { run = x.total >= GLOBAL_TARGET ? run + 1 : 0; if (run > 24 && !inRecord(x.date) && x.date < addDays(TODAY, -12)) { x.total = 0; run = 0; } }); }
+days.forEach(x => {
+  x.m = { rh: 0, cli: 0, mk: 0, dot: 0 };
+  const ws = Object.entries(x.w).filter(([, v]) => v > 0), sum = ws.reduce((a, [, v]) => a + v, 0);
+  let left = x.total;
+  ws.forEach(([k, v], j) => { const share = j === ws.length - 1 ? left : Math.min(left, Math.round(x.total * v / sum * (.6 + rand() * .8))); x.m[k] = share; left -= share; });
+});
+{ const x = at(new Date(2026, 8, 17)); if (!x.total) x.total = 45; x.m = { rh: x.total - 12, cli: 0, mk: 0, dot: 12 }; }
+days.forEach(x => {
+  if (x.date > new Date(2026, 8, 17)) { x.m.rh += x.m.dot; x.m.dot = 0; }
+  if (x.date > new Date(2026, 8, 30)) { x.m.rh += x.m.mk; x.m.mk = 0; }
+  if (x.date >= addDays(TODAY, -6)) { const c = Math.round(x.total * .15); x.m = { rh: x.total - c, cli: c, mk: 0, dot: 0 }; }
+});
+at(new Date(2026, 8, 30)).m = { rh: 98, cli: 20, mk: 30, dot: 0 };
+at(TODAY).total = 220; at(TODAY).m = { rh: 192, cli: 28, mk: 0, dot: 0 };
+
+const value = (x, f) => f === "all" ? x.total : x.m[f];
+const targetOf = f => f === "all" ? GLOBAL_TARGET : (PROJ.find(p => p.id === f).target ?? GLOBAL_TARGET);
+const hours = m => m >= 600 ? Math.round(m / 60) + "h" : fmt(m);
+
+/* ── activity ── */
+let actFilter = "all", actHover = null;
+const actF = () => actHover ?? actFilter;
+function yearStats(f) {
+  const target = targetOf(f), yr = days.filter(x => x.date > addDays(TODAY, -365));
+  let active = 0, total = 0, best = yr[0], run = 0, longest = 0, longestEnd = null;
+  yr.forEach(x => {
+    const v = value(x, f);
+    if (v > 0) active++; total += v;
+    if (v > value(best, f)) best = x;
+    run = v >= target ? run + 1 : 0;
+    if (run > longest) { longest = run; longestEnd = x.date; }
+  });
+  return { active, total, best, longest, longestEnd, target, n: yr.length };
+}
+function renderYStats() {
+  const f = actF(), st = yearStats(f);
+  const cells = [
+    [String(st.active), "active days", `of ${st.n}`],
+    [hours(st.total), "total time", `${fmt(Math.round(st.total / Math.max(1, st.active)))} per active day`],
+    [st.longest + "d", "longest streak", st.longestEnd ? `ended ${st.longestEnd.getDate()} ${MON[st.longestEnd.getMonth()]}, target ${st.target}m` : "no streak yet"],
+    [fmt(value(st.best, f)), "most active day", dstr(st.best.date)],
+  ];
+  $("ystats").replaceChildren(...cells.map(([v, k, s]) => { const d = el("div", "ystat"); d.append(el("div", "v", v), el("div", "k", k), el("div", "s", s)); return d; }));
+  $("ystats-who").textContent = actHover ? ` · ${PROJ.find(q => q.id === actHover).name} only` : "";
+}
+function renderActivity() {
+  renderYStats();
+
+  renderHeat();
+
+  const totals = PROJ.map(p => ({ p, t: days.filter(x => x.date > addDays(TODAY, -365)).reduce((a, x) => a + x.m[p.id], 0), d: days.filter(x => x.date > addDays(TODAY, -365) && x.m[p.id] > 0).length }));
+  const all = totals.reduce((a, r) => a + r.t, 0), max = Math.max(...totals.map(r => r.t));
+  $("split").replaceChildren(...totals.map(r => { const s = el("span"); s.dataset.ap = r.p.id; s.style.cssText = `flex:${r.t};background:var(${r.p.color})`; return s; }));
+  const hdr = el("div", "prow hdr"); hdr.append(el("span", null, "project"), el("span"), el("span", "t", "time"), el("span", "pct", "share"), el("span", "dd", "active days"));
+  $("prows").replaceChildren(hdr, ...totals.map(r => {
+    const row = el("div", "prow" + (actFilter === r.p.id ? " sel" : "")); row.dataset.ap = r.p.id;
+    const name = el("span", "name"); const k = el("i", "key"); k.style.background = `var(${r.p.color})`; name.append(k, document.createTextNode(r.p.name));
+    const track = el("span", "track"), fill = el("span", "fill"); fill.style.cssText = `width:${r.t / max * 100}%;background:var(${r.p.color})`; track.append(fill);
+    row.append(name, track, el("span", "t", hours(r.t)), el("span", "pct", Math.round(r.t / all * 100) + "%"), el("span", "dd", String(r.d)));
+    bindTip(row, () => [line(hours(r.t), r.p.name), el("div", "sub", `${Math.round(r.t / all * 100)}% of all time · active on ${r.d} days`)]);
+    return row;
+  }));
+  sizeHeat();
+}
+let heatWeeks = 0;
+function renderHeat() {
+  const wrap = document.querySelector(".heat-wrap"); if (!wrap.clientWidth) return;
+  heatWeeks = wrap.clientWidth < 600 ? 26 : 53;
+  $("heat-range").textContent = `daily active time, past ${heatWeeks === 53 ? "12" : "6"} months` + (actHover ? ` · ${PROJ.find(q => q.id === actHover).name} only` : "");
+  const heat = $("heat"); heat.replaceChildren();
+  const weeks = Math.ceil(days.length / 7), first = weeks - heatWeeks;
+  for (let i = first * 7; i < weeks * 7; i++) {
+    const x = days[i];
+    if (!x) { heat.append(el("span", "fut", "█")); continue; }
+    const v = value(x, actF());
+    const c = el("span", (x.iso === iso(TODAY) ? "now" : v === 0 ? "z" : ""), v === 0 ? "·" : v < 30 ? "░" : v < 90 ? "▒" : v < 180 ? "▓" : "█");
+    c.dataset.i = i;
+    heat.append(c);
+  }
+  const months = $("months"); months.replaceChildren();
+  months.style.setProperty("--weeks", heatWeeks);
+  let last = -1;
+  for (let w = first; w < weeks; w++) {
+    const d = days[w * 7].date;
+    if (d.getMonth() === last) continue;
+    last = d.getMonth();
+    if (w === first && days[Math.min(days.length - 1, (first + 2) * 7)].date.getMonth() !== last) continue; // a stub month at the left edge would collide
+    const s = el("span", null, MON[last].toLowerCase()); s.style.gridColumn = `${w - first + 1} / span 4`; months.append(s);
+  }
+  sizeHeat();
+}
+function sizeHeat() {
+  const heat = $("heat"); if (!heat.clientWidth) return;
+  const want = document.querySelector(".heat-wrap").clientWidth < 600 ? 26 : 53;
+  if (want !== heatWeeks) return renderHeat();
+  const cw = (heat.clientWidth - (heatWeeks - 1) * 2) / heatWeeks;
+  heat.style.fontSize = Math.min(24, cw / .6) + "px";
+}
+delegateTip($("heat"), c => {
+  const f = actF(), x = days[+c.dataset.i], v = value(x, f);
+  const out = [line(v ? fmt(v) : "no activity", (actHover ? PROJ.find(q => q.id === actHover).name + " · " : "") + dstr(x.date))];
+  if (f === "all") PROJ.filter(p => x.m[p.id]).forEach(p => out.push(el("div", "sub", `${p.name} ${fmt(x.m[p.id])}`)));
+  if (v && v < targetOf(f)) out.push(el("div", "sub", `under the ${targetOf(f)}m target`));
+  return out;
+});
+$("act-filter").append(...[["all", "all projects"], ...PROJ.map(p => [p.id, p.name])].map(([id, label]) => {
+  const b = el("button", null, label); b.dataset.v = id; b.setAttribute("aria-pressed", id === actFilter);
+  b.addEventListener("click", () => setProject(id));
+  return b;
+}));
+addEventListener("resize", sizeHeat);
+{
+  const box = $("prows").closest("fieldset");
+  const setActHover = id => {
+    if (id === actHover) return;
+    actHover = id; renderYStats(); renderHeat();
+    box.querySelectorAll("[data-ap]").forEach(n => n.classList.toggle("dim", !!id && n.dataset.ap !== id));
+  };
+  box.addEventListener("pointerover", e => { const t = e.target.closest("[data-ap]"); if (t) setActHover(t.dataset.ap); });
+  box.addEventListener("pointerleave", () => setActHover(null));
+  box.addEventListener("focusin", e => { const t = e.target.closest("[data-ap]"); setActHover(t ? t.dataset.ap : null); });
+  box.addEventListener("focusout", e => { if (!box.contains(e.relatedTarget)) setActHover(null); });
+}
+
+/* ── projects ── */
+let sortBy = "time";
+const SPARK = "▁▂▃▄▅▆▇█";
+function projStreak(p) {
+  const target = p.target ?? GLOBAL_TARGET, metToday = days[days.length - 1].m[p.id] >= target;
+  let n = 0;
+  for (let i = days.length - (metToday ? 1 : 2); i >= 0 && days[i].m[p.id] >= target; i--) n++;
+  return { n, atRisk: !metToday && n > 0 };
+}
+function renderCards() {
+  const list = PROJ.map(p => ({ p, today: days[days.length - 1].m[p.id], streak: projStreak(p), d14: days.slice(-14) }));
+  list.sort((a, b) => sortBy === "name" ? a.p.name.localeCompare(b.p.name) : sortBy === "last" ? a.p.rank - b.p.rank : b.today - a.today || a.p.rank - b.p.rank);
+  $("pcards").replaceChildren(...list.map(({ p, today, streak, d14 }) => {
+    const fs = el("fieldset", "pcard span-6");
+    const lg = el("legend"); lg.append(el("b", null, p.name), el("span", "ago", " · " + p.ago)); fs.append(lg);
+    fs.append(el("div", "path", p.path));
+    const stats = el("div", "stats");
+    const a = el("div"); a.append(el("div", "v" + (today ? "" : " zero"), today ? fmt(today) : "0m"), el("div", "k", "today"));
+    const s = el("div"); s.append(el("div", "v" + (streak.n ? "" : " zero"), streak.n + "d"), el("div", streak.atRisk ? "k risk" : "k", streak.atRisk ? "streak, at risk today" : "streak"));
+    stats.append(a, s); fs.append(stats);
+    const max = Math.max(1, ...d14.map(x => x.m[p.id]));
+    const spark = el("div", "spark"); spark.setAttribute("role", "img"); spark.setAttribute("aria-label", `${p.name}, active time over the last 14 days`);
+    d14.forEach((x, i) => { const v = x.m[p.id]; const c = el("span", v ? "" : "z", v ? SPARK[Math.min(7, Math.floor(v / max * 7.999))] : "▁"); if (v) c.style.color = `var(${p.color})`; c.dataset.i = i; spark.append(c); });
+    delegateTip(spark, c => { const x = d14[+c.dataset.i], v = x.m[p.id]; return [line(v ? fmt(v) : "no activity", dstr(x.date))]; });
+    const axis = el("div", "spark-axis"); axis.append(el("span", null, "14 days ago"), el("span", null, "today"));
+    fs.append(spark, axis);
+
+    const t = el("div", "target");
+    const id = "pt-" + p.id;
+    const lbl = el("label", "lbl", "daily target"); lbl.htmlFor = id;
+    const inp = el("input", "tin"); Object.assign(inp, { id, type: "number", min: 1, max: 1440, step: 5, placeholder: String(GLOBAL_TARGET) }); inp.value = p.target ?? ""; inp.dataset.saved = p.target ?? "";
+    const dn = el("button", "btn step", "−"), up = el("button", "btn step", "+");
+    dn.dataset.for = up.dataset.for = id; dn.dataset.step = "-5"; up.dataset.step = "5";
+    dn.setAttribute("aria-label", `Decrease ${p.name} target`); up.setAttribute("aria-label", `Increase ${p.name} target`);
+    const ap = el("button", "btn", "apply"); ap.dataset.apply = id; ap.dataset.label = `${p.name} target`; ap.dataset.project = p.id; ap.disabled = true;
+    const hint = el("span", "hint", p.target == null ? `empty: uses the global ${GLOBAL_TARGET}m` : `own target; clear it to use the global ${GLOBAL_TARGET}m`);
+    t.append(lbl, dn, inp, up, el("span", "unit", "min"), ap, hint);
+    fs.append(t);
+    const foot = el("div", "foot"); const open = el("button", "btn", "open in overview");
+    open.addEventListener("click", () => { setProject(p.id); showTab("overview"); scrollTo(0, 0); });
+    foot.append(open); fs.append(foot);
+    return fs;
+  }));
+}
+$("sort").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; sortBy = b.dataset.v; $("sort").querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", x === b)); renderCards(); });
+
+/* ── settings ── */
+const consoleLines = [];
+function log(text, cls = "") {
+  consoleLines.push([text, cls]); while (consoleLines.length > 9) consoleLines.shift();
+  $("console").replaceChildren(...consoleLines.map(([t, c], i) => el("div", c + (i === consoleLines.length - 1 ? " cursor" : ""), t)));
+}
+const stamp = () => "2026-10-03T17-04-" + String(10 + consoleLines.length).padStart(2, "0");
+function syncApply(inp) {
+  const ap = document.querySelector(`[data-apply="${inp.id}"]`); if (!ap) return;
+  const v = inp.value.trim(), ok = v === "" ? !!ap.dataset.project : (+v >= +inp.min && +v <= +inp.max);
+  ap.disabled = !ok || v === inp.dataset.saved;
+}
+document.addEventListener("click", e => {
+  const st = e.target.closest("[data-step]");
+  if (st) {
+    const inp = $(st.dataset.for), base = inp.value === "" ? +(inp.placeholder || 0) : +inp.value;
+    inp.value = Math.min(+inp.max, Math.max(+inp.min, base + +st.dataset.step)); syncApply(inp); return;
+  }
+  const ap = e.target.closest("[data-apply]");
+  if (ap && !ap.disabled) {
+    const inp = $(ap.dataset.apply), was = inp.dataset.saved, now = inp.value.trim();
+    inp.dataset.saved = now;
+    if (ap.dataset.project) {
+      const p = PROJ.find(x => x.id === ap.dataset.project); p.target = now === "" ? null : +now;
+      ap.parentElement.querySelector(".hint").textContent = p.target == null ? `empty: uses the global ${GLOBAL_TARGET}m` : `own target; clear it to use the global ${GLOBAL_TARGET}m`;
+    }
+    log(`${ap.dataset.label} set to ${now === "" ? "global" : now + "m"} (was ${was === "" ? "global" : was + "m"})`, "ok");
+    ap.disabled = true; ap.textContent = "saved"; ap.classList.add("ok");
+    setTimeout(() => { ap.textContent = "apply"; ap.classList.remove("ok"); }, 1400);
+  }
+});
+document.addEventListener("input", e => { if (e.target.matches(".tin[type=number]")) syncApply(e.target); });
+
+const ACTIONS = {
+  "reveal": () => [["rabbithole reveal-storage", "cmd"], ["opened the storage folder in Explorer"]],
+  "export": () => [["rabbithole export", "cmd"], ["opens the export dialog: JPG share card, CSV or JSON report"]],
+  "backup-all": () => [["rabbithole backup --all", "cmd"], [`wrote backups\\backup-${stamp()}.json  (4 projects, 371 days)`, "ok"]],
+  "backup-some": () => [["rabbithole backup --projects", "cmd"], ["opens a VS Code quick pick of projects; nothing is pre-selected"]],
+  "restore-some": () => [["rabbithole restore --projects", "cmd"], ["opens the backups folder, then a quick pick of the projects in that file"]],
+  "restore-all": () => [["rabbithole restore --all", "cmd"], ["opens the backups folder, then asks once more before replacing anything"]],
+};
+document.querySelectorAll("[data-log]").forEach(b => b.addEventListener("click", () => ACTIONS[b.dataset.log]().forEach(([t, c]) => log(t, c))));
+
+$("clear-proj").append(...PROJ.map(p => { const o = el("option", null, p.name); o.value = p.name; return o; }));
+const syncClear = () => { $("clear-proj-btn").disabled = $("clear-proj-confirm").value.trim() !== $("clear-proj").value; };
+$("clear-proj").addEventListener("change", syncClear); $("clear-proj-confirm").addEventListener("input", syncClear);
+$("clear-proj-btn").addEventListener("click", () => {
+  const n = $("clear-proj").value;
+  log(`rabbithole clear --project ${n}`, "cmd"); log(`wrote backups\\backup-${stamp()}.json first`, "ok");
+  log(`would delete every logged day for ${n}. This is a mockup, so nothing was deleted.`, "bad");
+  $("clear-proj-confirm").value = ""; syncClear();
+});
+$("clear-all-confirm").addEventListener("input", e => $("clear-all-btn").disabled = e.target.value.trim() !== "DELETE");
+$("clear-all-btn").addEventListener("click", () => {
+  log("rabbithole clear --all", "cmd"); log(`wrote backups\\backup-${stamp()}.json first`, "ok");
+  log("would delete all projects and history. This is a mockup, so nothing was deleted.", "bad");
+  $("clear-all-confirm").value = ""; $("clear-all-btn").disabled = true;
+});
+log("last backup: backups\\backup-2026-10-01T09-12-44.json (2 days ago)");
+
+renderActivity(); renderCards();
+showTab((location.hash || "").slice(1));
+
+/* ── day detail, per project: today's rabbit-hole is the hand-written example above;
+   everything else is seeded so it stays put. Projects share one clock, so sessions never overlap. ── */
+const FILE_POOLS = {
+  rh: [["src/tracker/", "lineLedger.ts", 9], ["src/tracker/", "activityTracker.ts", 7], ["src/webview/", "main.ts", 6],
+    ["test/", "tracker.ledger.test.ts", 5], ["src/", "extension.ts", 4], ["src/webview/", "heatmap.ts", 4],
+    ["src/tracker/", "ledgerStore.ts", 3], ["src/webview/", "style.css", 3], ["test/", "tracker.activity.test.ts", 3],
+    ["src/storage/", "backup.ts", 3], ["", "CLAUDE.md", 3], ["internal/mirror/", "read.go", 2], ["internal/mirror/", "write.go", 2],
+    ["", "DESIGN.md", 2], ["", "README.md", 2], ["", "package.json", 1]],
+  cli: [["cmd/rabbithole/", "main.go", 6], ["internal/store/", "read.go", 5], ["internal/report/", "csv.go", 4], ["internal/store/", "backup.go", 4],
+    ["internal/report/", "json.go", 3], ["internal/report/", "card.go", 3], ["", "README.md", 2], ["", "go.mod", 1]],
+  mk: [["app/(club)/members/", "page.tsx", 6], ["app/(club)/flights/", "page.tsx", 5], ["components/", "FlightLog.tsx", 5],
+    ["app/api/bookings/", "route.ts", 4], ["lib/", "db.ts", 4], ["components/", "MemberCard.tsx", 3], ["app/", "globals.css", 3],
+    ["prisma/", "schema.prisma", 3], ["", "package.json", 1]],
+  dot: [["", ".zshrc", 5], ["nvim/", "init.lua", 4], ["", "install.sh", 3], ["vscode/", "settings.json", 3], ["git/", "config", 2]],
+};
+const LANG_MIX = {
+  rh: ["TypeScript", ["Markdown", "Go", "CSS", "JSON"]],
+  cli: ["Go", ["Markdown", "JSON"]],
+  mk: ["TypeScript", ["CSS", "JSON", "Markdown"]],
+  dot: ["Shell", ["JSON", "Markdown"]],
+};
+const seedOf = (x, k) => rng(+x.iso.replace(/-/g, "") * 31 + k);
+const EMPTY = { sessions: [], add: 0, del: 0, langs: [], files: [] };
+function genPart(x, pid, k, start) {
+  const total = x.m[pid], r = seedOf(x, 10 * k + 1);
+  const n = total < 40 ? 1 : total < 120 ? 1 + Math.floor(r() * 2) : 2 + Math.floor(r() * 3);
+  const w = Array.from({ length: n }, () => .5 + r()), sw = w.reduce((a, b) => a + b, 0);
+  const act = w.map(v => Math.round(total * v / sw));
+  act[n - 1] = total - act.slice(0, -1).reduce((a, b) => a + b, 0);
+  const [main, others] = LANG_MIX[pid];
+  let t = start;
+  const ss = act.filter(a => a > 0).map(a => {
+    const span = Math.round(a * (1.12 + r() * .3));
+    const mix = { [main]: .5 + r() * .4 }; let rest = 1 - mix[main];
+    const extra = others.filter(() => r() < .5); if (!extra.length) extra.push(others[0]);
+    extra.forEach((o, i) => { const v = i === extra.length - 1 ? rest : rest * (.35 + r() * .4); mix[o] = v; rest -= v; });
+    const s = { s0: t, s1: t + span, active: a, mix, p: pid };
+    t += span + 12 + Math.round(r() * 60);
+    return s;
+  });
+  const add = Math.round(total * (.8 + r() * 2.2)), del = Math.round(add * (.2 + r() * .45));
+  const T = {}; ss.forEach(s => Object.entries(s.mix).forEach(([l, f]) => T[l] = (T[l] || 0) + s.active * f));
+  const ls = Object.entries(T).sort((a, b) => b[1] - a[1]);
+  let la = add, lr = del;
+  const lg = ls.map(([l, v], i) => { const last = i === ls.length - 1, a = last ? la : Math.min(la, Math.round(add * v / total)), rr = last ? lr : Math.min(lr, Math.round(del * v / total)); la -= a; lr -= rr; return { n: l, t: v, a, r: rr }; });
+  const pool = FILE_POOLS[pid], rf = seedOf(x, 10 * k + 2), kf = Math.min(pool.length, 2 + Math.floor(total / 45) + Math.floor(rf() * 3));
+  const picked = pool.map(f => [f, Math.pow(rf(), 1 / f[2])]).sort((a, b) => b[1] - a[1]).slice(0, kf).map(([f]) => f);
+  const fw = picked.map(f => f[2] * (.4 + rf())), fsw = fw.reduce((a, b) => a + b, 0);
+  let fa = add, fr = del;
+  const fl = picked.map((f, i) => { const last = i === picked.length - 1, a = last ? fa : Math.min(fa, Math.round(add * fw[i] / fsw)), rr = last ? fr : Math.min(fr, Math.round(del * fw[i] / fsw)); fa -= a; fr -= rr; return [f[0], f[1], a, rr]; });
+  return { sessions: ss, add, del, langs: lg, files: fl, end: t };
+}
+const detailCache = new Map();
+const fmtSessions = ss => ss.map(s => ({ s: hhmm(s.s0), e: hhmm(s.s1), active: s.active, mix: s.mix, p: s.p }));
+function detail(x) {
+  if (detailCache.has(x.iso)) return detailCache.get(x.iso);
+  const parts = {}, isToday = x.iso === iso(TODAY), r = seedOf(x, 0);
+  let cursor = 8 * 60 + Math.round(r() * 80);
+  if (isToday) {
+    parts.rh = { sessions: sessions.map(s => ({ ...s, s0: mins(s.s), s1: mins(s.e), p: "rh" })), add: 412, del: 168, langs: langs.map(([n, t, a, r]) => ({ n, t, a, r })), files };
+    cursor = mins(sessions[sessions.length - 1].e) + 20;
+  }
+  const order = PROJ.filter(p => x.m[p.id] > 0 && !parts[p.id]).sort((a, b) => a.rank - b.rank);
+  order.forEach(p => { const part = genPart(x, p.id, PROJ.indexOf(p) + 1, cursor); parts[p.id] = part; cursor = part.end + 15; });
+  if (!isToday) {
+    const all = Object.values(parts).flatMap(p => p.sessions), last = Math.max(0, ...all.map(s => s.s1)), over = last - (18 * 60 + 55);
+    if (over > 0) all.forEach(s => { const k = Math.min(over, 60); s.s0 -= k; s.s1 -= k; });
+  }
+  Object.values(parts).forEach(p => p.sessions = fmtSessions(p.sessions));
+  // all projects: merged; files carry their project so two repos don't collide
+  const L = {}, F = [];
+  Object.entries(parts).forEach(([pid, p]) => {
+    p.langs.forEach(l => { const o = L[l.n] ||= { n: l.n, t: 0, a: 0, r: 0 }; o.t += l.t; o.a += l.a; o.r += l.r; });
+    p.files.forEach(([dir, name, a, rr]) => F.push([PROJ.find(q => q.id === pid).name + "/" + dir, name, a, rr]));
+  });
+  const merged = {
+    sessions: Object.values(parts).flatMap(p => p.sessions).sort((a, b) => mins(a.s) - mins(b.s)),
+    add: Object.values(parts).reduce((s, p) => s + p.add, 0), del: Object.values(parts).reduce((s, p) => s + p.del, 0),
+    langs: Object.values(L).sort((a, b) => b.t - a.t), files: F,
+  };
+  const d = { parts, all: merged };
+  detailCache.set(x.iso, d);
+  return d;
+}
+let viewProj = "rh";
+/* focus: the project or language being hovered. Every panel that can be split by it shows only its share;
+   the panel the pointer is in keeps its rows and dims the others, so nothing moves under the pointer. */
+let hl = null; // { k: "p" | "l", id, src: <fieldset> }
+const FILE_LANG = { ts: "TypeScript", tsx: "TypeScript", md: "Markdown", go: "Go", mod: "Go", css: "CSS", json: "JSON", prisma: "JSON", sh: "Shell", lua: "Shell" };
+const fileLang = name => name.startsWith(".") || name === "config" ? "Shell" : FILE_LANG[name.split(".").pop()] || "Other";
+const hlName = () => !hl ? "" : hl.k === "p" ? PROJ.find(q => q.id === hl.id).name : hl.id;
+const hlColor = () => !hl ? null : hl.k === "p" ? PROJ.find(q => q.id === hl.id).color : LANG[hl.id];
+function sliceDay(x, d, v) {
+  if (!hl) return { v, d };
+  if (hl.k === "p") {
+    if (viewProj !== "all") return { v, d };
+    const part = detail(x).parts[hl.id] || EMPTY, name = PROJ.find(q => q.id === hl.id).name;
+    return { v: x.m[hl.id] || 0, d: { ...part, files: part.files.map(([dir, n, a, r]) => [name + "/" + dir, n, a, r]) } };
+  }
+  const l = d.langs.find(q => q.n === hl.id);
+  if (!l) return { v: 0, d: EMPTY };
+  return { v: Math.round(l.t), d: {
+    sessions: d.sessions.filter(s => s.mix[hl.id]).map(s => ({ ...s, active: s.active * s.mix[hl.id], mix: { [hl.id]: 1 } })),
+    add: l.a, del: l.r, langs: [l], files: d.files.filter(f => fileLang(f[1]) === hl.id),
+  } };
+}
+const partFor = (x, f = viewProj) => f === "all" ? detail(x).all : detail(x).parts[f] || EMPTY;
+const valFor = (x, f = viewProj) => value(x, f);
+function buildView(from, to) {
+  // v/d are what the panels show (narrowed to the focus, if any); v0/d0 are the whole, for scales and the panel under the pointer
+  const list = days.filter(x => x.date >= from && x.date <= to).map(x => { const d0 = partFor(x), v0 = valFor(x), s = sliceDay(x, d0, v0); return { x, v: s.v, d: s.d, v0, d0 }; });
+  const agg = key => {
+    const L = {}, F = new Map();
+    list.forEach(r => {
+      r[key].langs.forEach(l => { const o = L[l.n] ||= { n: l.n, t: 0, a: 0, r: 0 }; o.t += l.t; o.a += l.a; o.r += l.r; });
+      r[key].files.forEach(([dir, name, a, rr]) => { const k = dir + name, o = F.get(k) || [dir, name, 0, 0]; o[2] += a; o[3] += rr; F.set(k, o); });
+    });
+    return { langs: Object.values(L).sort((a, b) => b.t - a.t), files: [...F.values()].sort((a, b) => (b[2] + b[3]) - (a[2] + a[3])) };
+  };
+  const cur = agg("d"), base = hl ? agg("d0") : cur;
+  return {
+    list, total: list.reduce((s, r) => s + r.v, 0), total0: list.reduce((s, r) => s + r.v0, 0),
+    add: list.reduce((s, r) => s + r.d.add, 0), del: list.reduce((s, r) => s + r.d.del, 0),
+    langs: cur.langs, files: cur.files, langs0: base.langs,
+  };
+}
+
+/* ── streak, for whichever project the overview shows ── */
+function renderStreak() {
+  const f = viewProj, target = targetOf(f), metToday = valFor(days[days.length - 1]) >= target;
+  let n = 0;
+  for (let i = days.length - (metToday ? 1 : 2); i >= 0 && valFor(days[i]) >= target; i--) n++;
+  $("streak-n").textContent = n;
+  $("streak-n").parentElement.style.color = n ? "" : "var(--ink-mute)";
+  $("days").replaceChildren(...days.slice(-14).map((x, i) => {
+    const now = i === 13, hit = valFor(x) >= target;
+    const s = el("span", now ? "now" : hit ? "hit" : "miss", now ? (hit ? "◆" : "◇") : hit ? "■" : "□");
+    bindTip(s, () => [line(now ? (hit ? "today, target met" : `today, ${fmt(Math.max(0, target - valFor(x)))} to go`) : hit ? "target met" : "missed", dstr(x.date))]);
+    return s;
+  }));
+  $("days").setAttribute("aria-label", `Last 14 days against the ${target} minute target`);
+  const st = yearStats(f);
+  $("streak-long").textContent = (st.longest ? `Longest run ${st.longest} days, ended ${st.longestEnd.getDate()} ${MON[st.longestEnd.getMonth()]}.` : "No streak yet.")
+    + (!metToday && n ? ` At risk today: ${fmt(target - valFor(days[days.length - 1]))} to go.` : "")
+    + (f !== "all" && target !== GLOBAL_TARGET ? ` Uses this project's ${target}m target.` : "");
+}
+
+/* ── range hero: one segmented column per day ── */
+const SEG = 12;
+let colsList = [];
+function renderCols(list) {
+  colsList = list;
+  const n = list.length, max = Math.max(1, ...list.map(r => r.v0)), T = targetOf(viewProj);
+  const gap = n > 45 ? "1px" : n > 20 ? "2px" : "5px";
+  const cols = $("cols"), axis = $("cols-axis");
+  [cols, axis].forEach(h => { h.style.setProperty("--n", n); h.style.setProperty("--gap", gap); });
+  cols.replaceChildren(...list.map(({ x, v }, i) => {
+    const h = v ? Math.max(.25, v / max * SEG) : 0;
+    const c = el("span", "c " + (hl ? "hl" : x.iso === iso(TODAY) ? "now" : v >= T ? "met" : "under"));
+    if (hl) c.style.color = `var(${hlColor()})`;
+    c.dataset.i = i;
+    for (let s = 0; s < SEG; s++) {
+      const f = Math.max(0, Math.min(1, h - s)), seg = el("i", f >= 1 ? "on" : f > 0 ? "part" : "");
+      if (f > 0 && f < 1) seg.style.setProperty("--f", Math.round(f * 100) + "%");
+      c.append(seg);
+    }
+    return c;
+  }));
+  axis.replaceChildren();
+  list.forEach(({ x }, i) => {
+    const d = x.date, now = x.iso === iso(TODAY) ? "now" : null;
+    if (n <= 7) axis.append(el("span", now, `${WD[d.getDay()].toLowerCase()} ${d.getDate()}`));
+    else if (n <= 16) axis.append(el("span", now, String(d.getDate())));
+    else if (d.getDay() === 1 && n - i >= 3) { const s = el("span", "mon", `${d.getDate()} ${MON[d.getMonth()].toLowerCase()}`); s.style.gridColumn = `${i + 1} / span ${Math.min(7, n - i)}`; axis.append(s); }
+  });
+}
+delegateTip($("cols"), c => {
+  const { x, v, v0, d } = colsList[+c.dataset.i], T = targetOf(viewProj);
+  const out = [line(v ? fmt(v) : "no activity", (hl ? hlName() + " · " : "") + dstr(x.date))];
+  if (hl && v0) out.push(el("div", "sub", `of ${fmt(v0)} that day (${Math.round(v / v0 * 100)}%)`));
+  if (v) out.push(el("div", "sub", `${d.sessions.length} session${d.sessions.length === 1 ? "" : "s"} · +${d.add} −${d.del}`));
+  if (v && viewProj === "all" && !hl) PROJ.filter(p => x.m[p.id]).forEach(p => out.push(el("div", "sub", `${p.name} ${fmt(x.m[p.id])}`)));
+  if (v && v < T && !hl) out.push(el("div", "sub", `under the ${T}m target`));
+  out.push(el("div", "sub", "click to open this day"));
+  return out;
+});
+$("cols").addEventListener("click", e => {
+  const c = e.target.closest("[data-i]"); if (!c) return;
+  const d = colsList[+c.dataset.i].x.date;
+  lastRange = { from: viewFrom, to: viewTo, pressed: document.querySelector('.range [aria-pressed="true"]')?.id, cal: $("r-cal").textContent };
+  tip.hidden = true;
+  pressRange(iso(d) === iso(TODAY) ? "r-today" : iso(d) === iso(addDays(TODAY, -1)) ? "r-yday" : null);
+  setView(d, d);
+});
+
+/* ── put a view on screen ── */
+let viewFrom = TODAY, viewTo = TODAY, lastRange = null;
+const shortDate = d => `${d.getDate()} ${MON[d.getMonth()]}`;
+const projName = id => id === "all" ? "all projects" : PROJ.find(p => p.id === id).name;
+function setView(from, to, keepFocus) {
+  if (!keepFocus && hl) { hl = null; lockHeights(false); }
+  viewFrom = from; viewTo = to;
+  const v = buildView(from, to), n = v.list.length, single = n === 1, T = targetOf(viewProj), multi = viewProj === "all";
+  const isToday = single && v.list[0].x.iso === iso(TODAY);
+  const head = $("hero-head"), leg = $("tape-legend");
+  $("hero-k").textContent = single ? "day" : "range";
+  $("hero-when").textContent = (single ? dstr(from) : `${dstr(from)} – ${dstr(to)} · ${n} days`) + (multi ? " · all projects" : "") + (hl ? ` · ${hlName()} only` : "");
+  $("cols-wrap").hidden = single; $("tod-k").hidden = single;
+  leg.replaceChildren();
+
+  if (single) {
+    const { x, v: val, d } = v.list[0], ss = d.sessions;
+    head.replaceChildren(el("div", "big", fmt(val)), ...(ss.length ? [kv("sessions", ss.length), kv("first keystroke", ss[0].s), kv("last", ss[ss.length - 1].e)] : [el("span", "kv", `no activity${multi ? "" : " in " + projName(viewProj)} this day`)]));
+    if (multi && val) head.append(kv("projects", PROJ.filter(p => x.m[p.id]).length));
+    if (lastRange) { const back = el("button", "btn", "back to range"); back.addEventListener("click", () => { const r = lastRange; lastRange = null; pressRange(r.pressed); $("r-cal").textContent = r.cal; setView(r.from, r.to); }); head.append(back); }
+    tapeSrc = { list: ss, per: 1, color: hl && hl.k === "p" ? hlColor() : null };
+    let cum = 0, metAt = null;
+    for (const s of ss) { if (cum + s.active >= T) { const s0 = mins(s.s), s1 = mins(s.e); metAt = hhmm(s0 + (T - cum) / s.active * (s1 - s0)); break; } cum += s.active; }
+    const filled = Math.min(10, Math.round(val / T * 10)), meter = el("span", "meter", "█".repeat(filled));
+    meter.append(el("i", null, "░".repeat(10 - filled)));
+    $("target").replaceChildren(`target ${T}m `, meter, metAt ? ` met at ${metAt}` : ` ${T - val}m short`);
+    if (hl) { const v0 = v.list[0].v0; $("target").replaceChildren(`${hlName()}: `, el("b", null, fmt(val)), ` of ${fmt(v0)} that day (${v0 ? Math.round(val / v0 * 100) : 0}%)`); }
+  } else {
+    const active = v.list.filter(r => r.v > 0), met = v.list.filter(r => r.v >= T).length;
+    const best = v.list.reduce((b, r) => r.v > b.v ? r : b, v.list[0]);
+    head.replaceChildren(el("div", "big", hours(v.total)), kv("active days", `${active.length}/${n}`), kv("per active day", fmt(Math.round(v.total / Math.max(1, active.length)))), kv("best", best.v ? `${WD[best.x.date.getDay()]} ${shortDate(best.x.date)}, ${fmt(best.v)}` : "—"));
+    renderCols(v.list);
+    const active0 = v.list.filter(r => r.v0 > 0);
+    tapeSrc = { list: active.flatMap(r => r.d.sessions), per: Math.max(1, active0.length), base: active0.flatMap(r => r.d0.sessions), color: hl && hl.k === "p" ? hlColor() : null };
+    $("target").replaceChildren(`target ${T}m · met on `, el("b", null, String(met)), ` of ${n} days`);
+    if (hl) $("target").replaceChildren(`${hlName()}: `, el("b", null, hours(v.total)), ` of ${hours(v.total0)} in the range (${v.total0 ? Math.round(v.total / v.total0 * 100) : 0}%)`);
+    if (!hl) [["met", "target met"], ["under", "under target"], ["now", "today"]].forEach(([c, t]) => { if (c === "now" && iso(to) !== iso(TODAY)) return; const s = el("span"), i = el("i", c); s.append(i, document.createTextNode(t)); leg.append(s); });
+  }
+  if (multi) PROJ.filter(p => v.list.some(r => r.x.m[p.id])).forEach(p => {
+    const s = el("span"); s.dataset.hl = "p:" + p.id; s.tabIndex = 0;
+    const i = el("i"); i.style.background = `var(${p.color})`; s.append(i, document.createTextNode(p.name)); leg.append(s);
+  });
+  legend(leg, v.langs0.slice(0, 3).map(l => l.n));
+  if (hl) leg.querySelectorAll("[data-hl]").forEach(s => { const on = s.dataset.hl === hl.k + ":" + hl.id; s.classList.toggle("dim", !on); s.classList.toggle("focus", on); });
+  leg.append(el("span", null)); leg.lastChild.id = "tape-key";
+  tapeCells = 0; renderTape(true);
+
+  /* lines */
+  $("ln-add").textContent = "+" + v.add; $("ln-del").textContent = "−" + v.del;
+  $("ln-net").textContent = (v.add - v.del >= 0 ? "+" : "−") + Math.abs(v.add - v.del);
+  if (single) {
+    $("lines-when").textContent = "net per file, " + (isToday ? "today" : dstr(from));
+    const rows = days.filter(x => x.date > addDays(to, -7) && x.date <= to).map(x => { const d = sliceDay(x, partFor(x), valFor(x)).d; return { label: WD[x.date.getDay()], a: d.add, r: d.del, now: x.iso === iso(to), sub: dstr(x.date) }; });
+    renderLineRows(rows, false);
+  } else if (n <= 14) {
+    $("lines-when").textContent = `net per file, ${n} days`;
+    renderLineRows(v.list.map(({ x, d }) => ({ label: `${WD[x.date.getDay()]} ${x.date.getDate()}`, a: d.add, r: d.del, now: x.iso === iso(TODAY), sub: dstr(x.date) })), true);
+  } else {
+    $("lines-when").textContent = `net per file, ${n} days · one row per week`;
+    const rows = [];
+    for (let end = n; end > 0; end -= 7) {
+      const chunk = v.list.slice(Math.max(0, end - 7), end);
+      rows.unshift({ label: shortDate(chunk[0].x.date), a: chunk.reduce((s, r) => s + r.d.add, 0), r: chunk.reduce((s, r) => s + r.d.del, 0), now: false, sub: `${shortDate(chunk[0].x.date)} – ${shortDate(chunk[chunk.length - 1].x.date)}` });
+    }
+    renderLineRows(rows, true);
+  }
+
+  /* languages, files, log */
+  $("lang-when").textContent = single ? "" : `${n} days`;
+  const langFocus = hl && hl.k === "l";
+  renderLangs(langFocus ? v.langs0 : v.langs, langFocus ? v.total0 : v.total, single ? (isToday ? "today" : "the day") : "the range", v.langs0);
+  $("files-when").textContent = single ? "git diff --stat" : `git diff --stat ${shortDate(from).toLowerCase()}..${shortDate(to).toLowerCase()}`;
+  renderStat(v.files);
+  $("log").classList.toggle("multi", multi && single);
+  if (single) { $("log-k").textContent = "sessions"; $("log-when").textContent = ""; renderSessionLog(v.list[0].d0.sessions); }
+  else {
+    $("log-k").textContent = "days"; $("log-when").textContent = "newest first";
+    $("log").classList.add("daylog");
+    const maxDay = Math.max(1, ...v.list.map(r => r.v0));
+    $("log").replaceChildren(...v.list.slice().reverse().map(({ x, v: val, d }) => {
+      const li = el("li");
+      // one bar per day, its length the day's time; split by project (all projects) or by language
+      const segs = multi && (!hl || hl.k === "p")
+        ? PROJ.filter(p => x.m[p.id] && (!hl || p.id === hl.id)).map(p => ["p", p.id, x.m[p.id], p.color])
+        : d.langs.map(l => ["l", l.n, l.t, LANG[l.n]]);
+      const track = el("span", "dtrack"), bar = el("span", "dbar");
+      bar.style.width = (segs.reduce((s2, g) => s2 + g[2], 0) / maxDay * 100) + "%";
+      segs.forEach(([k, id, t, c]) => { const sg = el("span"); sg.dataset.hl = k + ":" + id; sg.style.cssText = `flex:${t};background:var(${c})`; bar.append(sg); });
+      track.append(bar);
+      li.append(el("span", "when", `${WD[x.date.getDay()]} ${shortDate(x.date)}`), el("span", "dur" + (val ? "" : " z"), val ? fmt(Math.round(val)) : "·"), val ? track : el("span"));
+      bindTip(li, () => val
+        ? [line(fmt(Math.round(val)) + " active", (hl ? hlName() + " · " : "") + dstr(x.date)), el("div", "sub", `${d.sessions.length} session${d.sessions.length === 1 ? "" : "s"}, ${d.sessions[0].s}–${d.sessions[d.sessions.length - 1].e}`), ...(multi ? PROJ.filter(p => x.m[p.id]).map(p => el("div", "sub", `${p.name} ${fmt(x.m[p.id])}`)) : d.langs.slice(0, 3).map(l => el("div", "sub", `${l.n} ${fmt(l.t)}`)))]
+        : [line("no activity", dstr(x.date))]);
+      return li;
+    }));
+  }
+  const sr = $("streak-range"); sr.hidden = single;
+  if (!single) sr.textContent = `In this range the ${T}m target was met on ${v.list.filter(r => r.v0 >= T).length} of ${n} days.`;
+}
+
+/* ── project picker: one choice shared by the overview and the activity tab ── */
+function setProject(id) {
+  viewProj = id; actFilter = id;
+  $("act-filter").querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", b.dataset.v === id));
+  const p = PROJ.find(q => q.id === id);
+  $("proj-name").textContent = projName(id);
+  $("proj-key").style.background = p ? `var(${p.color})` : "transparent";
+  $("proj-key").classList.toggle("hollow", !p);
+  $("branch").hidden = id !== "rh";
+  closePMenu();
+  renderActivity(); renderStreak();
+  setView(viewFrom, viewTo);
+}
+function renderPMenu() {
+  const items = [["all", null, `${PROJ.length} projects`], ...PROJ.map(p => [p.id, p.color, p.path + (p.id === "rh" ? "  · open here" : "")])];
+  $("pmenu").replaceChildren(el("div", "pm-h", "today"), ...items.map(([id, color, sub]) => {
+    const b = el("button", "pm-item"); b.setAttribute("role", "option"); b.setAttribute("aria-selected", id === viewProj); b.dataset.v = id;
+    const k = el("i", "key" + (color ? "" : " hollow")); if (color) k.style.background = `var(${color})`;
+    const t = value(days[days.length - 1], id);
+    const nm = el("span", "pm-name"); nm.append(el("span", null, projName(id)), el("small", null, sub));
+    b.append(k, nm, el("span", "pm-t" + (t ? "" : " z"), t ? fmt(t) : "·"));
+    b.addEventListener("click", () => { setProject(id); $("proj-btn").focus(); });
+    return b;
+  }));
+}
+function openPMenu() { closePicker(); renderPMenu(); $("pmenu").hidden = false; $("proj-btn").setAttribute("aria-expanded", "true"); ($("pmenu").querySelector('[aria-selected="true"]') || $("pmenu").querySelector(".pm-item")).focus(); }
+function closePMenu() { $("pmenu").hidden = true; $("proj-btn").setAttribute("aria-expanded", "false"); }
+$("proj-btn").addEventListener("click", () => $("pmenu").hidden ? openPMenu() : closePMenu());
+$("pmenu").addEventListener("keydown", e => {
+  const items = [...$("pmenu").querySelectorAll(".pm-item")], i = items.indexOf(document.activeElement);
+  if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); items[(i + (e.key === "ArrowDown" ? 1 : items.length - 1)) % items.length].focus(); }
+});
+addEventListener("keydown", e => { if (e.key === "Escape" && !$("pmenu").hidden) { closePMenu(); $("proj-btn").focus(); } });
+addEventListener("pointerdown", e => { if (!$("pmenu").hidden && !$("pmenu").contains(e.target) && !$("proj-btn").contains(e.target)) closePMenu(); });
+
+/* ── range buttons ── */
+const RANGES = { "r-today": [0, 0], "r-yday": [-1, -1], "r-7d": [-6, 0], "r-30d": [-29, 0] };
+const pressRange = id => document.querySelectorAll(".range button").forEach(b => b.setAttribute("aria-pressed", b.id === id));
+document.querySelectorAll(".range button").forEach(b => b.addEventListener("click", () => {
+  if (b.id === "r-cal") return $("picker").hidden ? openPicker() : closePicker();
+  const [a, z] = RANGES[b.id];
+  closePicker(); pressRange(b.id); $("r-cal").textContent = "pick…"; lastRange = null;
+  setView(addDays(TODAY, a), addDays(TODAY, z));
+}));
+
+/* ── range picker ── */
+const MAX_SPAN = 92;
+const pk = { start: null, end: null, hover: null, month: null };
+const monthOf = d => new Date(d.getFullYear(), d.getMonth(), 1);
+const addMonths = (d, k) => new Date(d.getFullYear(), d.getMonth() + k, 1);
+const dayDiff = (a, b) => Math.round((b - a) / 864e5);
+const fromIso = s => { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d); };
+const FIRST = days[0].date;
+function openPicker() {
+  closePMenu();
+  pk.start = viewFrom; pk.end = viewTo; pk.hover = null; pk.month = monthOf(viewTo);
+  if (pk.month < addMonths(monthOf(FIRST), 1)) pk.month = addMonths(monthOf(FIRST), 1);
+  $("picker").hidden = false; $("r-cal").setAttribute("aria-expanded", "true");
+  renderPicker();
+}
+function closePicker() { $("picker").hidden = true; $("r-cal").setAttribute("aria-expanded", "false"); }
+function renderPicker() {
+  $("pk-months").replaceChildren(...[addMonths(pk.month, -1), pk.month].map(m => {
+    const box = el("div"); box.append(el("div", "pk-title", `${MON[m.getMonth()].toLowerCase()} ${m.getFullYear()}`));
+    const g = el("div", "pk-grid");
+    ["mo", "tu", "we", "th", "fr", "sa", "su"].forEach(w => g.append(el("span", "pk-wd", w)));
+    for (let i = 0; i < (m.getDay() + 6) % 7; i++) g.append(el("span"));
+    for (let d = new Date(m); d.getMonth() === m.getMonth(); d = addDays(d, 1)) {
+      const b = el("button", "pk-d", String(d.getDate())); b.dataset.iso = iso(d);
+      const x = d >= FIRST && d <= TODAY ? at(d) : null;
+      b.dataset.out = x ? "" : "1";
+      if (x && !x.total) b.classList.add("z");
+      if (iso(d) === iso(TODAY)) b.classList.add("today");
+      b.setAttribute("aria-label", `${dstr(d)}${x ? ", " + (x.total ? fmt(x.total) + " active" : "no activity") : ""}`);
+      g.append(b);
+    }
+    box.append(g); return box;
+  }));
+  $("pk-prev").disabled = addMonths(pk.month, -1) <= monthOf(FIRST);
+  $("pk-next").disabled = pk.month >= monthOf(TODAY);
+  paintPicker();
+}
+function paintPicker() {
+  const a = pk.start, z = pk.end || (pk.hover && a && pk.hover >= a ? pk.hover : null);
+  document.querySelectorAll("#pk-months .pk-d").forEach(b => {
+    const d = fromIso(b.dataset.iso);
+    b.disabled = b.dataset.out === "1" || (a && !pk.end && d >= a && dayDiff(a, d) >= MAX_SPAN);
+    b.classList.toggle("end", !!a && (iso(d) === iso(a) || (!!z && iso(d) === iso(z))));
+    b.classList.toggle("in", !!a && !!z && d > a && d < z);
+  });
+  const n = a && pk.end ? dayDiff(a, pk.end) + 1 : 0;
+  $("pk-sel").textContent = !a ? "no range" : !pk.end ? `${shortDate(a)} – …` : `${shortDate(a)} – ${shortDate(pk.end)} · ${n} day${n === 1 ? "" : "s"}`;
+  $("pk-apply").disabled = !(a && pk.end);
+}
+$("pk-months").addEventListener("click", e => {
+  const b = e.target.closest(".pk-d"); if (!b || b.disabled) return;
+  const d = fromIso(b.dataset.iso);
+  if (!pk.start || pk.end) { pk.start = d; pk.end = null; }
+  else if (d < pk.start) { pk.end = dayDiff(d, pk.start) < MAX_SPAN ? pk.start : null; pk.start = d; }
+  else pk.end = d;
+  paintPicker();
+});
+$("pk-months").addEventListener("pointerover", e => { const b = e.target.closest(".pk-d"); if (!b || pk.end) return; pk.hover = fromIso(b.dataset.iso); paintPicker(); });
+$("pk-prev").addEventListener("click", () => { pk.month = addMonths(pk.month, -1); renderPicker(); });
+$("pk-next").addEventListener("click", () => { pk.month = addMonths(pk.month, 1); renderPicker(); });
+$("pk-cancel").addEventListener("click", closePicker);
+$("pk-apply").addEventListener("click", () => {
+  const a = pk.start, z = pk.end; closePicker(); lastRange = null;
+  const preset = Object.entries(RANGES).find(([, [p, q]]) => iso(addDays(TODAY, p)) === iso(a) && iso(addDays(TODAY, q)) === iso(z));
+  if (preset) { pressRange(preset[0]); $("r-cal").textContent = "pick…"; }
+  else { pressRange("r-cal"); $("r-cal").textContent = iso(a) === iso(z) ? shortDate(a).toLowerCase() : `${shortDate(a)} – ${shortDate(z)}`.toLowerCase(); }
+  setView(a, z);
+});
+addEventListener("keydown", e => { if (e.key === "Escape" && !$("picker").hidden) { closePicker(); $("r-cal").focus(); } });
+addEventListener("pointerdown", e => { if (!$("picker").hidden && !$("picker").contains(e.target) && e.target.id !== "r-cal") closePicker(); });
+
+/* ── focus wiring: pointer and keyboard ── */
+const ovSec = document.querySelector('section[data-tab="overview"]');
+function lockHeights(on) {
+  // panels keep their height while a focus is shown, so the page never shifts under the pointer
+  ovSec.querySelectorAll(".grid > fieldset").forEach(f => f.style.minHeight = on ? f.offsetHeight + "px" : "");
+}
+function setHl(next) {
+  const same = (!hl && !next) || (hl && next && hl.k === next.k && hl.id === next.id);
+  if (same) { if (next) hl.src = next.src; return; }
+  if (next && hl === null) lockHeights(true);
+  hl = next;
+  if (!hl) lockHeights(false);
+  setView(viewFrom, viewTo, true);
+}
+const focusOf = t => {
+  const h = t.closest && t.closest("[data-hl]");
+  if (!h || !ovSec.contains(h)) return null;
+  const [k, ...rest] = h.dataset.hl.split(":");
+  if (k === "p" && viewProj !== "all") return null;
+  return { k, id: rest.join(":"), src: h.closest("fieldset") };
+};
+ovSec.addEventListener("pointerover", e => {
+  const f = focusOf(e.target);
+  if (f) return setHl(f);
+  if (hl && !(hl.src && hl.src.contains(e.target))) setHl(null);
+});
+ovSec.addEventListener("pointerleave", () => setHl(null));
+ovSec.addEventListener("focusin", e => setHl(focusOf(e.target)));
+
+/* the carrot, pixel for pixel from resources/rabbithole-icon.svg */
+{
+  const CARROT = [".........G....", ".........G..G.", "......BBBG.G..", ".....BOOOBG...", "....BBOOOOBGGG",
+    "...BOOBOOOB...", "..BOOOOOOOB...", ".BOOOOBOOB....", ".OOOOOOBB.....", "BBBBBBBB......"];
+  const PAL = { O: "#FF8B00", B: "#A5510C", G: "#01FF00" }, svg = $("brand-icon");
+  CARROT.forEach((row, y) => [...row].forEach((c, x) => {
+    if (c === ".") return;
+    const r = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+    r.setAttribute("x", x); r.setAttribute("y", y); r.setAttribute("width", 1); r.setAttribute("height", 1); r.setAttribute("fill", PAL[c]);
+    svg.append(r);
+  }));
+}
+
+setProject("rh");
+</script>

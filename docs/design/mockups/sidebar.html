@@ -1,0 +1,513 @@
+<title>Rabbit Hole Sidebar</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Martian+Mono:wdth,wght@75..112.5,300..700&display=swap">
+<style>
+/* Layout: a VS Code window drawn around the real subject, the Activity Bar sidebar. The sidebar is the TTY
+   dashboard folded into one narrow column, headed by the pixel carrot. A width slider shows how it reflows. */
+:root {
+  /* VS Code chrome (Light Modern) */
+  --vs-bg: #f8f8f8; --vs-ab: #f8f8f8; --vs-ab-fg: #1f1f1f; --vs-ab-dim: #8b8b8b; --vs-ab-accent: #005fb8;
+  --vs-border: #e5e5e5; --vs-title: #616161; --vs-editor: #ffffff; --vs-code: #8b949e; --vs-status: #f8f8f8; --vs-status-fg: #3b3b3b;
+  --page: #e9ebe6; --page-ink: #1d2a22; --page-dim: #56665c;
+  /* TTY sidebar (paper terminal) */
+  --bg: #eef0e9; --panel: #f6f7f2; --rule: #b9c2b2; --ink: #12261b; --ink-dim: #4c6356; --ink-mute: #7b8e82;
+  --chrome: #8a5a00; --chrome-ink: #fff8e6; --add: #0f7a43; --del: #b4232f;
+  --p1: #0f8a4e; --p2: #1673b8; --p3: #b06a00;
+  --glow: 0 0 0 transparent; --scan: rgba(20,40,30,.10); --mask-strength: .28; --boost: 1;
+  --icon-glow: none;
+  --mono: "Martian Mono", "Cascadia Mono", Consolas, monospace;
+  --ui: "Segoe WPC", "Segoe UI", system-ui, sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --vs-bg: #181818; --vs-ab: #181818; --vs-ab-fg: #d7d7d7; --vs-ab-dim: #868686; --vs-ab-accent: #0078d4;
+  --vs-border: #2b2b2b; --vs-title: #9d9d9d; --vs-editor: #1f1f1f; --vs-code: #6e7681; --vs-status: #181818; --vs-status-fg: #cccccc;
+  --page: #0c0f0d; --page-ink: #d6e6dc; --page-dim: #8aa395;
+  --bg: #050b08; --panel: #08110d; --rule: #22392d; --ink: #cfeedd; --ink-dim: #86a596; --ink-mute: #56705f;
+  --chrome: #ffb703; --chrome-ink: #1a1300; --add: #39d98a; --del: #ff6b6b;
+  --p1: #1fa866; --p2: #2a8fd0; --p3: #b87e00;
+  --glow: 0 0 1px color-mix(in srgb, currentColor 80%, transparent), 0 0 7px color-mix(in srgb, currentColor 45%, transparent);
+  --scan: rgba(0,0,0,.42); --mask-strength: .5;
+  --icon-glow: drop-shadow(0 0 3px rgba(255,139,0,.55)) drop-shadow(0 0 10px rgba(255,139,0,.25));
+  color-scheme: dark;
+}}
+:root[data-theme="dark"] {
+  --vs-bg: #181818; --vs-ab: #181818; --vs-ab-fg: #d7d7d7; --vs-ab-dim: #868686; --vs-ab-accent: #0078d4;
+  --vs-border: #2b2b2b; --vs-title: #9d9d9d; --vs-editor: #1f1f1f; --vs-code: #6e7681; --vs-status: #181818; --vs-status-fg: #cccccc;
+  --page: #0c0f0d; --page-ink: #d6e6dc; --page-dim: #8aa395;
+  --bg: #050b08; --panel: #08110d; --rule: #22392d; --ink: #cfeedd; --ink-dim: #86a596; --ink-mute: #56705f;
+  --chrome: #ffb703; --chrome-ink: #1a1300; --add: #39d98a; --del: #ff6b6b;
+  --p1: #1fa866; --p2: #2a8fd0; --p3: #b87e00;
+  --glow: 0 0 1px color-mix(in srgb, currentColor 80%, transparent), 0 0 7px color-mix(in srgb, currentColor 45%, transparent);
+  --scan: rgba(0,0,0,.42); --mask-strength: .5;
+  --icon-glow: drop-shadow(0 0 3px rgba(255,139,0,.55)) drop-shadow(0 0 10px rgba(255,139,0,.25));
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { background: var(--page); color: var(--page-ink); font: 13px/1.5 var(--ui); padding-inline: 16px; padding-block: 24px 48px; }
+.wrap { max-width: 1080px; margin-inline: auto; }
+:focus-visible { outline: 1px solid var(--chrome); outline-offset: 2px; }
+
+/* demo controls above the window */
+.controls { display: flex; flex-wrap: wrap; gap: 8px 22px; align-items: center; margin-bottom: 14px; color: var(--page-dim); font: 12px/1.4 var(--mono); font-variation-settings: "wdth" 87.5; }
+.controls label { display: inline-flex; gap: 10px; align-items: center; }
+.controls input[type=range] { accent-color: var(--chrome); width: 180px; }
+.controls output { color: var(--page-ink); min-width: 5ch; font-variant-numeric: tabular-nums; }
+.seg { display: inline-flex; gap: 2px; }
+.seg button { font: inherit; color: var(--page-dim); background: none; border: 0; padding: 2px 8px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--chrome); color: var(--chrome-ink); }
+
+/* the VS Code window */
+.win { display: grid; grid-template-columns: 48px var(--sbw, 300px) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) 22px; height: 780px; border: 1px solid var(--vs-border); background: var(--vs-editor); overflow: hidden; }
+.ab { background: var(--vs-ab); border-right: 1px solid var(--vs-border); display: flex; flex-direction: column; align-items: center; padding-top: 4px; }
+.ab .item { width: 48px; height: 48px; display: grid; place-items: center; color: var(--vs-ab-dim); position: relative; }
+.ab .item.on { color: var(--vs-ab-fg); }
+.ab .item.on::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 2px; background: var(--vs-ab-accent); }
+.ab svg { display: block; }
+.side { display: flex; flex-direction: column; min-width: 0; background: var(--vs-bg); border-right: 1px solid var(--vs-border); }
+.viewtitle { height: 35px; flex: none; display: flex; align-items: center; padding-inline: 20px 8px; font: 11px var(--ui); color: var(--vs-title); letter-spacing: .04em; } /* VS Code draws this, uppercase included */
+.editor { padding: 14px 0 0 0; font: 13px/19px Consolas, "Cascadia Mono", monospace; color: var(--vs-code); overflow: hidden; white-space: pre; min-width: 0; }
+.editor .ln { display: inline-block; width: 44px; text-align: right; padding-right: 16px; opacity: .55; }
+.status { grid-column: 1 / -1; background: var(--vs-status); border-top: 1px solid var(--vs-border); color: var(--vs-status-fg); display: flex; align-items: center; gap: 2px; font: 12px var(--ui); padding-inline: 6px; }
+.status .si { display: inline-flex; align-items: center; gap: 5px; padding: 0 6px; height: 100%; }
+.status .si.rh { color: var(--add); }
+.status .si svg { display: block; }
+.status .spacer { flex: 1; }
+
+/* ── the sidebar webview: everything below is what Rabbit Hole renders ── */
+.wv { position: relative; flex: 1; min-height: 0; overflow: hidden; background: var(--bg); container-type: inline-size; }
+.wv-scroll { height: 100%; overflow-y: auto; overflow-x: hidden; }
+.tty { color: var(--ink); font: 400 12px/1.5 var(--mono); font-variation-settings: "wdth" 87.5; text-shadow: var(--glow); padding: 12px 12px 18px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; filter: brightness(var(--boost)); }
+
+.brand { display: flex; align-items: center; gap: 10px; padding-bottom: 2px; }
+.brand svg { flex: none; filter: var(--icon-glow); image-rendering: pixelated; }
+.brand .word { font-weight: 700; font-size: 14px; letter-spacing: .01em; line-height: 1.1; }
+.brand > div { min-width: 0; }
+.brand .proj { color: var(--ink-dim); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+fieldset { margin: 0; min-width: 0; border: 1px solid var(--rule); background: var(--panel); padding: 6px 10px 10px; }
+legend { padding: 0 5px; color: var(--ink-dim); margin-left: -2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: calc(100% - 4px); }
+legend b { color: var(--chrome); font-weight: 600; }
+
+.row { display: flex; flex-wrap: wrap; gap: 2px 14px; align-items: baseline; }
+.big { font-size: 30px; line-height: 1.05; font-weight: 600; font-variation-settings: "wdth" 75; }
+.mid { font-size: 22px; line-height: 1.1; font-weight: 600; font-variation-settings: "wdth" 75; }
+.k { color: var(--ink-dim); }
+.streak .big { color: var(--add); }
+.days { display: grid; grid-template-columns: repeat(14, 1fr); margin-top: 6px; font-size: 12px; text-align: center; }
+.days .hit { color: var(--add); } .days .miss { color: var(--ink-mute); } .days .now { color: var(--chrome); }
+.meter { margin-top: 4px; color: var(--ink-dim); white-space: nowrap; overflow: hidden; }
+.meter .on { color: var(--add); } .meter .off { color: var(--ink-mute); }
+.add { color: var(--add); } .del { color: var(--del); }
+
+/* mini day tape: always 24 half-hour cells, 07–19 */
+.tape { display: grid; grid-template-columns: repeat(24, minmax(0, 1fr)); line-height: 1; padding-top: 12px; margin-top: 4px; font-size: min(18px, calc((100cqi - 46px) / 24 / .66)); }
+.tape span { text-align: center; display: block; overflow: hidden; transform: scaleY(1.9); transform-origin: bottom; cursor: default; }
+.tape .off { color: var(--ink-mute); opacity: .55; transform: none; }
+.ticks { display: flex; justify-content: space-between; color: var(--ink-mute); font-size: 10px; margin-top: 3px; }
+
+/* 7-day column graph built from eighth-blocks, four rows tall, like btop */
+.cols { display: grid; grid-template-columns: 2.6em repeat(7, minmax(0, 1fr)); gap: 0 4px; align-items: end; margin-top: 4px; }
+.cols .axis { display: grid; grid-template-rows: repeat(4, 1fr); height: 64px; color: var(--ink-mute); font-size: 10px; text-align: right; }
+.cols .axis span:first-child { align-self: start; } .cols .axis span:last-child { align-self: end; }
+.col { display: grid; grid-template-rows: repeat(4, 16px); justify-items: center; font-size: 18px; line-height: 16px; color: var(--add); cursor: default; overflow: hidden; }
+.col span { display: block; height: 16px; width: 100%; text-align: center; overflow: hidden; }
+.col.now { color: var(--chrome); }
+.col:hover { background: color-mix(in srgb, var(--ink) 8%, transparent); }
+.dlabels { display: grid; grid-template-columns: 2.6em repeat(7, minmax(0, 1fr)); gap: 0 4px; color: var(--ink-mute); font-size: 10px; text-align: center; margin-top: 3px; }
+.dlabels .now { color: var(--chrome); }
+
+/* projects today */
+.split { display: flex; gap: 2px; height: 10px; margin: 6px 0 8px; }
+.split span { height: 100%; }
+.plist { display: grid; gap: 3px; }
+.plist .p { display: grid; grid-template-columns: 8px minmax(0, 1fr) auto; gap: 8px; align-items: center; }
+.plist i { width: 8px; height: 8px; display: block; }
+.plist .n { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.plist .t { color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+
+.open { font: inherit; font-weight: 600; width: 100%; padding: 6px 8px; border: 0; cursor: pointer; background: var(--chrome); color: var(--chrome-ink); text-shadow: none; }
+.open:hover { filter: brightness(1.08); }
+
+/* focus: hovering a project narrows today, the tape, lines and the week to it */
+[data-p] { cursor: default; }
+.dim { opacity: .32; }
+.plist .p { padding: 1px 2px; }
+.plist .p:hover, .plist .p:focus-visible { background: color-mix(in srgb, var(--ink) 8%, transparent); }
+.pkeys { display: flex; flex-wrap: wrap; gap: 2px 12px; margin-top: 8px; color: var(--ink-dim); font-size: 11px; }
+.pkeys span { display: inline-flex; gap: 6px; align-items: center; padding: 0 2px; }
+.pkeys span:hover, .pkeys span:focus-visible { color: var(--ink); }
+.pkeys i { width: 8px; height: 8px; display: inline-block; }
+.split span { min-width: 2px; }
+
+/* narrow sidebars: drop the parts that stop being readable */
+@container (max-width: 230px) {
+  .tty { padding-inline: 8px; }
+  .brand .proj { display: none; }
+  .days { grid-template-columns: repeat(7, 1fr); }
+  .days span:nth-child(-n+7) { display: none; }
+  .ticks span:nth-child(even) { visibility: hidden; }
+  .cols, .dlabels { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+  .cols .axis, .dlabels .gap { display: none; }
+  .plist .pct { display: none; }
+}
+
+/* CRT, scoped to the webview (in the real sidebar these are position: fixed, since the webview is the viewport) */
+.crt { position: absolute; inset: 0; pointer-events: none; }
+.crt-mask { mix-blend-mode: multiply; width: 100%; height: 100%; }
+.crt-scan { background: repeating-linear-gradient(to bottom, transparent 0 1px, var(--scan) 2px, transparent 3px); }
+.crt-vig { box-shadow: inset 0 0 40px rgba(0,0,0,.35); }
+.wv.crt-off .crt { display: none; }
+.wv.crt-off .tty { filter: none; }
+@media (forced-colors: active) { .crt { display: none; } }
+
+/* notes */
+.below { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 28px; margin-top: 26px; }
+@media (max-width: 760px) { .below { grid-template-columns: minmax(0, 1fr); } }
+.below h2 { font: 600 13px var(--mono); margin: 0 0 8px; }
+.below p, .below li { color: var(--page-dim); max-width: 64ch; }
+.below ul { margin: 0; padding-left: 18px; }
+.below li { margin-bottom: 5px; }
+.below code { font: 12px var(--mono); color: var(--page-ink); }
+.sizes { display: flex; flex-wrap: wrap; gap: 18px; align-items: end; margin: 10px 0 14px; }
+.sizes figure { margin: 0; display: grid; gap: 6px; justify-items: center; color: var(--page-dim); font: 11px var(--mono); }
+.sizes .tile { display: grid; place-items: center; background: var(--bg); border: 1px solid var(--rule); }
+.sizes svg { image-rendering: pixelated; display: block; }
+
+#tip { position: fixed; z-index: 20; pointer-events: none; background: var(--panel); color: var(--ink); border: 1px solid var(--chrome); padding: 5px 8px; font: 11.5px/1.45 var(--mono); }
+#tip .sub { color: var(--ink-dim); }
+
+@media (max-width: 640px) {
+  .win { grid-template-columns: 48px minmax(0, 1fr); }
+  .win .editor { display: none; }
+  .side { max-width: 100%; }
+}
+</style>
+
+<div class="wrap">
+  <div class="controls">
+    <label for="w">sidebar width <input id="w" type="range" min="180" max="440" step="2" value="300"><output id="w-out" for="w">300px</output></label>
+    <span>crt <span class="seg" role="group" aria-label="CRT effect"><button id="crt-on" aria-pressed="true">on</button><button id="crt-off" aria-pressed="false">off</button></span></span>
+  </div>
+
+  <div class="win" id="win">
+    <nav class="ab" aria-label="Activity Bar (mock)">
+      <span class="item" title="Explorer"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M14 3H6.5A1.5 1.5 0 0 0 5 4.5v15A1.5 1.5 0 0 0 6.5 21h11a1.5 1.5 0 0 0 1.5-1.5V8z"/><path d="M14 3v5h5"/></svg></span>
+      <span class="item" title="Search"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="10.5" cy="10.5" r="6"/><path d="m15 15 5 5"/></svg></span>
+      <span class="item" title="Source Control"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="7" cy="5.5" r="2"/><circle cx="7" cy="18.5" r="2"/><circle cx="17" cy="8.5" r="2"/><path d="M7 7.5v9M17 10.5c0 4-10 2-10 6"/></svg></span>
+      <span class="item on" title="Rabbit Hole"><svg id="ab-icon" width="28" height="20" viewBox="0 0 14 10" shape-rendering="crispEdges" aria-hidden="true"></svg></span>
+    </nav>
+
+    <aside class="side">
+      <div class="viewtitle">RABBIT HOLE</div>
+      <div class="wv" id="wv">
+        <div class="wv-scroll">
+          <div class="tty">
+            <div class="brand">
+              <svg id="brand-icon" width="42" height="30" viewBox="0 0 14 10" shape-rendering="crispEdges" role="img" aria-label="Rabbit Hole"></svg>
+              <div><div class="word">rabbit hole</div><div class="proj">rabbit-hole · accurate-line-counts</div></div>
+            </div>
+
+            <fieldset class="streak">
+              <legend><b>streak</b></legend>
+              <div class="row"><span class="big">12</span><span class="k">days</span></div>
+              <div class="days" id="days" aria-label="Last 14 days against the target"></div>
+            </fieldset>
+
+            <fieldset>
+              <legend><b>today</b> <span id="today-who">all projects</span></legend>
+              <div class="row"><span class="big" id="today-t">3h40m</span><span class="k" id="today-k">of 20m</span></div>
+              <div class="meter" id="meter"></div>
+              <div class="tape" id="tape" role="img" aria-label="Active time today in half-hour blocks, 07:00 to 19:00"></div>
+              <div class="ticks"><span>07</span><span>09</span><span>11</span><span>13</span><span>15</span><span>17</span><span>19</span></div>
+            </fieldset>
+
+            <fieldset>
+              <legend><b>lines</b> <span id="lines-who">today</span></legend>
+              <div class="row"><span class="mid add" id="ln-a"></span><span class="mid del" id="ln-d"></span></div>
+            </fieldset>
+
+            <fieldset>
+              <legend><b>7 days</b> <span id="wk-who">all projects</span></legend>
+              <div class="cols" id="cols" role="img" aria-label="Active time for the last seven days"></div>
+              <div class="dlabels" id="dlabels"></div>
+              <div class="pkeys" id="pkeys"></div>
+            </fieldset>
+
+            <fieldset>
+              <legend><b>projects</b> today</legend>
+              <div class="split" id="split" aria-hidden="true"></div>
+              <div class="plist" id="plist"></div>
+            </fieldset>
+
+            <button class="open" type="button">open dashboard</button>
+          </div>
+        </div>
+        <canvas class="crt crt-mask" id="mask" aria-hidden="true"></canvas>
+        <div class="crt crt-scan" aria-hidden="true"></div>
+        <div class="crt crt-vig" aria-hidden="true"></div>
+      </div>
+    </aside>
+
+    <div class="editor" aria-hidden="true" id="editor"></div>
+
+    <footer class="status" aria-label="Status bar (mock)">
+      <span class="si">⎇ accurate-line-counts</span>
+      <span class="si rh" title="Rabbit Hole: click to open the dashboard"><svg id="sb-icon" width="14" height="10" viewBox="0 0 14 10" shape-rendering="crispEdges" aria-hidden="true"></svg>3h40m / 20m</span>
+      <span class="spacer"></span>
+      <span class="si">Ln 142, Col 18</span><span class="si">TypeScript</span>
+    </footer>
+  </div>
+
+  <div class="below">
+    <section>
+      <h2>The carrot, at every size it ships</h2>
+      <div class="sizes" id="sizes"></div>
+      <ul>
+        <li><strong>Activity Bar:</strong> the single-colour <code>icon.svg</code>. VS Code paints Activity Bar icons in the theme's own foreground, so colour is never ours to choose there. Drawn at 2× (28×20) so every pixel lands on whole screen pixels.</li>
+        <li><strong>Sidebar header:</strong> the colour <code>rabbithole-icon.svg</code> at 3×, with an orange phosphor glow in dark themes. This is the only place inside the editor where the full-colour carrot can appear.</li>
+        <li><strong>Status bar:</strong> today it's the 🥕 emoji, which looks different on every OS. Registering the carrot as a one-glyph icon font (<code>contributes.icons</code>) would put the pixel carrot there instead, as <code>$(rabbithole-carrot)</code>. It would be single-colour, like the Activity Bar.</li>
+        <li><strong>Marketplace:</strong> the 128×128 <code>icon.png</code> should be this carrot at 8× (112×80), centred on a solid tile, which keeps its edges sharp.</li>
+      </ul>
+    </section>
+    <section>
+      <h2>What changed from today's sidebar</h2>
+      <ul>
+        <li>The 🔥 and the 🥕 emoji are replaced by the pixel carrot and plain block characters, so the panel looks the same on Windows, macOS and Linux.</li>
+        <li>The donut becomes one split bar plus a list. A donut at 72px can't show two projects that differ by 10×; the list carries the numbers.</li>
+        <li>The 7-day line becomes a column graph built from eighth-block characters (<code>▁▂▃▄▅▆▇█</code>), four rows tall. Today is amber, matching the heatmap.</li>
+        <li>New: a half-hour day tape, the same one as on the dashboard, so “when did I work” is answered without opening it.</li>
+        <li>Hover a project (a row or segment under “projects today”, or a key under the week) and today's time, the target meter, the day tape, lines and the week all narrow to that project, measured against its own target. The week keeps its scale, so a project shows as its share of each day.</li>
+        <li>Below 230px the streak shows 7 days instead of 14, the graph drops its axis, and every other hour label goes. Drag the width slider to see it.</li>
+        <li>The CRT layers are the dashboard's, scoped to the sidebar. They follow the same display setting.</li>
+      </ul>
+      <p>All numbers are example data matching the dashboard mockup.</p>
+    </section>
+  </div>
+</div>
+<div id="tip" hidden></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
+const NS = "http://www.w3.org/2000/svg";
+
+/* the carrot, pixel for pixel from resources/rabbithole-icon.svg (O = orange, B = brown, G = green) */
+const CARROT = [
+  ".........G....",
+  ".........G..G.",
+  "......BBBG.G..",
+  ".....BOOOBG...",
+  "....BBOOOOBGGG",
+  "...BOOBOOOB...",
+  "..BOOOOOOOB...",
+  ".BOOOOBOOB....",
+  ".OOOOOOBB.....",
+  "BBBBBBBB......",
+];
+const PAL = { O: "#FF8B00", B: "#A5510C", G: "#01FF00" };
+/* resources/icon.svg (the single-colour one) has one extra pixel at the bottom-left of row 9 */
+const CARROT_MONO = CARROT.map((r, y) => y === 8 ? "O" + r.slice(1) : r);
+function drawCarrot(svg, mono) {
+  svg.replaceChildren();
+  (mono ? CARROT_MONO : CARROT).forEach((row, y) => [...row].forEach((c, x) => {
+    if (c === ".") return;
+    const r = document.createElementNS(NS, "rect");
+    r.setAttribute("x", x); r.setAttribute("y", y); r.setAttribute("width", 1); r.setAttribute("height", 1);
+    r.setAttribute("fill", mono ? "currentColor" : PAL[c]);
+    svg.append(r);
+  }));
+}
+drawCarrot($("brand-icon"), false);
+drawCarrot($("ab-icon"), true);
+drawCarrot($("sb-icon"), true);
+
+/* size strip */
+[[1, "1× status bar", true], [2, "2× Activity Bar", true], [3, "3× sidebar", false], [8, "8× Marketplace", false]].forEach(([s, label, mono]) => {
+  const f = el("figure");
+  const tile = el("div", "tile"); tile.style.cssText = `width:${Math.max(40, 14 * s + 24)}px;height:${Math.max(40, 10 * s + 24)}px;color:var(--ink)`;
+  const svg = document.createElementNS(NS, "svg");
+  svg.setAttribute("width", 14 * s); svg.setAttribute("height", 10 * s); svg.setAttribute("viewBox", "0 0 14 10"); svg.setAttribute("shape-rendering", "crispEdges");
+  drawCarrot(svg, mono);
+  tile.append(svg);
+  f.append(tile, el("figcaption", null, label));
+  $("sizes").append(f);
+});
+
+/* tooltip */
+const tip = $("tip");
+function bindTip(node, build) {
+  node.tabIndex = 0;
+  const show = (x, y) => { tip.replaceChildren(...build()); tip.hidden = false; const r = tip.getBoundingClientRect(); tip.style.left = Math.min(x + 12, innerWidth - r.width - 8) + "px"; tip.style.top = Math.max(8, y - r.height - 10) + "px"; };
+  node.addEventListener("pointermove", e => show(e.clientX, e.clientY));
+  node.addEventListener("pointerleave", () => tip.hidden = true);
+  node.addEventListener("focus", () => { const r = node.getBoundingClientRect(); show(r.left, r.top); });
+  node.addEventListener("blur", () => tip.hidden = true);
+}
+const fmt = m => { m = Math.round(m); return m >= 60 ? `${Math.floor(m / 60)}h${String(m % 60).padStart(2, "0")}m` : `${m}m`; };
+
+/* example data, matching the dashboard mockup: today is 3h40m across two projects */
+const GLOBAL_TARGET = 20;
+const PROJ = {
+  rh: { name: "rabbit-hole", color: "--p1", target: 20 },
+  cli: { name: "rabbithole-cli", color: "--p2", target: 15 },
+  mk: { name: "mekatrone", color: "--p3", target: 20 },
+};
+const sessions = [
+  { s: 8 * 60 + 41, e: 9 * 60 + 58, active: 64, p: "rh" },
+  { s: 10 * 60 + 20, e: 12 * 60 + 5, active: 78, p: "rh" },
+  { s: 14 * 60 + 2, e: 14 * 60 + 31, active: 22, p: "rh" },
+  { s: 16 * 60 + 10, e: 16 * 60 + 58, active: 28, p: "rh" },
+  { s: 17 * 60 + 18, e: 17 * 60 + 51, active: 28, p: "cli" },
+];
+const week = [
+  ["S", "Sun", { rh: 81, cli: 14 }], ["M", "Mon", { rh: 178, cli: 32 }], ["T", "Tue", { rh: 21, cli: 4 }],
+  ["W", "Wed", { rh: 98, cli: 20, mk: 30 }], ["T", "Thu", { rh: 221, cli: 39 }], ["F", "Fri", { rh: 63, cli: 11 }],
+  ["S", "Sat", { rh: 192, cli: 28 }],
+];
+const lines = { rh: [412, 168], cli: [46, 12] };
+const fortnight = [true, false, true, true, true, true, true, true, true, true, true, true, true, "now"];
+const hhmm = m => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(Math.round(m % 60)).padStart(2, "0")}`;
+const sum = o => Object.values(o).reduce((a, b) => a + b, 0);
+
+/* focus: the project being hovered (null = all projects) */
+let hp = null, hpSrc = null;
+const pick = o => hp ? (o[hp] || 0) : sum(o);
+const who = () => hp ? `${PROJ[hp].name} only` : "all projects";
+
+fortnight.forEach(d => $("days").append(el("span", d === "now" ? "now" : d ? "hit" : "miss", d === "now" ? "◆" : d ? "■" : "□")));
+
+function renderToday() {
+  const ss = hp ? sessions.filter(x => x.p === hp) : sessions;
+  const t = ss.reduce((a, x) => a + x.active, 0), T = hp ? PROJ[hp].target : GLOBAL_TARGET;
+  $("today-who").textContent = who();
+  $("today-t").textContent = fmt(t);
+  $("today-k").textContent = `of ${T}m`;
+  let cum = 0, metAt = null;
+  for (const x of ss) { if (cum + x.active >= T) { metAt = hhmm(x.s + (T - cum) / x.active * (x.e - x.s)); break; } cum += x.active; }
+  const f = Math.min(10, Math.round(t / T * 10));
+  $("meter").replaceChildren(el("span", "on", "█".repeat(f)), el("span", "off", "░".repeat(10 - f)), document.createTextNode(metAt ? ` met ${metAt}` : ` ${T - t}m to go`));
+
+  const cells = [];
+  for (let i = 0; i < 24; i++) {
+    const a = 7 * 60 + i * 30, b = a + 30, by = {};
+    let act = 0;
+    for (const x of ss) { const ov = Math.max(0, Math.min(b, x.e) - Math.max(a, x.s)); if (ov) { const v = ov * x.active / (x.e - x.s); act += v; by[x.p] = (by[x.p] || 0) + v; } }
+    const f2 = act / 30, top = Object.entries(by).sort((m, n) => n[1] - m[1])[0];
+    const c = el("span", f2 ? "" : "off", f2 >= .75 ? "█" : f2 >= .5 ? "▓" : f2 >= .25 ? "▒" : f2 > 0 ? "░" : "·");
+    if (top) c.style.color = `var(${PROJ[top[0]].color})`;
+    c.addEventListener("pointermove", e => { tip.replaceChildren(el("div", null, act ? `${fmt(act)} active` : "idle"), el("div", "sub", `${hhmm(a)}, 30 min${top ? " · " + PROJ[top[0]].name : ""}`)); tip.hidden = false; tip.style.left = e.clientX + 12 + "px"; tip.style.top = e.clientY - 44 + "px"; });
+    c.addEventListener("pointerleave", () => tip.hidden = true);
+    cells.push(c);
+  }
+  $("tape").replaceChildren(...cells);
+}
+
+function renderLines() {
+  const [a, d] = hp ? (lines[hp] || [0, 0]) : Object.values(lines).reduce((acc, [x, y]) => [acc[0] + x, acc[1] + y], [0, 0]);
+  $("lines-who").textContent = hp ? `today · ${PROJ[hp].name}` : "today · all projects";
+  $("ln-a").textContent = "+" + a; $("ln-d").textContent = "−" + d;
+}
+
+/* 7-day columns: 4 rows × 8 eighths = 32 steps. The scale is the week's whole, so a project shows as its share */
+const EIGHTHS = " ▁▂▃▄▅▆▇█";
+const max = Math.ceil(Math.max(...week.map(w => sum(w[2]))) / 60) * 60;
+function renderWeek() {
+  $("wk-who").textContent = who();
+  const axis = el("div", "axis"); axis.append(el("span", null, `${max / 60}h`), el("span"), el("span"), el("span", null, "0"));
+  $("cols").replaceChildren(axis, ...week.map(([, d, m], i) => {
+    const v = pick(m), col = el("div", "col" + (i === 6 && !hp ? " now" : ""));
+    if (hp) col.style.color = `var(${PROJ[hp].color})`;
+    let steps = Math.round(v / max * 32); if (v && !steps) steps = 1;
+    for (let r = 3; r >= 0; r--) col.append(el("span", null, EIGHTHS[Math.max(0, Math.min(8, steps - r * 8))]));
+    bindTip(col, () => [el("div", null, v ? fmt(v) : "no activity"), el("div", "sub", (i === 6 ? "today" : d) + (hp ? ` · ${PROJ[hp].name}, of ${fmt(sum(m))}` : ""))]);
+    return col;
+  }));
+  $("dlabels").replaceChildren(el("span", "gap"), ...week.map(([l], i) => el("span", i === 6 ? "now" : "", l)));
+  const ids = Object.keys(PROJ).filter(id => week.some(w => w[2][id]));
+  $("pkeys").replaceChildren(...ids.map(id => {
+    const k = el("span", hp && hp !== id ? "dim" : ""); k.dataset.p = id; k.tabIndex = 0;
+    const i = el("i"); i.style.background = `var(${PROJ[id].color})`; k.append(i, document.createTextNode(PROJ[id].name));
+    return k;
+  }));
+}
+
+function renderProjects() {
+  const today = week[6][2], total = sum(today);
+  $("split").replaceChildren(...Object.entries(today).map(([id, m]) => {
+    const s2 = el("span", hp && hp !== id ? "dim" : ""); s2.dataset.p = id; s2.style.cssText = `flex:${m};background:var(${PROJ[id].color})`; return s2;
+  }));
+  $("plist").replaceChildren(...Object.entries(today).map(([id, m]) => {
+    const row = el("div", "p" + (hp && hp !== id ? " dim" : "")); row.dataset.p = id; row.tabIndex = 0;
+    const k = el("i"); k.style.background = `var(${PROJ[id].color})`;
+    const t = el("span", "t", fmt(m)); t.append(el("span", "pct", ` ${Math.round(m / total * 100)}%`));
+    row.append(k, el("span", "n", PROJ[id].name), t);
+    return row;
+  }));
+}
+
+const renderAll = () => { renderToday(); renderLines(); renderWeek(); renderProjects(); };
+renderAll();
+
+/* the panel under the pointer keeps its layout; panels hold their height so nothing moves while you look */
+const tty = document.querySelector(".tty");
+const lock = on => tty.querySelectorAll("fieldset").forEach(f => f.style.minHeight = on ? f.offsetHeight + "px" : "");
+function setHp(id, src) {
+  if (id === hp) { if (src) hpSrc = src; return; }
+  if (id && !hp) lock(true);
+  hp = id; hpSrc = src || null;
+  if (!hp) lock(false);
+  renderAll();
+}
+tty.addEventListener("pointerover", e => {
+  const t = e.target.closest("[data-p]");
+  if (t) return setHp(t.dataset.p, t.closest("fieldset"));
+  if (hp && !(hpSrc && hpSrc.contains(e.target))) setHp(null);
+});
+tty.addEventListener("pointerleave", () => setHp(null));
+tty.addEventListener("focusin", e => { const t = e.target.closest("[data-p]"); setHp(t ? t.dataset.p : null, t && t.closest("fieldset")); });
+
+/* the editor behind, for context only */
+const code = [
+  "export class LineLedger {",
+  "  private entries = new Map<string, Entry>()",
+  "",
+  "  /** Net change since the last report, per file. */",
+  "  measure(path: string, text: string): Delta {",
+  "    const next = hashLines(text)",
+  "    const entry = this.entries.get(path)",
+  "    if (!entry) return this.prime(path, next)",
+  "    const delta = diffBags(entry.last, next)",
+  "    entry.last = next",
+  "    return delta",
+  "  }",
+  "}",
+];
+$("editor").replaceChildren(...code.map((l, i) => { const d = el("div"); d.append(el("span", "ln", String(131 + i)), document.createTextNode(l)); return d; }));
+
+/* width slider */
+const setW = v => { $("win").style.setProperty("--sbw", v + "px"); $("w-out").textContent = v + "px"; };
+$("w").addEventListener("input", e => setW(e.target.value));
+
+/* CRT mask (slot mask, as on the dashboard) */
+function drawMask() {
+  const c = $("mask"), host = $("wv"), dpr = window.devicePixelRatio || 1;
+  c.width = Math.round(host.clientWidth * dpr); c.height = Math.round(host.clientHeight * dpr);
+  const s = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--mask-strength")) || .4;
+  document.querySelector(".tty").style.setProperty("--boost", (1 + s * .85).toFixed(3));
+  const hi = 255, lo = Math.round(255 * (1 - s)), dark = Math.round(255 * (1 - s * .9));
+  const u = Math.max(1, Math.round(dpr)), P = 4 * u;
+  const t = document.createElement("canvas"); t.width = 6 * u; t.height = P;
+  const x = t.getContext("2d");
+  [`rgb(${hi},${lo},${lo})`, `rgb(${lo},${hi},${lo})`, `rgb(${lo},${lo},${hi})`].forEach((col, i) => { x.fillStyle = col; x.fillRect(i * u, 0, u, P); x.fillRect((i + 3) * u, 0, u, P); });
+  x.fillStyle = `rgb(${dark},${dark},${dark})`; x.fillRect(0, 0, 3 * u, u); x.fillRect(3 * u, P / 2, 3 * u, u);
+  const ctx = c.getContext("2d"); ctx.fillStyle = ctx.createPattern(t, "repeat"); ctx.fillRect(0, 0, c.width, c.height);
+}
+new ResizeObserver(drawMask).observe($("wv"));
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", drawMask);
+new MutationObserver(drawMask).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+const crt = on => { $("wv").classList.toggle("crt-off", !on); $("crt-on").setAttribute("aria-pressed", on); $("crt-off").setAttribute("aria-pressed", !on); };
+$("crt-on").addEventListener("click", () => crt(true)); $("crt-off").addEventListener("click", () => crt(false));
+</script>
