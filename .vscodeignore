@@ -11,6 +11,8 @@ scripts/
 test/
 tsconfig.test.json
 CLAUDE.md
+AGENTS.md
+LOGBOOK_GUIDE.md
 DESIGN.md
 DOCS_PREP.md
 LOGBOOK.md
