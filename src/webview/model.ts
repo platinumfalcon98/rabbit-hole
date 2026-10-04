@@ -354,6 +354,11 @@ export function targetMetAt(sessions: ActivitySession[], targetMs: number, now: 
 // Fold a 10-second live update into the cached payloads. It replaces today's
 // values and never adds to them, so leaving the dashboard open can't inflate today.
 export function mergeLive(year: YearPayload, range: RangePayload | null, live: LivePayload): void {
+  // Streaks move when today's target is met, which can happen while the dashboard is open.
+  year.global.streak = live.globalStreak
+  for (const p of year.projects) {
+    if (live.streaks[p.id] !== undefined) p.streak = live.streaks[p.id]
+  }
   const i = year.days.indexOf(live.today)
   if (i >= 0) {
     for (const p of year.projects) {

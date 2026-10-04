@@ -76,14 +76,19 @@ export function buildRange(storage: StorageService, from: string, to: string): R
 export function buildLive(storage: StorageService, now: Date): LivePayload {
   const today = dateKey(now)
   const todayActive: Record<string, number> = {}
+  const streaks: Record<string, number> = {}
   for (const p of storage.getProjects()) {
     todayActive[p.id] = storage.getRangeByDates(today, today, p.id)[0].activeTime
+    streaks[p.id] = p.streak ?? 0
   }
+  const global = storage.getGlobalToday()
   return {
     today,
     projectId: storage.getCurrentProjectId(),
     log: storage.getToday(),
     todayActive,
-    globalToday: storage.getGlobalToday().activeTime,
+    globalToday: global.activeTime,
+    globalStreak: global.streak,
+    streaks,
   }
 }

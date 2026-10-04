@@ -113,7 +113,7 @@ describe("target time and live merges", () => {
     const y = year()
     const range: any = { from: "2026-10-02", to: "2026-10-03", logs: { alpha: [{ date: "2026-10-02", activeTime: 1 }] } }
     const live: any = { today: "2026-10-03", projectId: "alpha", log: { date: "2026-10-03", activeTime: 42 * MIN },
-      todayActive: { alpha: 42 * MIN }, globalToday: 50 * MIN }
+      todayActive: { alpha: 42 * MIN }, globalToday: 50 * MIN, globalStreak: 2, streaks: { alpha: 1 } }
     mergeLive(y, range, live)
     mergeLive(y, range, live)
     assert.strictEqual(y.projects[0].active[4], 42 * MIN)
@@ -122,9 +122,17 @@ describe("target time and live merges", () => {
     assert.strictEqual(range.logs.alpha[1].activeTime, 42 * MIN)
   })
 
+  it("takes the streaks from each live update", () => {
+    const y = year()
+    mergeLive(y, null, { today: "2026-10-03", projectId: "alpha", log: { date: "2026-10-03" },
+      todayActive: { alpha: 18 * MIN }, globalToday: 25 * MIN, globalStreak: 3, streaks: { alpha: 2 } } as any)
+    assert.strictEqual(storedStreak(y, "all"), 3)
+    assert.strictEqual(storedStreak(y, "alpha"), 2)
+  })
+
   it("leaves a range that doesn't include today alone", () => {
     const range: any = { from: "2026-09-01", to: "2026-09-02", logs: { alpha: [] } }
-    mergeLive(year(), range, { today: "2026-10-03", projectId: "alpha", log: { date: "2026-10-03" }, todayActive: {}, globalToday: 0 } as any)
+    mergeLive(year(), range, { today: "2026-10-03", projectId: "alpha", log: { date: "2026-10-03" }, todayActive: {}, globalToday: 0, globalStreak: 0, streaks: {} } as any)
     assert.strictEqual(range.logs.alpha.length, 0)
   })
 })

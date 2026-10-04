@@ -98,4 +98,12 @@ describe("live payload", () => {
     assert.strictEqual(l.globalToday, 30 * MIN)
     assert.strictEqual(l.log.activeTime, 30 * MIN)
   })
+
+  // storage.updateStreak runs every tick; without these the streak shown would
+  // stay at yesterday's count until the dashboard was reopened.
+  it("carries the stored streaks so they stay current while the dashboard is open", () => {
+    const l = buildLive(store(), new Date())
+    assert.strictEqual(l.globalStreak, 6)
+    assert.deepStrictEqual(l.streaks, { alpha: 4, beta: 0 })
+  })
 })

@@ -95,6 +95,8 @@ export interface LivePayload {
   log: DailyLog                  // today's log for the project being worked in
   todayActive: Record<string, number>
   globalToday: number
+  globalStreak: number           // storage's streaks, which update as today's target is met
+  streaks: Record<string, number>
 }
 
 // ── CRT display (dashboard + sidebar) ─────────────────────────────────────
