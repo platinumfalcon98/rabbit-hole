@@ -66,15 +66,19 @@ existing `WebviewMessage` style.
 
 - `year` — sent on `ready` and whenever stored data changes (settings applied, project target changed,
   clear, import, midnight):
-  `{ type: "year"; days: string[]; projects: ProjectYear[]; settings; today: string }` where
-  `ProjectYear = { id; name; path; color; dailyTargetMinutes?; lastActive?: number; active: number[]; targetMs: (number|null)[] }`.
-  `days` covers the last 371 days (53 Monday-aligned weeks), `active[i]` is that project's active ms on `days[i]`,
+  `{ type: "year"; today: string; days: string[]; globalTargetMs: number; global: { streak; active: number[]; targetMs: (number|null)[] }; projects: ProjectYear[] }`
+  where `ProjectYear = { id; name; path; dailyTargetMinutes?; streak: number; lastActive?: number; active: number[]; targetMs: (number|null)[] }`.
+  Colours are assigned in the webview by registry order. `streak` and `global.streak` are storage's stored values, which
+  self-heal and are not limited to the year. `days` runs from the Monday on or before today − 364 to today (365–371 days),
+  `active[i]` is that project's active ms on `days[i]`,
   `targetMs[i]` the day's stamped target (null if unstamped). Drives heatmap, streaks, range columns,
   project picker times, project cards and sparklines.
-- `range` — reply to `{ type: "requestRange"; from: string; to: string }` (at most 92 days, enforced by host):
+- `range` — reply to `{ type: "requestDays"; from: string; to: string }` (at most 92 days, enforced by host; a reversed,
+  malformed or too-long request gets `{ type: "rangeRefused"; from; to }`). Named `requestDays` because the current
+  webview still sends `requestRange` with a different shape until phase 2 removes it:
   `{ type: "range"; from; to; logs: Record<projectId, DailyLog[]> }` — full per-project logs (sessions with
   `languages`, files, languages). The webview builds "all projects" and focus slices from these.
-- `live` — every 10 s while open: `{ type: "live"; projectId; log: DailyLog; todayActive: Record<projectId, number> }`
+- `live` — every 10 s while open: `{ type: "live"; today; projectId; log: DailyLog; todayActive: Record<projectId, number>; globalToday: number }`
   for today. The webview merges it into its cached `range`/`year` data and re-renders only if today is in view.
 
 `settings` stays and gains the CRT fields (§3). Existing action messages are kept as they are:
@@ -87,9 +91,10 @@ VS Code notifications stay as they are.
 
 All aggregation lives here, unit-tested: build a view for (project or all, from, to, focus); focus slices
 (project, or language using session `languages` and file `language`); range totals; per-day/per-week line
-rows (≤ 14 days per day, else per week); streak and longest run against each day's stamped target; year stats;
-target-met time within a day; tape slots (48 or 24 cells, single day against the cell, ranges against the busiest
-slot of the whole so a focus shows a share).
+rows (≤ 14 days per day, else per week); "met today", "at risk" and the longest run against each day's stamped target
+(the current streak count itself comes from storage); year stats; target-met time within a day; tape cells (48 or 24
+cells, single day against the cell, ranges against the busiest cell of the whole so a focus shows a share). The tape
+window is 07:00–19:00, widened to whole hours covering every session shown, so night work is never cut off.
 
 ## 2. Dashboard
 
@@ -184,8 +189,8 @@ Opened from Settings → export. Format (share card, report, csv, json), range (
 7d, 30d, 90d), project (one or all), the destination file name, export. Live share-card preview (the same canvas);
 the report shows a list of its sections instead of a page preview. Card and report request `range` data.
 CSV and JSON are written by the host: `exportCSV` / `exportJSON` gain `(from, to, projectIds)` parameters and keep
-their existing columns and shape (JSON sessions now carry `languages`). Range for CSV/JSON: today, 7d, 30d, 90d, or all
-history (the current behaviour, kept as an option).
+their existing columns and shape (JSON sessions now carry `languages`). Range for CSV/JSON: today, 7d, 30d or 90d; with no
+range chosen, the last 90 days of all projects (the current behaviour).
 
 ### 4.4 Share card (`jpgExport.ts`)
 
