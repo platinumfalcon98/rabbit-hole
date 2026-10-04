@@ -49,6 +49,15 @@ const SUITES = [
     alias: { vscode: "test/stubs/vscode.ts", cfg: "src/shared/config.ts" },
   },
   {
+    name: "payloads",
+    entry: "test/dashboard.payloads.test.ts",
+    alias: {
+      vscode: "test/stubs/vscode.ts",
+      storage: "src/tracker/storageService.ts",
+      payloads: "src/dashboard/payloads.ts",
+    },
+  },
+  {
     name: "clear",
     entry: "test/storage.clear.test.ts",
     alias: { vscode: "test/stubs/vscode.ts", storage: "src/tracker/storageService.ts" },

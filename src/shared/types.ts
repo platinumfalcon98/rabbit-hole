@@ -63,6 +63,39 @@ export interface DailyLog {
   sessions: ActivitySession[]
 }
 
+// ── Payloads for the TTY webviews ─────────────────────────────────────────
+// Everything is per project; the webview builds "all projects" and focus slices
+// itself, which is what lets hover focus re-render without a round trip.
+export interface ProjectYear {
+  id: string
+  name: string
+  path: string
+  dailyTargetMinutes?: number
+  streak: number                 // stored per-project streak (self-healed by storage)
+  lastActive?: number            // unix ms of the latest session end in the year
+  active: number[]               // active ms per day, aligned with YearPayload.days
+  targetMs: (number | null)[]    // stamped target per day; null = recorded before stamping
+}
+export interface YearPayload {
+  today: string
+  days: string[]                 // Monday-aligned, ending today (365–371 days)
+  globalTargetMs: number
+  global: { streak: number; active: number[]; targetMs: (number | null)[] }
+  projects: ProjectYear[]        // registry order
+}
+export interface RangePayload {
+  from: string
+  to: string
+  logs: Record<string, DailyLog[]>  // projectId -> one log per day, from..to
+}
+export interface LivePayload {
+  today: string
+  projectId: string
+  log: DailyLog                  // today's log for the project being worked in
+  todayActive: Record<string, number>
+  globalToday: number
+}
+
 // ── CRT display (dashboard + sidebar) ─────────────────────────────────────
 export type CrtMask = "slot" | "grille" | "shadow" | "off"
 export type CrtPitch = "fine" | "medium" | "coarse"
@@ -81,12 +114,18 @@ export type ExtensionMessage =
   | { type: "update"; data: DailyLog; projectId: string; globalToday: { activeTime: number; streak: number } }
   | { type: "settings"; dailyTargetMs: number; dailyTargetMinutes: number; idleThresholdMinutes: number; storagePath: string; crt: CrtSettings }
   | { type: "pdfData"; logs: DailyLog[]; projectName: string; dateRange: { from: string; to: string } }
+  | ({ type: "year" } & YearPayload)
+  | ({ type: "range" } & RangePayload)
+  | { type: "rangeRefused"; from: string; to: string }
+  | ({ type: "live" } & LivePayload)
+  | { type: "actionResult"; ok: boolean; lines: string[] }
 
 export type RangePreset = "today" | "7d" | "30d" | "1y" | "custom"
 
 export type WebviewMessage =
   | { type: "ready" }
   | { type: "requestRange"; preset: RangePreset; customStart?: string; customEnd?: string }
+  | { type: "requestDays"; from: string; to: string }
   | { type: "selectProjects"; projectIds: string[] }
   | { type: "export"; format: "csv" | "json" }
   | { type: "exportPdfRequest"; preset: "today" | "7d" | "30d" | "90d" | "custom"; customStart?: string; customEnd?: string; exportProjectId?: string }
