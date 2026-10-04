@@ -241,12 +241,20 @@ export function yearStats(s: Series): YearStats {
 export interface TapeWindow { startMin: number; endMin: number; cells: number; cellMin: number }
 export interface TapeCell { startMin: number; ms: number; level: 0 | 1 | 2 | 3 | 4; language: string | null; projectId: string | null }
 
-// Minutes since local midnight that the session covers. An open session runs to now.
-function spanOf(s: ActivitySession, now: number): [number, number] {
-  const d = new Date(s.startTime)
-  const start = d.getHours() * 60 + d.getMinutes() + d.getSeconds() / 60
+// Wall-clock spans (unix ms) the session was actually accruing. Sessions record
+// these; older ones fall back to start → end (an open one to now), which also
+// covers any idle time inside them — unavoidable without the recording.
+function segmentsOf(s: ActivitySession, now: number): [number, number][] {
+  if (s.intervals?.length) return s.intervals.filter(([a, b]) => b > a)
   const end = s.endTime ?? Math.max(s.startTime, now)
-  return [start, Math.min(24 * 60, start + (end - s.startTime) / 60_000)]
+  return end > s.startTime ? [[s.startTime, end]] : []
+}
+
+// Minutes since local midnight of the day the session started (sessions are split at midnight).
+function minuteOf(s: ActivitySession, t: number): number {
+  const day = new Date(s.startTime)
+  day.setHours(0, 0, 0, 0)
+  return Math.min(24 * 60, (t - day.getTime()) / 60_000)
 }
 
 // 07:00–19:00, widened to whole hours that cover every session shown, so night
@@ -255,9 +263,10 @@ export function tapeWindow(sessions: ActivitySession[], cells: number, now: numb
   let start = 7 * 60
   let end = 19 * 60
   for (const s of sessions) {
-    const [a, b] = spanOf(s, now)
-    start = Math.min(start, Math.floor(a / 60) * 60)
-    end = Math.max(end, Math.ceil(b / 60) * 60)
+    for (const [a, b] of segmentsOf(s, now)) {
+      start = Math.min(start, Math.floor(minuteOf(s, a) / 60) * 60)
+      end = Math.max(end, Math.ceil(minuteOf(s, b) / 60) * 60)
+    }
   }
   return { startMin: start, endMin: end, cells, cellMin: (end - start) / cells }
 }
@@ -267,19 +276,24 @@ function sumCells(sessions: ActivitySession[], win: TapeWindow, now: number) {
   const byLang = Array.from({ length: win.cells }, () => new Map<string, number>())
   const byProj = Array.from({ length: win.cells }, () => new Map<string, number>())
   for (const s of sessions) {
-    const [a, b] = spanOf(s, now)
-    if (b <= a || s.activeTime <= 0) continue
-    const perMin = s.activeTime / (b - a)
+    const segs = segmentsOf(s, now)
+    const spanMin = segs.reduce((n, [a, b]) => n + (b - a), 0) / 60_000
+    if (spanMin <= 0 || s.activeTime <= 0) continue
+    const perMin = s.activeTime / spanMin
     const langTotal = Object.values(s.languages ?? {}).reduce((n, v) => n + v, 0)
-    for (let i = 0; i < win.cells; i++) {
-      const c0 = win.startMin + i * win.cellMin
-      const overlap = Math.max(0, Math.min(b, c0 + win.cellMin) - Math.max(a, c0))
-      if (!overlap) continue
-      const v = overlap * perMin
-      ms[i] += v
-      if (s.projectId) byProj[i].set(s.projectId, (byProj[i].get(s.projectId) ?? 0) + v)
-      if (langTotal > 0) {
-        for (const [l, lm] of Object.entries(s.languages!)) byLang[i].set(l, (byLang[i].get(l) ?? 0) + v * lm / langTotal)
+    for (const [sa, sb] of segs) {
+      const a = minuteOf(s, sa)
+      const b = minuteOf(s, sb)
+      for (let i = 0; i < win.cells; i++) {
+        const c0 = win.startMin + i * win.cellMin
+        const overlap = Math.max(0, Math.min(b, c0 + win.cellMin) - Math.max(a, c0))
+        if (!overlap) continue
+        const v = overlap * perMin
+        ms[i] += v
+        if (s.projectId) byProj[i].set(s.projectId, (byProj[i].get(s.projectId) ?? 0) + v)
+        if (langTotal > 0) {
+          for (const [l, lm] of Object.entries(s.languages!)) byLang[i].set(l, (byLang[i].get(l) ?? 0) + v * lm / langTotal)
+        }
       }
     }
   }
@@ -316,15 +330,21 @@ export function tapeCells(
   })
 }
 
-// When the day's cumulative active time reached the target, interpolated inside
-// the session that crossed it. Null if it never did.
+// When the day's cumulative active time reached the target, interpolated along
+// the active intervals of the session that crossed it. Null if it never did.
 export function targetMetAt(sessions: ActivitySession[], targetMs: number, now: number): number | null {
   let cum = 0
   for (const s of [...sessions].sort((a, b) => a.startTime - b.startTime)) {
     if (s.activeTime <= 0) continue
     if (cum + s.activeTime >= targetMs) {
-      const end = s.endTime ?? Math.max(s.startTime, now)
-      return Math.round(s.startTime + (targetMs - cum) / s.activeTime * (end - s.startTime))
+      const segs = segmentsOf(s, now)
+      const span = segs.reduce((n, [a, b]) => n + (b - a), 0)
+      let need = (targetMs - cum) / s.activeTime * span
+      for (const [a, b] of segs) {
+        if (need <= b - a) return Math.round(a + need)
+        need -= b - a
+      }
+      return segs.length ? segs[segs.length - 1][1] : s.startTime
     }
     cum += s.activeTime
   }

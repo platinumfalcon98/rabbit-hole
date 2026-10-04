@@ -6,6 +6,7 @@ export interface ActivitySession {
   activeTime: number       // ms of actual active time (idle gaps excluded)
   projectId?: string       // populated only in aggregate responses
   languages?: Record<string, number> // active ms per language within this session; absent on sessions recorded before per-session tracking
+  intervals?: [number, number][]     // wall-clock spans (unix ms) the session was accruing; a written snapshot of an open session includes the current one; absent on older sessions
 }
 
 export interface FileActivity {

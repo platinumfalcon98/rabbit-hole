@@ -128,3 +128,27 @@ describe("target time and live merges", () => {
     assert.strictEqual(range.logs.alpha.length, 0)
   })
 })
+
+describe("active intervals", () => {
+  // 15 minutes of work at 09:00, then away: the session expired at 10:15.
+  const expired = { id: "e", startTime: at(9), endTime: at(10, 15), duration: 75 * MIN, activeTime: 15 * MIN,
+    intervals: [[at(9), at(9, 15)]] }
+
+  it("the tape draws only the recorded intervals, not the idle tail", () => {
+    const cells = tapeCells([expired], tapeWindow([expired], 48, at(20)), at(20))
+    assert.strictEqual(cells.find((c: any) => c.startMin === 540).level, 4)
+    assert.strictEqual(cells.find((c: any) => c.startMin === 555).level, 0)
+  })
+
+  it("the window ignores a session's idle tail", () => {
+    const late = { id: "l", startTime: at(18, 30), endTime: at(19, 40), duration: 70 * MIN, activeTime: 10 * MIN,
+      intervals: [[at(18, 30), at(18, 40)]] }
+    assert.strictEqual(tapeWindow([late], 48, at(20)).endMin, 1140)
+  })
+
+  it("target-met time walks the intervals, skipping the gap between them", () => {
+    const gappy = { id: "g", startTime: at(9), endTime: at(9, 40), duration: 40 * MIN, activeTime: 20 * MIN,
+      intervals: [[at(9), at(9, 10)], [at(9, 30), at(9, 40)]] }
+    assert.strictEqual(targetMetAt([gappy], 15 * MIN, at(20)), at(9, 35))
+  })
+})

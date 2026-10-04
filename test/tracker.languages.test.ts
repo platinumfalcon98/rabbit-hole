@@ -90,3 +90,58 @@ describe("session languages", () => {
     assert.deepStrictEqual(calls.appended[calls.appended.length - 1].languages, { typescript: 6 * MIN })
   })
 })
+
+// The day tape and target-met time must show when work happened, not the whole
+// span a session was open: a session that pauses and later expires carries a
+// 60-minute idle tail, and one that resumes after a blur has gaps inside it.
+describe("active intervals", () => {
+  const stopTimers = (t: any) => { t.clearIdleTimer(); t.clearExpiryTimer() }
+
+  it("a pause closes the active interval", () => {
+    now = at(2026, 9, 3, 10, 0)
+    const t = trackerAt(now, "typescript")
+    now = at(2026, 9, 3, 10, 5)
+    t.pauseSession()
+    stopTimers(t)
+    assert.deepStrictEqual(calls.appended[calls.appended.length - 1].intervals, [[at(2026, 9, 3, 10, 0), at(2026, 9, 3, 10, 5)]])
+  })
+
+  it("a checkpoint after a resume carries the closed interval and the open one", () => {
+    now = at(2026, 9, 3, 10, 0)
+    const t = trackerAt(now, "typescript")
+    t.isWindowFocused = true
+    now = at(2026, 9, 3, 10, 5)
+    t.pauseSession()
+    now = at(2026, 9, 3, 10, 30)
+    t.onActivity()
+    now = at(2026, 9, 3, 10, 40)
+    t.saveCheckpoint()
+    stopTimers(t)
+    const last = calls.appended[calls.appended.length - 1]
+    assert.deepStrictEqual(last.intervals, [
+      [at(2026, 9, 3, 10, 0), at(2026, 9, 3, 10, 5)],
+      [at(2026, 9, 3, 10, 30), at(2026, 9, 3, 10, 40)],
+    ])
+    assert.strictEqual(last.activeTime, 15 * MIN)
+    // the checkpoint's open interval is a snapshot, not part of the session's closed list
+    assert.strictEqual(t.currentSession.intervals.length, 1)
+  })
+
+  it("ending an active session closes its last interval", () => {
+    now = at(2026, 9, 3, 10, 0)
+    const t = trackerAt(now, "typescript")
+    now = at(2026, 9, 3, 10, 20)
+    t.endSession()
+    assert.deepStrictEqual(calls.appended[calls.appended.length - 1].intervals, [[at(2026, 9, 3, 10, 0), at(2026, 9, 3, 10, 20)]])
+  })
+
+  it("midnight cuts the open interval between the two days", () => {
+    now = at(2026, 9, 2, 23, 50)
+    const t = trackerAt(now, "typescript")
+    now = at(2026, 9, 3, 0, 6)
+    t.saveCheckpoint()
+    const midnight = at(2026, 9, 3, 0, 0)
+    assert.deepStrictEqual(calls.appendedTo[0][0].intervals, [[at(2026, 9, 2, 23, 50), midnight]])
+    assert.deepStrictEqual(calls.appended[calls.appended.length - 1].intervals, [[midnight, now]])
+  })
+})

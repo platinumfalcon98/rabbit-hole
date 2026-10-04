@@ -292,6 +292,7 @@ export class ActivityTracker {
     const now = Date.now()
     this.flushLanguageTime(now)
     this.activeTimeAccumulated += now - this.activeIntervalStart
+    this.closeInterval(now)
     this.isPaused = true
     this.currentSession!.activeTime = this.activeTimeAccumulated
     this.storage.appendSession(this.currentSession!)
@@ -328,6 +329,7 @@ export class ActivityTracker {
     if (!this.isPaused) {
       this.flushLanguageTime(now)
       this.activeTimeAccumulated += now - this.activeIntervalStart
+      this.closeInterval(now)
     }
     session.activeTime = this.activeTimeAccumulated
     this.storage.appendSession(session)
@@ -360,7 +362,26 @@ export class ActivityTracker {
     const now = Date.now()
     this.flushLanguageTime(now)
     this.currentSession!.activeTime = this.activeTimeAccumulated + (now - this.activeIntervalStart)
-    this.storage.appendSession(this.currentSession!)
+    this.storage.appendSession(this.sessionSnapshot(now))
+  }
+
+  // The session as written mid-flight: its closed active intervals plus the open
+  // one up to `now`. A copy, so the open interval never joins the closed list.
+  private sessionSnapshot(now: number): ActivitySession {
+    const s = this.currentSession!
+    const open: [number, number][] = !this.isPaused && now > this.activeIntervalStart
+      ? [[this.activeIntervalStart, now]]
+      : []
+    return { ...s, intervals: [...(s.intervals ?? []), ...open] }
+  }
+
+  // Record the active interval that just ended. The tape and target-met time
+  // read these so idle stretches inside a session (a blur, the 60-minute expiry
+  // tail) are not drawn as work.
+  private closeInterval(now: number): void {
+    if (!this.currentSession || now <= this.activeIntervalStart) return
+    const list = this.currentSession.intervals ?? (this.currentSession.intervals = [])
+    list.push([this.activeIntervalStart, now])
   }
 
   // If the current session started on a previous calendar day, close it at midnight
@@ -395,12 +416,16 @@ export class ActivityTracker {
           ? midnight - this.activeIntervalStart
           : 0)
 
+    const openBeforeMidnight: [number, number][] = !this.isPaused && this.activeIntervalStart < midnight
+      ? [[this.activeIntervalStart, midnight]]
+      : []
     this.storage.appendSessionToDate(
       {
         ...this.currentSession,
         endTime: midnight,
         duration: midnight - this.currentSession.startTime,
         activeTime: activeBeforeMidnight,
+        intervals: [...(this.currentSession.intervals ?? []), ...openBeforeMidnight],
       },
       sessionDateStr
     )
