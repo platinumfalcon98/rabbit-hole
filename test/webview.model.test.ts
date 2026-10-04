@@ -106,6 +106,14 @@ describe("dates and line rows", () => {
     assert.deepStrictEqual(datesBetween("2026-09-29", "2026-10-02"), ["2026-09-29", "2026-09-30", "2026-10-01", "2026-10-02"])
   })
 
+  // A pure helper the panels will call from many places; a bad end date must
+  // not hang the webview. Ranges are at most 92 days and the year 371.
+  it("caps a runaway range and returns nothing for malformed dates", () => {
+    assert.ok(datesBetween("2026-10-01", "9999-12-31").length <= 400)
+    assert.deepStrictEqual(datesBetween("2026-10-01", "garbage"), [])
+    assert.deepStrictEqual(datesBetween("bad", "2026-10-01"), [])
+  })
+
   it("one row per day up to 14 days", () => {
     const v = buildView(range, "all", null)
     assert.strictEqual(lineRows(v.days).length, 2)

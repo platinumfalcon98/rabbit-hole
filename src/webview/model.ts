@@ -35,11 +35,20 @@ export interface LineRow { from: string; to: string; added: number; deleted: num
 export const dayKey = (d: Date): string =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
 
-// Local-date stepping (never 24h arithmetic) so DST days are not skipped or doubled.
+const DAY_RE = /^\d{4}-\d{2}-\d{2}$/
+// Longer than any range the panels show (92 days, or the 371-day year), so it
+// only ever cuts off a runaway request.
+const MAX_DATES = 400
+
+// Local-date stepping (never 24h arithmetic) so DST days are not skipped or
+// doubled. Malformed dates give nothing rather than a loop that never ends.
 export function datesBetween(from: string, to: string): string[] {
+  if (!DAY_RE.test(from) || !DAY_RE.test(to)) return []
   const [y, m, d] = from.split("-").map(Number)
   const out: string[] = []
-  for (const dt = new Date(y, m - 1, d); dayKey(dt) <= to; dt.setDate(dt.getDate() + 1)) out.push(dayKey(dt))
+  for (const dt = new Date(y, m - 1, d); dayKey(dt) <= to && out.length < MAX_DATES; dt.setDate(dt.getDate() + 1)) {
+    out.push(dayKey(dt))
+  }
   return out
 }
 
