@@ -384,6 +384,7 @@ export class ActivityTracker {
       const langMs = midnight - this.languageIntervalStart
       if (langMs > 0) {
         this.storage.updateLanguageTimeForDate(this.languageCurrent, langMs, sessionDateStr)
+        this.creditSessionLanguage(this.languageCurrent, langMs)
       }
       this.languageIntervalStart = midnight
     }
@@ -418,12 +419,24 @@ export class ActivityTracker {
     }
   }
 
-  // Credit elapsed time to the current language and advance the interval start.
+  // Credit elapsed time to the current language — on the day log and on the
+  // open session — and advance the interval start. Both get the same ms from
+  // the same call, so a session's languages always sum to what it added to the
+  // day's language totals.
   private flushLanguageTime(now: number): void {
     if (!this.languageCurrent || this.languageIntervalStart === 0) return
     const elapsed = now - this.languageIntervalStart
-    if (elapsed > 0) this.storage.updateLanguageTime(this.languageCurrent, elapsed)
+    if (elapsed > 0) {
+      this.storage.updateLanguageTime(this.languageCurrent, elapsed)
+      this.creditSessionLanguage(this.languageCurrent, elapsed)
+    }
     this.languageIntervalStart = now
+  }
+
+  private creditSessionLanguage(language: string, ms: number): void {
+    if (!this.currentSession) return
+    const langs = this.currentSession.languages ?? (this.currentSession.languages = {})
+    langs[language] = (langs[language] ?? 0) + ms
   }
 
   // ── Line measurement ──────────────────────────────────────────────────────

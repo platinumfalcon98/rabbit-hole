@@ -5,6 +5,7 @@ export interface ActivitySession {
   duration: number         // total elapsed ms (endTime - startTime), 0 if open
   activeTime: number       // ms of actual active time (idle gaps excluded)
   projectId?: string       // populated only in aggregate responses
+  languages?: Record<string, number> // active ms per language within this session; absent on sessions recorded before per-session tracking
 }
 
 export interface FileActivity {

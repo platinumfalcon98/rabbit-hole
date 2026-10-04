@@ -59,6 +59,11 @@ const SUITES = [
     alias: { vscode: "test/stubs/vscodeWindow.ts", tracker: "src/tracker/activityTracker.ts" },
   },
   {
+    name: "languages",
+    entry: "test/tracker.languages.test.ts",
+    alias: { vscode: "test/stubs/vscodeWindow.ts", tracker: "src/tracker/activityTracker.ts" },
+  },
+  {
     name: "persist",
     entry: "test/tracker.persist.test.ts",
     alias: {
