@@ -3,7 +3,7 @@ import { StorageService, dateKey } from "./tracker/storageService"
 import { ActivityTracker } from "./tracker/activityTracker"
 import { DashboardPanel } from "./dashboard/dashboardPanel"
 import { MiniPanel } from "./dashboard/miniPanel"
-import { handleMessage, postYear, sendSettings } from "./dashboard/messageHandler"
+import { handleMessage, onConfigChanged, postYear } from "./dashboard/messageHandler"
 import { buildLive } from "./dashboard/payloads"
 import { MirrorService } from "./tracker/mirrorService"
 import { getDailyTargetMs } from "./shared/config"
@@ -154,8 +154,8 @@ export function activate(context: vscode.ExtensionContext): void {
   // dashboard) must reach the open webviews — the CRT settings especially.
   context.subscriptions.push(
     vscode.workspace.onDidChangeConfiguration(e => {
-      if (e.affectsConfiguration("rabbithole") && DashboardPanel.currentPanel) {
-        sendSettings(storage, DashboardPanel.currentPanel)
+      if (DashboardPanel.currentPanel) {
+        onConfigChanged(section => e.affectsConfiguration(section), storage, DashboardPanel.currentPanel)
       }
     })
   )

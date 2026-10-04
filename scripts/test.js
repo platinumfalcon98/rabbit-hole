@@ -73,6 +73,15 @@ const SUITES = [
     alias: { model: "src/webview/model.ts" },
   },
   {
+    name: "handler",
+    entry: "test/dashboard.handler.test.ts",
+    alias: {
+      vscode: "test/stubs/vscodeHost.ts",
+      storage: "src/tracker/storageService.ts",
+      handler: "src/dashboard/messageHandler.ts",
+    },
+  },
+  {
     name: "clear",
     entry: "test/storage.clear.test.ts",
     alias: { vscode: "test/stubs/vscode.ts", storage: "src/tracker/storageService.ts" },

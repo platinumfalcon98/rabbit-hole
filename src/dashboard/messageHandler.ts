@@ -10,7 +10,7 @@ import {
   validateSnapshot,
 } from "../tracker/storageService"
 import { DashboardPanel } from "./dashboardPanel"
-import { buildRange, buildYear } from "./payloads"
+import { MAX_RANGE_DAYS, buildRange, buildYear, isValidRange } from "./payloads"
 
 // Module-level view state — persists for the lifetime of the panel
 let currentStartDate = ""
@@ -95,6 +95,11 @@ export function handleMessage(
     }
 
     case "export": {
+      // No range is the long-standing 90-day export; a given range must be a real one.
+      if ((msg.from !== undefined || msg.to !== undefined) && !(msg.from && msg.to && isValidRange(msg.from, msg.to))) {
+        tell(panel, false, `Rabbit Hole: Export needs a date range of at most ${MAX_RANGE_DAYS} days.`)
+        break
+      }
       const content = msg.format === "csv"
         ? storage.exportCSV(msg.from, msg.to, msg.projectId)
         : storage.exportJSON(msg.from, msg.to, msg.projectId)
@@ -363,6 +368,24 @@ export function sendSettings(storage: StorageService, panel: DashboardPanel): vo
     storagePath: storage.getStoragePath(),
     crt: getCrtSettings(),
   })
+}
+
+// Settings edited outside the dashboard (settings.json, the Settings UI) must
+// reach it too. A daily target change re-judges today's streak and every day of
+// the year, so it updates the streaks and resends the year as well.
+export function onConfigChanged(
+  affects: (section: string) => boolean,
+  storage: StorageService,
+  panel: DashboardPanel
+): void {
+  if (!affects("rabbithole")) return
+  const targetChanged = affects("rabbithole.dailyTargetMinutes")
+  if (targetChanged) {
+    storage.updateStreak()
+    storage.updateProjectStreak(storage.getCurrentProjectId())
+  }
+  sendSettings(storage, panel)
+  if (targetChanged) postYear(storage, panel)
 }
 
 export function postYear(storage: StorageService, panel: DashboardPanel): void {

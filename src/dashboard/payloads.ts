@@ -62,12 +62,17 @@ export function buildYear(storage: StorageService, now: Date, globalTargetMs: nu
   }
 }
 
-export function buildRange(storage: StorageService, from: string, to: string): RangePayload | null {
+// Real local dates, in order, at most MAX_RANGE_DAYS apart. Every range a
+// webview asks for (a view or an export) goes through this.
+export function isValidRange(from: string, to: string): boolean {
   const a = parseDay(from)
   const b = parseDay(to)
-  if (!a || !b || b < a) return null
-  const span = Math.round((b.getTime() - a.getTime()) / 86_400_000) + 1
-  if (span > MAX_RANGE_DAYS) return null
+  if (!a || !b || b < a) return false
+  return Math.round((b.getTime() - a.getTime()) / 86_400_000) + 1 <= MAX_RANGE_DAYS
+}
+
+export function buildRange(storage: StorageService, from: string, to: string): RangePayload | null {
+  if (!isValidRange(from, to)) return null
   const logs: Record<string, DailyLog[]> = {}
   for (const p of storage.getProjects()) logs[p.id] = storage.getRangeByDates(from, to, p.id)
   return { from, to, logs }
