@@ -1,7 +1,7 @@
 // Pure view model for the TTY dashboard and sidebar. Every number a panel shows
 // is computed here from the host's year/range/live payloads, so it is tested
 // without a DOM. No vscode import and no DOM access, ever.
-import type { ActivitySession, DailyLog, RangePayload } from "../shared/types"
+import type { ActivitySession, DailyLog, LivePayload, RangePayload, YearPayload } from "../shared/types"
 
 export type Selection = "all" | string
 export type Focus = null | { kind: "project"; id: string } | { kind: "language"; id: string }
@@ -152,4 +152,199 @@ export function lineRows(days: DayView[]): LineRow[] {
   const rows: LineRow[] = []
   for (let end = days.length; end > 0; end -= 7) rows.unshift(row(days.slice(Math.max(0, end - 7), end)))
   return rows
+}
+
+// ── Year series and streaks ─────────────────────────────────────────────────
+
+export interface Series { days: string[]; active: number[]; targetMs: number[] }
+
+// Daily active ms and the target each day is judged against: its stamped target,
+// or the current one for days recorded before stamping. Today is always judged
+// against the live target, since it is still being earned.
+export function seriesFor(year: YearPayload, sel: Selection): Series {
+  const n = year.days.length
+  if (sel === "all") {
+    const targetMs = year.global.targetMs.map(t => t ?? year.globalTargetMs)
+    if (n) targetMs[n - 1] = year.globalTargetMs
+    return { days: year.days, active: year.global.active, targetMs }
+  }
+  const p = year.projects.find(q => q.id === sel)
+  const current = p?.dailyTargetMinutes !== undefined ? p.dailyTargetMinutes * 60_000 : year.globalTargetMs
+  if (!p) return { days: year.days, active: year.days.map(() => 0), targetMs: year.days.map(() => current) }
+  const targetMs = p.targetMs.map(t => t ?? current)
+  if (n) targetMs[n - 1] = current
+  return { days: year.days, active: p.active, targetMs }
+}
+
+// The current streak is storage's (it self-heals and isn't limited to a year).
+export function storedStreak(year: YearPayload, sel: Selection): number {
+  return sel === "all" ? year.global.streak : year.projects.find(p => p.id === sel)?.streak ?? 0
+}
+
+export interface StreakInfo {
+  current: number
+  todayMet: boolean
+  atRisk: boolean
+  todayRemainingMs: number
+  longest: number
+  longestEnd: string | null
+}
+
+export function streakInfo(s: Series, current: number): StreakInfo {
+  const n = s.active.length
+  const met = (i: number) => s.active[i] >= s.targetMs[i]
+  const todayMet = n > 0 && met(n - 1)
+  let run = 0
+  let longest = 0
+  let longestEnd: string | null = null
+  for (let i = 0; i < n; i++) {
+    run = met(i) ? run + 1 : 0
+    if (run > longest) { longest = run; longestEnd = s.days[i] }
+  }
+  return {
+    current,
+    todayMet,
+    atRisk: !todayMet && current > 0,
+    todayRemainingMs: n ? Math.max(0, s.targetMs[n - 1] - s.active[n - 1]) : 0,
+    longest,
+    longestEnd,
+  }
+}
+
+export interface YearStats {
+  activeDays: number
+  totalMs: number
+  best: { date: string; ms: number } | null
+  longest: number
+  longestEnd: string | null
+}
+
+// Over the last 365 days of the series (the grid itself reaches back to a Monday).
+export function yearStats(s: Series): YearStats {
+  const from = Math.max(0, s.days.length - 365)
+  const tail: Series = { days: s.days.slice(from), active: s.active.slice(from), targetMs: s.targetMs.slice(from) }
+  let activeDays = 0
+  let totalMs = 0
+  let best: YearStats["best"] = null
+  for (let i = 0; i < tail.active.length; i++) {
+    const ms = tail.active[i]
+    if (ms > 0) activeDays++
+    totalMs += ms
+    if (ms > 0 && (best === null || ms > best.ms)) best = { date: tail.days[i], ms }
+  }
+  const { longest, longestEnd } = streakInfo(tail, 0)
+  return { activeDays, totalMs, best, longest, longestEnd }
+}
+
+// ── Day tape ────────────────────────────────────────────────────────────────
+
+export interface TapeWindow { startMin: number; endMin: number; cells: number; cellMin: number }
+export interface TapeCell { startMin: number; ms: number; level: 0 | 1 | 2 | 3 | 4; language: string | null; projectId: string | null }
+
+// Minutes since local midnight that the session covers. An open session runs to now.
+function spanOf(s: ActivitySession, now: number): [number, number] {
+  const d = new Date(s.startTime)
+  const start = d.getHours() * 60 + d.getMinutes() + d.getSeconds() / 60
+  const end = s.endTime ?? Math.max(s.startTime, now)
+  return [start, Math.min(24 * 60, start + (end - s.startTime) / 60_000)]
+}
+
+// 07:00–19:00, widened to whole hours that cover every session shown, so night
+// work is never cut off. Split into `cells` equal cells (48 wide, 24 narrow).
+export function tapeWindow(sessions: ActivitySession[], cells: number, now: number): TapeWindow {
+  let start = 7 * 60
+  let end = 19 * 60
+  for (const s of sessions) {
+    const [a, b] = spanOf(s, now)
+    start = Math.min(start, Math.floor(a / 60) * 60)
+    end = Math.max(end, Math.ceil(b / 60) * 60)
+  }
+  return { startMin: start, endMin: end, cells, cellMin: (end - start) / cells }
+}
+
+function sumCells(sessions: ActivitySession[], win: TapeWindow, now: number) {
+  const ms = new Array<number>(win.cells).fill(0)
+  const byLang = Array.from({ length: win.cells }, () => new Map<string, number>())
+  const byProj = Array.from({ length: win.cells }, () => new Map<string, number>())
+  for (const s of sessions) {
+    const [a, b] = spanOf(s, now)
+    if (b <= a || s.activeTime <= 0) continue
+    const perMin = s.activeTime / (b - a)
+    const langTotal = Object.values(s.languages ?? {}).reduce((n, v) => n + v, 0)
+    for (let i = 0; i < win.cells; i++) {
+      const c0 = win.startMin + i * win.cellMin
+      const overlap = Math.max(0, Math.min(b, c0 + win.cellMin) - Math.max(a, c0))
+      if (!overlap) continue
+      const v = overlap * perMin
+      ms[i] += v
+      if (s.projectId) byProj[i].set(s.projectId, (byProj[i].get(s.projectId) ?? 0) + v)
+      if (langTotal > 0) {
+        for (const [l, lm] of Object.entries(s.languages!)) byLang[i].set(l, (byLang[i].get(l) ?? 0) + v * lm / langTotal)
+      }
+    }
+  }
+  return { ms, byLang, byProj }
+}
+
+const top = (m: Map<string, number>): string | null => {
+  let best: string | null = null
+  let bestV = 0
+  for (const [k, v] of m) if (v > bestV) { best = k; bestV = v }
+  return best
+}
+
+// Active time per cell. A single day is measured against the cell's length; an
+// averaged range (perDays > 1) against the busiest cell of `base` (the unfocused
+// sessions), so a focused tape reads as a share of the whole.
+export function tapeCells(
+  sessions: ActivitySession[],
+  win: TapeWindow,
+  now: number,
+  opts: { perDays?: number; base?: ActivitySession[] } = {}
+): TapeCell[] {
+  const per = Math.max(1, opts.perDays ?? 1)
+  const { ms, byLang, byProj } = sumCells(sessions, win, now)
+  let peak = win.cellMin * 60_000
+  if (per > 1) {
+    const base = opts.base ? sumCells(opts.base, win, now).ms : ms
+    peak = Math.max(1, ...base.map(v => v / per))
+  }
+  return ms.map((v, i) => {
+    const f = v / per / peak
+    const level: TapeCell["level"] = f >= 0.75 ? 4 : f >= 0.5 ? 3 : f >= 0.25 ? 2 : f > 0 ? 1 : 0
+    return { startMin: win.startMin + i * win.cellMin, ms: v / per, level, language: top(byLang[i]), projectId: top(byProj[i]) }
+  })
+}
+
+// When the day's cumulative active time reached the target, interpolated inside
+// the session that crossed it. Null if it never did.
+export function targetMetAt(sessions: ActivitySession[], targetMs: number, now: number): number | null {
+  let cum = 0
+  for (const s of [...sessions].sort((a, b) => a.startTime - b.startTime)) {
+    if (s.activeTime <= 0) continue
+    if (cum + s.activeTime >= targetMs) {
+      const end = s.endTime ?? Math.max(s.startTime, now)
+      return Math.round(s.startTime + (targetMs - cum) / s.activeTime * (end - s.startTime))
+    }
+    cum += s.activeTime
+  }
+  return null
+}
+
+// Fold a 10-second live update into the cached payloads. It replaces today's
+// values and never adds to them, so leaving the dashboard open can't inflate today.
+export function mergeLive(year: YearPayload, range: RangePayload | null, live: LivePayload): void {
+  const i = year.days.indexOf(live.today)
+  if (i >= 0) {
+    for (const p of year.projects) {
+      if (live.todayActive[p.id] !== undefined) p.active[i] = live.todayActive[p.id]
+    }
+    year.global.active[i] = live.globalToday
+  }
+  if (range && live.today >= range.from && live.today <= range.to) {
+    const logs: DailyLog[] = range.logs[live.projectId] ?? (range.logs[live.projectId] = [])
+    const j = logs.findIndex(l => l.date === live.today)
+    if (j >= 0) logs[j] = live.log
+    else logs.push(live.log)
+  }
 }
