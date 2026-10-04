@@ -58,6 +58,11 @@ const SUITES = [
     },
   },
   {
+    name: "export",
+    entry: "test/storage.export.test.ts",
+    alias: { vscode: "test/stubs/vscode.ts", storage: "src/tracker/storageService.ts" },
+  },
+  {
     name: "clear",
     entry: "test/storage.clear.test.ts",
     alias: { vscode: "test/stubs/vscode.ts", storage: "src/tracker/storageService.ts" },

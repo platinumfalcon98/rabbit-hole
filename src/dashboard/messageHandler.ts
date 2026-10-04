@@ -96,8 +96,8 @@ export function handleMessage(
 
     case "export": {
       const content = msg.format === "csv"
-        ? storage.exportCSV()
-        : storage.exportJSON()
+        ? storage.exportCSV(msg.from, msg.to, msg.projectId)
+        : storage.exportJSON(msg.from, msg.to, msg.projectId)
       const ext = msg.format === "csv" ? "csv" : "json"
       writeExport(content, ext)
       break

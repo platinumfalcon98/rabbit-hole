@@ -127,7 +127,7 @@ export type WebviewMessage =
   | { type: "requestRange"; preset: RangePreset; customStart?: string; customEnd?: string }
   | { type: "requestDays"; from: string; to: string }
   | { type: "selectProjects"; projectIds: string[] }
-  | { type: "export"; format: "csv" | "json" }
+  | { type: "export"; format: "csv" | "json"; from?: string; to?: string; projectId?: string }
   | { type: "exportPdfRequest"; preset: "today" | "7d" | "30d" | "90d" | "custom"; customStart?: string; customEnd?: string; exportProjectId?: string }
   | { type: "writePdf"; base64: string; projectName: string }
   | { type: "writeJpg"; base64: string; projectName: string }

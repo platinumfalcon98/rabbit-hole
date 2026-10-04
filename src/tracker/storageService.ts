@@ -624,12 +624,13 @@ export class StorageService {
     this.saveLog(this.currentProjectId, log)
   }
 
-  exportJSON(): string {
-    return JSON.stringify(this.getAggregateRange(90), null, 2)
+  // No arguments is the long-standing export: the last 90 days, all projects merged.
+  exportJSON(from?: string, to?: string, projectId?: string): string {
+    return JSON.stringify(this.exportLogs(from, to, projectId), null, 2)
   }
 
-  exportCSV(): string {
-    const logs = this.getAggregateRange(90)
+  exportCSV(from?: string, to?: string, projectId?: string): string {
+    const logs = this.exportLogs(from, to, projectId)
     const rows: string[] = ["date,totalTime,activeTime,streak,linesAdded,linesDeleted"]
     for (const log of logs) {
       const linesAdded = log.files.reduce((s, f) => s + f.linesAdded, 0)
@@ -639,6 +640,19 @@ export class StorageService {
       )
     }
     return rows.join("\n")
+  }
+
+  private exportLogs(from?: string, to?: string, projectId?: string): DailyLog[] {
+    const end = to ?? todayKey()
+    let start = from
+    if (!start) {
+      const d = new Date()
+      d.setDate(d.getDate() - 89)
+      start = dateKey(d)
+    }
+    return projectId && projectId !== "all"
+      ? this.getRangeByDates(start, end, projectId)
+      : this.getAggregateRangeByDates(start, end)
   }
 
   // ── Your data ─────────────────────────────────────────────────────────────
