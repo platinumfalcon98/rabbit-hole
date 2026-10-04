@@ -55,9 +55,13 @@ extension the font is bundled and the data is real; everything else carries over
   one — the same apportioning the day totals already get.
 - Checkpoints write the open session's `languages` along with its `activeTime`.
 - Sessions recorded before this change have no `languages`. Every consumer treats it as optional.
+- `ActivitySession` also gains `intervals?: [number, number][]` — the wall-clock spans (unix ms) the session was actually
+  accruing, closed at pause, end and the midnight split; a checkpoint's written copy adds the open one. The day tape and
+  target-met time read these, so idle stretches inside a session (a blur, the 60-minute expiry tail) are not drawn as work.
+  Older sessions fall back to start → end.
 - Mirror: the field flows through unchanged; `MIRROR_SCHEMA` does not change (additive). The CLI's decoders
-  ignore unknown fields; only `rabbithole doctor` reports it. Follow-up in `rabbithole-cli`: add the field to
-  doctor's known-field list.
+  ignore unknown fields; only `rabbithole doctor` reports it. Follow-up in `rabbithole-cli`: add `languages` and `intervals`
+  to doctor's known-field list.
 
 ### 1.2 Host → webview messages
 
@@ -188,7 +192,8 @@ actively tracking. The 🥕 emoji is removed.
 Opened from Settings → export. Format (share card, report, csv, json), range (card: today, 7d, 30d; report: today,
 7d, 30d, 90d), project (one or all), the destination file name, export. Live share-card preview (the same canvas);
 the report shows a list of its sections instead of a page preview. Card and report request `range` data.
-CSV and JSON are written by the host: `exportCSV` / `exportJSON` gain `(from, to, projectIds)` parameters and keep
+CSV and JSON are written by the host: `exportCSV` / `exportJSON` gain `(from, to, projectId)` parameters (the host refuses a given range that isn't a real one
+  of at most 92 days) and keep
 their existing columns and shape (JSON sessions now carry `languages`). Range for CSV/JSON: today, 7d, 30d or 90d; with no
 range chosen, the last 90 days of all projects (the current behaviour).
 
