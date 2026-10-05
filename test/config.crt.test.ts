@@ -13,15 +13,16 @@ beforeEach(() => v.__resetConfig())
 
 describe("CRT settings", () => {
   it("defaults to a subtle slot mask with scanlines and bloom", () => {
-    assert.deepStrictEqual(getCrtSettings(), { mask: "slot", pitch: "fine", strength: 30, effects: ["scanlines", "bloom"] })
+    assert.deepStrictEqual(getCrtSettings(), { mask: "slot", pitch: "fine", strength: 23, vignette: 35, effects: ["scanlines", "bloom"] })
   })
 
   it("reads valid values", () => {
     v.__setConfig("crt.mask", "grille")
     v.__setConfig("crt.pitch", "coarse")
     v.__setConfig("crt.strength", 55)
+    v.__setConfig("crt.vignette", 10)
     v.__setConfig("crt.effects", ["roll", "scanlines"])
-    assert.deepStrictEqual(getCrtSettings(), { mask: "grille", pitch: "coarse", strength: 55, effects: ["scanlines", "roll"] })
+    assert.deepStrictEqual(getCrtSettings(), { mask: "grille", pitch: "coarse", strength: 55, vignette: 10, effects: ["scanlines", "roll"] })
   })
 
   // settings.json is hand-editable: VS Code shows a squiggle and passes the value through anyway.
@@ -41,7 +42,17 @@ describe("CRT settings", () => {
     v.__setConfig("crt.strength", 42.6)
     assert.strictEqual(getCrtSettings().strength, 43)
     v.__setConfig("crt.strength", "50")
-    assert.strictEqual(getCrtSettings().strength, 30)
+    assert.strictEqual(getCrtSettings().strength, 23)
+  })
+
+  // The glass darkened the edges at a fixed 62% black, which no setting reached.
+  it("clamps and rounds the edge darkening, and ignores non-numbers", () => {
+    v.__setConfig("crt.vignette", 150)
+    assert.strictEqual(getCrtSettings().vignette, 100)
+    v.__setConfig("crt.vignette", -1)
+    assert.strictEqual(getCrtSettings().vignette, 0)
+    v.__setConfig("crt.vignette", "dark")
+    assert.strictEqual(getCrtSettings().vignette, 35)
   })
 
   it("keeps known effects in a fixed order, drops unknown ones, allows none", () => {
@@ -59,6 +70,7 @@ describe("CRT settings", () => {
     assert.strictEqual(props["rabbithole.crt.mask"].default, CRT_DEFAULTS.mask)
     assert.strictEqual(props["rabbithole.crt.pitch"].default, CRT_DEFAULTS.pitch)
     assert.strictEqual(props["rabbithole.crt.strength"].default, CRT_DEFAULTS.strength)
+    assert.strictEqual(props["rabbithole.crt.vignette"].default, CRT_DEFAULTS.vignette)
     assert.deepStrictEqual(props["rabbithole.crt.effects"].default, CRT_DEFAULTS.effects)
   })
 })
@@ -71,6 +83,8 @@ describe("CRT values written from the dashboard", () => {
     assert.strictEqual(crtSettingValue("strength", 42.6), 43)
     assert.strictEqual(crtSettingValue("strength", -5), 0)
     assert.strictEqual(crtSettingValue("strength", "50"), null)
+    assert.strictEqual(crtSettingValue("vignette", 120), 100)
+    assert.strictEqual(crtSettingValue("vignette", "x"), null)
     assert.deepStrictEqual(crtSettingValue("effects", ["flicker", "bloom", "bogus"]), ["bloom", "flicker"])
     assert.strictEqual(crtSettingValue("effects", "bloom"), null)
     assert.strictEqual(crtSettingValue("colour", "red"), null)

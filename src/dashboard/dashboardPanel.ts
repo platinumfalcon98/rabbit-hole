@@ -246,11 +246,13 @@ export class DashboardPanel {
           </div>
           <span class="k"><label for="strength">strength</label></span>
           <div class="opts"><input id="strength" type="range" min="0" max="100" step="1"><output id="strength-out" for="strength"></output></div>
+          <span class="k"><label for="vignette">edges</label></span>
+          <div class="opts"><input id="vignette" type="range" min="0" max="100" step="1"><output id="vignette-out" for="vignette"></output></div>
           <span class="k">effects</span>
           <div class="opts" role="group" aria-label="Effects" data-key="effects">
             <button data-v="scanlines">scanlines</button><button data-v="bloom">bloom</button><button data-v="convergence">convergence</button><button data-v="roll">refresh roll</button><button data-v="flicker">flicker</button>
           </div>
-          <p class="why">Slot mask: staggered RGB slots, as on most consumer TVs and terminals. Aperture grille: unbroken vertical stripes (Trinitron). Shadow mask: round dot triads. Light themes get half the strength; high contrast turns the CRT off. Refresh roll and flicker stop when your system asks for reduced motion.</p>
+          <p class="why">Slot mask: staggered RGB slots, as on most consumer TVs and terminals. Aperture grille: unbroken vertical stripes (Trinitron). Shadow mask: round dot triads. Edges: how much the curved glass darkens the sides of the screen. Light themes get half the strength; high contrast turns the CRT off. Refresh roll and flicker stop when your system asks for reduced motion.</p>
         </div>
       </fieldset>
 

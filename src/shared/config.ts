@@ -49,7 +49,7 @@ const CRT_PITCHES: readonly CrtPitch[] = ["fine", "medium", "coarse"]
 const CRT_EFFECTS: readonly CrtEffect[] = ["scanlines", "bloom", "convergence", "roll", "flicker"]
 
 // Subtle by default: enough to read as a tube, never enough to cost legibility.
-export const CRT_DEFAULTS: CrtSettings = { mask: "slot", pitch: "fine", strength: 30, effects: ["scanlines", "bloom"] }
+export const CRT_DEFAULTS: CrtSettings = { mask: "slot", pitch: "fine", strength: 23, vignette: 35, effects: ["scanlines", "bloom"] }
 
 export function getCrtSettings(): CrtSettings {
   const cfg = vscode.workspace.getConfiguration("rabbithole")
@@ -61,6 +61,7 @@ export function getCrtSettings(): CrtSettings {
     pitch: CRT_PITCHES.includes(pitch as CrtPitch) ? (pitch as CrtPitch) : CRT_DEFAULTS.pitch,
     // clampMinutes is a generic integer clamp despite its name
     strength: clampMinutes(cfg.get("crt.strength"), CRT_DEFAULTS.strength, 0, 100),
+    vignette: clampMinutes(cfg.get("crt.vignette"), CRT_DEFAULTS.vignette, 0, 100),
     effects: Array.isArray(effects)
       ? CRT_EFFECTS.filter(e => effects.includes(e))
       : [...CRT_DEFAULTS.effects],
@@ -76,6 +77,7 @@ export function crtSettingValue(key: string, value: unknown): CrtMask | CrtPitch
     case "pitch":
       return CRT_PITCHES.includes(value as CrtPitch) ? (value as CrtPitch) : null
     case "strength":
+    case "vignette":
       return typeof value === "number" && isFinite(value) ? Math.min(100, Math.max(0, Math.round(value))) : null
     case "effects":
       return Array.isArray(value) ? CRT_EFFECTS.filter(e => value.includes(e)) : null

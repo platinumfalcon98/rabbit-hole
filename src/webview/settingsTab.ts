@@ -38,13 +38,15 @@ export function initSettings(store: Store, post: Post, openExport: () => void): 
       post({ type: "updateCrtSetting", key, value: v })
     }
   })
-  const strength = $<HTMLInputElement>("strength")
-  // preview while dragging; write once, on release
-  strength.addEventListener("input", () => {
-    $("strength-out").textContent = `${strength.value}%`
-    if (store.settings) applyCrt({ ...store.settings.crt, strength: Number(strength.value) })
-  })
-  strength.addEventListener("change", () => post({ type: "updateCrtSetting", key: "strength", value: Number(strength.value) }))
+  for (const key of ["strength", "vignette"] as const) {
+    const slider = $<HTMLInputElement>(key)
+    // preview while dragging; write once, on release
+    slider.addEventListener("input", () => {
+      $(`${key}-out`).textContent = `${slider.value}%`
+      if (store.settings) applyCrt({ ...store.settings.crt, [key]: Number(slider.value) })
+    })
+    slider.addEventListener("change", () => post({ type: "updateCrtSetting", key, value: Number(slider.value) }))
+  }
 
   document.querySelectorAll<HTMLButtonElement>("[data-act]").forEach(b => b.addEventListener("click", () => {
     const action = ACTIONS[b.dataset.act ?? ""]
@@ -93,10 +95,12 @@ export function renderSettings(store: Store, change: Change | "tab"): void {
         ? s.crt.effects.includes(b.dataset.v as CrtEffect)
         : b.dataset.v === (key === "mask" ? s.crt.mask : s.crt.pitch)))
     })
-    const strength = $<HTMLInputElement>("strength")
-    if (document.activeElement !== strength) {
-      strength.value = String(s.crt.strength)
-      $("strength-out").textContent = `${s.crt.strength}%`
+    for (const key of ["strength", "vignette"] as const) {
+      const slider = $<HTMLInputElement>(key)
+      if (document.activeElement !== slider) {
+        slider.value = String(s.crt[key])
+        $(`${key}-out`).textContent = `${s.crt[key]}%`
+      }
     }
   }
   // rebuilt only when the project list changes, so a pending choice survives the 10 s refresh

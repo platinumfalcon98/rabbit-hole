@@ -82,10 +82,12 @@ body {
 .crt-roll::before { content: ""; position: absolute; left: 0; right: 0; height: 28vh; top: -28vh;
   background: linear-gradient(to bottom, transparent, var(--roll) 70%, transparent); mix-blend-mode: screen; }
 .crt-glass { z-index: 53; border-radius: 34px / 28px;
-  box-shadow: 0 0 0 80px var(--bezel), inset 0 0 18px var(--vig), inset 0 0 120px var(--vig);
+  box-shadow: 0 0 0 80px var(--bezel), inset 0 0 18px var(--vig-c), inset 0 0 120px var(--vig-c);
   background:
     radial-gradient(ellipse 60% 35% at 28% 4%, var(--glare), transparent 70%),
-    radial-gradient(ellipse at 50% 50%, transparent 58%, var(--vig) 125%); }
+    radial-gradient(ellipse at 50% 50%, transparent 58%, var(--vig-c) 125%); }
+/* --vig is the theme's full-strength edge colour; rabbithole.crt.vignette scales it */
+.crt-glass { --vig-c: color-mix(in srgb, var(--vig) calc(var(--vig-k, .35) * 100%), transparent); }
 html:not(.fx-scan) .crt-scan, html:not(.fx-roll) .crt-roll, html.mask-off #mask { display: none; }
 @media (prefers-reduced-motion: no-preference) {
   html.fx-roll .crt-roll::before { animation: roll 7.5s linear infinite; }

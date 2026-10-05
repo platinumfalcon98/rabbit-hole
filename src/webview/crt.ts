@@ -13,6 +13,7 @@ export function themeOf(classes: string): Theme {
 export interface CrtParams {
   off: boolean
   s: number        // mask strength, 0–1
+  vig: number      // edge darkening, 0–1
   unit: number     // one phosphor column, in CSS px before devicePixelRatio
   boost: number    // brightness given back for what the mask removes
   line: number     // scanline period, px
@@ -30,6 +31,8 @@ export function crtParams(c: CrtSettings, theme: Theme): CrtParams {
   return {
     off,
     s,
+    // independent of the mask: the glass is there with the mask off too
+    vig: theme === "hc" ? 0 : Math.max(0, Math.min(100, c.vignette)) / 100,
     unit,
     boost: off ? 1 : Number((1 + s * (c.mask === "shadow" ? 1.1 : 0.85)).toFixed(3)),
     line: 3 * unit,
@@ -52,6 +55,7 @@ export function applyCrt(next: CrtSettings | null): void {
   // set on body: the theme tokens live on body classes, and inline beats them
   body.style.setProperty("--boost", String(p.boost))
   body.style.setProperty("--line", `${p.line}px`)
+  body.style.setProperty("--vig-k", String(p.vig))
   body.style.setProperty("--conv", p.fx.conv ? "-.6px 0 0 rgba(255,40,70,.32), .6px 0 0 rgba(40,150,255,.32)" : "0 0 0 transparent")
   if (p.fx.glow) body.style.removeProperty("--glow")
   else body.style.setProperty("--glow", "0 0 0 transparent")

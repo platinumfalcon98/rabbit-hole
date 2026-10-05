@@ -5,32 +5,40 @@ import { crtParams, themeOf } from "crt"
 // @ts-ignore — esbuild alias to src/webview/focus.ts
 import { focusSelector, hlOf, parseHl, sameFocus } from "focus"
 
-const C = (o: any = {}): any => ({ mask: "slot", pitch: "fine", strength: 30, effects: ["scanlines", "bloom"], ...o })
+const C = (o: any = {}): any => ({ mask: "slot", pitch: "fine", strength: 23, vignette: 35, effects: ["scanlines", "bloom"], ...o })
 
 describe("crt parameters", () => {
   it("the default is a subtle slot mask with scanlines and bloom", () => {
     const p = crtParams(C(), "dark")
     assert.strictEqual(p.off, false)
-    assert.strictEqual(p.s, 0.3)
-    assert.strictEqual(p.boost, 1.255)
+    assert.strictEqual(p.s, 0.23)
+    assert.strictEqual(p.boost, 1.196)
+    assert.strictEqual(p.vig, 0.35)
     assert.strictEqual(p.line, 3)
     assert.deepStrictEqual(p.fx, { scan: true, roll: false, flicker: false, conv: false, glow: true })
   })
 
   it("paper screens get half the mask", () => {
-    assert.strictEqual(crtParams(C(), "light").s, 0.15)
+    assert.strictEqual(crtParams(C(), "light").s, 0.115)
   })
 
   it("high contrast gets nothing at all", () => {
     const p = crtParams(C({ effects: ["scanlines", "bloom", "convergence", "roll", "flicker"] }), "hc")
     assert.strictEqual(p.off, true)
     assert.strictEqual(p.boost, 1)
+    assert.strictEqual(p.vig, 0)
     assert.deepStrictEqual(p.fx, { scan: false, roll: false, flicker: false, conv: false, glow: false })
   })
 
   it("mask off or zero strength gives the light back", () => {
     assert.strictEqual(crtParams(C({ mask: "off" }), "dark").boost, 1)
     assert.strictEqual(crtParams(C({ strength: 0 }), "dark").off, true)
+  })
+
+  it("the edge darkening follows its own setting, even with the mask off", () => {
+    assert.strictEqual(crtParams(C({ vignette: 0 }), "dark").vig, 0)
+    assert.strictEqual(crtParams(C({ vignette: 100, mask: "off" }), "dark").vig, 1)
+    assert.strictEqual(crtParams(C({ vignette: 250 }), "light").vig, 1)
   })
 
   it("pitch scales the cells and the scanline period", () => {

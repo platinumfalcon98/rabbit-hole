@@ -107,6 +107,7 @@ export interface CrtSettings {
   mask: CrtMask
   pitch: CrtPitch
   strength: number      // 0–100
+  vignette: number      // 0–100, how much the glass darkens the edges
   effects: CrtEffect[]  // canonical order, no duplicates
 }
 
@@ -132,7 +133,7 @@ export type WebviewMessage =
   | { type: "writeJpg"; base64: string; projectName: string }
   | { type: "updateSetting"; key: "dailyTargetMinutes" | "idleThresholdMinutes"; value: number }
   | { type: "updateProjectSetting"; projectId: string; key: "dailyTargetMinutes"; value: number | null }
-  | { type: "updateCrtSetting"; key: "mask" | "pitch" | "strength" | "effects"; value: string | number | string[] }
+  | { type: "updateCrtSetting"; key: "mask" | "pitch" | "strength" | "vignette" | "effects"; value: string | number | string[] }
   | { type: "revealStorage" }
   | { type: "createBackup"; scope: "projects" | "all" }
   | { type: "importData"; scope: "projects" | "all" }
