@@ -19,6 +19,8 @@ import { initTape } from "./tape"
 import { initActivity, renderActivity } from "./activityTab"
 import { initHeat } from "./heatmap"
 import { initCards, renderCards } from "./projectCards"
+import { initExport, onExportData, openExport } from "./exportDialog"
+import { initSettings, renderSettings } from "./settingsTab"
 
 declare function acquireVsCodeApi(): {
   postMessage(m: WebviewMessage): void
@@ -95,6 +97,11 @@ function openInOverview(id: string): void {
 }
 initCards(store, post, () => renderCards(store, openInOverview))
 tabs.projects = () => renderCards(store, openInOverview)
+
+initExport(store, post)
+extra.push(onExportData)
+initSettings(store, post, openExport)
+tabs.settings = () => renderSettings(store)
 
 // ── start ──
 initTooltip($("tip"))
