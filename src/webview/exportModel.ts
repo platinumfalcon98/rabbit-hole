@@ -4,7 +4,7 @@
 import type { ActivitySession, RangePayload, YearPayload } from "../shared/types"
 import { addDaysKey, clock, dstr, shortDate, splitPath } from "./format"
 import { heatCells, heatLevel, tapeCellCount } from "./layout"
-import { Selection, TapeCell, TapeWindow, buildView, dayKey, seriesFor, storedStreak, tapeCells, tapeWindow } from "./model"
+import { Mark, Selection, TapeCell, TapeWindow, buildView, dayKey, recentMarks, seriesFor, storedStreak, tapeCells, tapeWindow } from "./model"
 
 export type Format = "card" | "report" | "csv" | "json"
 export type Span = "today" | "7d" | "30d" | "90d"
@@ -50,7 +50,7 @@ export interface ExportDay { date: string; ms: number; met: boolean; today: bool
 export interface ExportLang { name: string; ms: number; added: number; deleted: number; color: string }
 export interface ExportSession { start: number; end: number; activeMs: number; languages: string[]; project: string }
 export interface ExportFile { dir: string; name: string; added: number; deleted: number }
-export type Mark = "met" | "miss" | "today"
+export type { Mark }
 export interface Tape { win: TapeWindow; cells: TapeCell[] }
 export interface HeatCell { date: string; level: 0 | 1 | 2 | 3 | 4; today: boolean }
 
@@ -128,10 +128,7 @@ export function exportData(range: RangePayload, year: YearPayload, sel: Selectio
     project: name(s.projectId),
   }))
 
-  const marks: Mark[] = []
-  for (let i = Math.max(0, n - 14); i < n; i++) {
-    marks.push(i === n - 1 ? "today" : series.active[i] >= series.targetMs[i] ? "met" : "miss")
-  }
+  const marks = recentMarks(series, 14)
   const heatWeeks = span === "90d" ? 13 : span === "30d" ? 5 : 0
 
   return {

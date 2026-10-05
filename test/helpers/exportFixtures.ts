@@ -118,3 +118,8 @@ export function sampleWorld(): { year: any; range: any } {
   cli[TODAY] = { ms: 28 * MIN, langs: { go: [21 * MIN, 31, 8], markdown: [7 * MIN, 4, 0] }, files: [["/work/rabbithole-cli/cmd/rabbithole/main.go", 31, 8]], sessions: [[17 * 60 + 18, 33, 28, { go: 21 * MIN, markdown: 7 * MIN }]] }
   return world({ "rabbit-hole": rh, "rabbithole-cli": cli }, { globalStreak: 12, streaks: { "rabbit-hole": 9, "rabbithole-cli": 2 } })
 }
+
+// Today's log per project, as the host's sidebar payload carries them.
+export function todayLogs(w: { range: any }): Record<string, any> {
+  return Object.fromEntries(Object.entries(w.range.logs).map(([id, list]: [string, any]) => [id, list[list.length - 1]]))
+}

@@ -186,6 +186,11 @@ const SUITES = [
     entry: "test/shared.statusText.test.ts",
     alias: { statusText: "src/shared/statusText.ts" },
   },
+  {
+    name: "mini",
+    entry: "test/webview.mini.test.ts",
+    alias: { miniModel: "src/webview/miniModel.ts" },
+  },
 ]
 
 function parseArgs(argv) {

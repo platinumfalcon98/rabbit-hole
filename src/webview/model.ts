@@ -222,6 +222,17 @@ export function streakInfo(s: Series, current: number): StreakInfo {
   }
 }
 
+export type Mark = "met" | "miss" | "today"
+
+// The last n days against each day's own target. Today is still being earned,
+// so it gets its own mark; callers show whether it is met yet.
+export function recentMarks(s: Series, n: number): Mark[] {
+  const len = s.days.length
+  const out: Mark[] = []
+  for (let i = Math.max(0, len - n); i < len; i++) out.push(i === len - 1 ? "today" : s.active[i] >= s.targetMs[i] ? "met" : "miss")
+  return out
+}
+
 export interface YearStats {
   activeDays: number
   totalMs: number
