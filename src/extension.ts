@@ -7,17 +7,10 @@ import { handleMessage, onConfigChanged, postYear } from "./dashboard/messageHan
 import { buildLive } from "./dashboard/payloads"
 import { MirrorService } from "./tracker/mirrorService"
 import { getDailyTargetMs } from "./shared/config"
+import { statusText } from "./shared/statusText"
 import { WebviewMessage } from "./shared/types"
 
 let mirror: MirrorService | null = null
-
-function formatDuration(ms: number): string {
-  const totalMinutes = Math.floor(ms / 60_000)
-  const hours = Math.floor(totalMinutes / 60)
-  const minutes = totalMinutes % 60
-  if (hours > 0) return `${hours}h ${minutes}m`
-  return `${minutes}m`
-}
 
 export function activate(context: vscode.ExtensionContext): void {
   const storage = new StorageService(context)
@@ -73,9 +66,7 @@ export function activate(context: vscode.ExtensionContext): void {
   statusBar.tooltip = "Rabbit Hole — click to open dashboard"
 
   const refreshStatusBar = () => {
-    const global = storage.getGlobalToday()
-    const activeText = formatDuration(global.activeTime)
-    statusBar.text = `🥕 ${activeText} / ${formatDuration(getDailyTargetMs())}`
+    statusBar.text = statusText(storage.getGlobalToday().activeTime, getDailyTargetMs())
     statusBar.color = tracker.isActivelyTracking ? "#22c55e" : undefined
   }
 

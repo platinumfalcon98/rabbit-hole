@@ -181,6 +181,11 @@ const SUITES = [
     entry: "test/webview.report.test.ts",
     alias: { exportModel: "src/webview/exportModel.ts", report: "src/webview/reportPdf.ts" },
   },
+  {
+    name: "status",
+    entry: "test/shared.statusText.test.ts",
+    alias: { statusText: "src/shared/statusText.ts" },
+  },
 ]
 
 function parseArgs(argv) {
