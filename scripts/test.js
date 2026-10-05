@@ -83,6 +83,11 @@ const SUITES = [
     },
   },
   {
+    name: "carrot",
+    entry: "test/webview.carrot.test.ts",
+    alias: { carrot: "src/webview/carrot.ts" },
+  },
+  {
     name: "handler",
     entry: "test/dashboard.handler.test.ts",
     alias: {
