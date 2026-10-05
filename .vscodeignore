@@ -28,3 +28,4 @@ package-lock.json
 **/*.vsix
 docs/
 .superpowers/
+*.log
