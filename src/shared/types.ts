@@ -99,6 +99,16 @@ export interface LivePayload {
   streaks: Record<string, number>
 }
 
+// ── The Activity Bar sidebar ──────────────────────────────────────────────
+// Rebuilt whole on every 10 s tick while the sidebar is visible: it never
+// merges updates, so a wipe, an import or midnight can't leave it stale.
+export interface MiniPayload {
+  year: YearPayload
+  logs: Record<string, DailyLog>   // today's log for every registered project
+  here: string | null              // the name of the project this window works in
+}
+export type MiniMessage = { type: "ready" } | { type: "openDashboard" }
+
 // ── CRT display (dashboard + sidebar) ─────────────────────────────────────
 export type CrtMask = "slot" | "grille" | "shadow" | "off"
 export type CrtPitch = "fine" | "medium" | "coarse"
@@ -120,6 +130,7 @@ export type ExtensionMessage =
   | { type: "rangeRefused"; from: string; to: string; for?: "export" }
   | ({ type: "live" } & LivePayload)
   | { type: "actionResult"; ok: boolean; lines: string[] }
+  | ({ type: "mini" } & MiniPayload)
 
 
 export type WebviewMessage =

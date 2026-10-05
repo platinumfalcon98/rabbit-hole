@@ -2,7 +2,7 @@ import { after, describe, it } from "node:test"
 import * as assert from "node:assert"
 import { MIN, PROJECTS_KEY, cleanupStorageRoot, daysAgo, log, makeStore, proj, today } from "./helpers/store"
 // @ts-ignore — esbuild alias to src/dashboard/payloads.ts
-import { MAX_RANGE_DAYS, buildLive, buildRange, buildYear, yearStart } from "payloads"
+import { MAX_RANGE_DAYS, buildLive, buildMini, buildRange, buildYear, yearStart } from "payloads"
 
 after(cleanupStorageRoot)
 
@@ -105,5 +105,21 @@ describe("live payload", () => {
     const l = buildLive(store(), new Date())
     assert.strictEqual(l.globalStreak, 6)
     assert.deepStrictEqual(l.streaks, { alpha: 4, beta: 0 })
+  })
+})
+
+// The sidebar redraws everything from one message, so its parts must agree on the day.
+describe("sidebar payload", () => {
+  it("carries the year and today's log for every project, all for the same day", () => {
+    const m = buildMini(store(), new Date(), TARGET)
+    assert.strictEqual(m.year.today, today)
+    assert.deepStrictEqual(Object.keys(m.logs).sort(), ["alpha", "beta"])
+    assert.ok(Object.values(m.logs).every((l: any) => l.date === today))
+    assert.strictEqual(m.logs.alpha.activeTime, 30 * MIN)
+    assert.strictEqual(m.logs.beta.activeTime, 0)
+  })
+
+  it("names the project this window works in", () => {
+    assert.strictEqual(buildMini(store(), new Date(), TARGET).here, "alpha")
   })
 })

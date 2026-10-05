@@ -1,6 +1,6 @@
 // Message payloads for the TTY webviews. Pure reads over StorageService — no
 // vscode APIs — so they are unit-tested directly.
-import type { DailyLog, LivePayload, ProjectYear, RangePayload, YearPayload } from "../shared/types"
+import type { DailyLog, LivePayload, MiniPayload, ProjectYear, RangePayload, YearPayload } from "../shared/types"
 import { StorageService, dateKey } from "../tracker/storageService"
 
 // The calendar picker's limit. A range request is a full per-project read, so
@@ -96,4 +96,12 @@ export function buildLive(storage: StorageService, now: Date): LivePayload {
     globalStreak: global.streak,
     streaks,
   }
+}
+
+export function buildMini(storage: StorageService, now: Date, globalTargetMs: number): MiniPayload {
+  const today = dateKey(now)
+  const logs: Record<string, DailyLog> = {}
+  for (const p of storage.getProjects()) logs[p.id] = storage.getRangeByDates(today, today, p.id)[0]
+  const here = storage.getProjects().find(p => p.id === storage.getCurrentProjectId())?.name ?? null
+  return { year: buildYear(storage, now, globalTargetMs), logs, here }
 }

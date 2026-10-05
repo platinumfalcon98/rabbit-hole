@@ -2,7 +2,7 @@ import * as fs from "fs/promises"
 import * as os from "os"
 import * as vscode from "vscode"
 import { ExportExt, safeFileName } from "../shared/exportName"
-import { WebviewMessage } from "../shared/types"
+import { ExtensionMessage, WebviewMessage } from "../shared/types"
 import { crtSettingValue, getCrtSettings, getDailyTargetMinutes, getDailyTargetMs, getIdleThresholdMs } from "../shared/config"
 import {
   PROJECTS_KEY,
@@ -300,7 +300,10 @@ function refreshAfterWipe(storage: StorageService, panel: DashboardPanel): void 
   postYear(storage, panel)
 }
 
-export function sendSettings(storage: StorageService, panel: DashboardPanel): void {
+// Anything a message can be posted to: the dashboard panel or the sidebar view.
+export interface Poster { postMessage(message: ExtensionMessage): void }
+
+export function sendSettings(storage: StorageService, panel: Poster): void {
   const dailyTargetMinutes = getDailyTargetMinutes()
   panel.postMessage({
     type: "settings",

@@ -191,6 +191,15 @@ const SUITES = [
     entry: "test/webview.mini.test.ts",
     alias: { miniModel: "src/webview/miniModel.ts" },
   },
+  {
+    name: "minihandler",
+    entry: "test/dashboard.mini.test.ts",
+    alias: {
+      vscode: "test/stubs/vscodeHost.ts",
+      storage: "src/tracker/storageService.ts",
+      miniHandler: "src/dashboard/miniHandler.ts",
+    },
+  },
 ]
 
 function parseArgs(argv) {
