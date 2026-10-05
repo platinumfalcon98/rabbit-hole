@@ -74,6 +74,12 @@ const SUITES = [
     alias: { model: "src/webview/model.ts" },
   },
   {
+    name: "dst",
+    entry: "test/webview.dst.test.ts",
+    alias: { model: "src/webview/model.ts" },
+    env: { TZ: "America/New_York" },
+  },
+  {
     name: "view",
     entry: "test/webview.view.test.ts",
     alias: {
@@ -256,6 +262,7 @@ function main() {
     const run = spawnSync(process.execPath, ["--test", "--test-reporter=spec", bundle], {
       stdio: "inherit",
       cwd: root,
+      env: { ...process.env, ...suite.env },
     })
     if (run.status !== 0) failed.push(suite.name)
   }

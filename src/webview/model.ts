@@ -272,11 +272,35 @@ function segmentsOf(s: ActivitySession, now: number): [number, number][] {
   return end > s.startTime ? [[s.startTime, end]] : []
 }
 
-// Minutes since local midnight of the day the session started (sessions are split at midnight).
+// Clock minutes of `t` on the day the session started (sessions are split at
+// midnight, so the next midnight is 1440). The clock, not minutes elapsed since
+// midnight: after a daylight-saving change the two differ by an hour.
 function minuteOf(s: ActivitySession, t: number): number {
   const day = new Date(s.startTime)
   day.setHours(0, 0, 0, 0)
-  return Math.min(24 * 60, (t - day.getTime()) / 60_000)
+  const next = new Date(day)
+  next.setDate(next.getDate() + 1)
+  if (t >= next.getTime()) return 24 * 60
+  if (t <= day.getTime()) return 0
+  const d = new Date(t)
+  return d.getHours() * 60 + d.getMinutes() + (d.getSeconds() * 1000 + d.getMilliseconds()) / 60_000
+}
+
+// A segment as clock-minute spans, cut where the UTC offset changes so each piece
+// maps to the clock in a straight line: the hour skipped in spring is drawn as
+// nothing, the hour repeated in autumn is drawn twice. Pieces keep the real length.
+function clockSpans(s: ActivitySession, a: number, b: number): [number, number][] {
+  const off = (t: number) => new Date(t).getTimezoneOffset()
+  if (off(a) === off(b)) return [[minuteOf(s, a), minuteOf(s, b)]]
+  let lo = a
+  let hi = b
+  while (hi - lo > 1) {
+    const mid = Math.floor((lo + hi) / 2)
+    if (off(mid) === off(a)) lo = mid
+    else hi = mid
+  }
+  const start = minuteOf(s, a)
+  return [[start, start + (hi - a) / 60_000], ...clockSpans(s, hi, b)]
 }
 
 // 07:00–19:00, widened to whole hours that cover every session shown, so night
@@ -285,9 +309,11 @@ export function tapeWindow(sessions: ActivitySession[], cells: number, now: numb
   let start = 7 * 60
   let end = 19 * 60
   for (const s of sessions) {
-    for (const [a, b] of segmentsOf(s, now)) {
-      start = Math.min(start, Math.floor(minuteOf(s, a) / 60) * 60)
-      end = Math.max(end, Math.ceil(minuteOf(s, b) / 60) * 60)
+    for (const [sa, sb] of segmentsOf(s, now)) {
+      for (const [a, b] of clockSpans(s, sa, sb)) {
+        start = Math.min(start, Math.floor(a / 60) * 60)
+        end = Math.max(end, Math.ceil(b / 60) * 60)
+      }
     }
   }
   return { startMin: start, endMin: end, cells, cellMin: (end - start) / cells }
@@ -303,9 +329,7 @@ function sumCells(sessions: ActivitySession[], win: TapeWindow, now: number) {
     if (spanMin <= 0 || s.activeTime <= 0) continue
     const perMin = s.activeTime / spanMin
     const langTotal = Object.values(s.languages ?? {}).reduce((n, v) => n + v, 0)
-    for (const [sa, sb] of segs) {
-      const a = minuteOf(s, sa)
-      const b = minuteOf(s, sb)
+    for (const [a, b] of segs.flatMap(([sa, sb]) => clockSpans(s, sa, sb))) {
       for (let i = 0; i < win.cells; i++) {
         const c0 = win.startMin + i * win.cellMin
         const overlap = Math.max(0, Math.min(b, c0 + win.cellMin) - Math.max(a, c0))
