@@ -16,6 +16,8 @@ import { initLines } from "./lines"
 import { renderOverview } from "./overview"
 import { initCols } from "./rangeColumns"
 import { initTape } from "./tape"
+import { initActivity, renderActivity } from "./activityTab"
+import { initHeat } from "./heatmap"
 
 declare function acquireVsCodeApi(): {
   postMessage(m: WebviewMessage): void
@@ -80,6 +82,10 @@ wireFocus($("ov"), {
   set: f => store.setFocus(f),
 })
 tabs.overview = () => renderOverview(store, openDay, backToRange)
+
+initHeat()
+initActivity(store)
+tabs.activity = () => renderActivity(store)
 
 // ── start ──
 initTooltip($("tip"))
