@@ -106,3 +106,54 @@ describe("CRT writes", () => {
     assert.ok(types().includes("settings"))
   })
 })
+
+// Files are written by the host from bytes the webview sends, under a name the
+// webview suggests and the host sanitises.
+describe("export files", () => {
+  const b64 = Buffer.from("fake jpeg bytes").toString("base64")
+  const result = () => posted.find(m => m.type === "actionResult")
+
+  it("a share card is offered under the suggested name and written, and the console hears where", async () => {
+    v.__saveTo("/picked/card.jpg")
+    handleMessage({ type: "writeFile", kind: "jpg", base64: b64, name: "rabbithole-alpha-2026-10-05.jpg" } as any, store(), panel)
+    await settle()
+    assert.strictEqual(v.calls.saveOptions[0].defaultUri.fsPath, "rabbithole-alpha-2026-10-05.jpg")
+    assert.deepStrictEqual(Object.values(v.calls.saveOptions[0].filters), [["jpg", "jpeg"]])
+    assert.strictEqual(Buffer.from(v.calls.writes[0].bytes).toString(), "fake jpeg bytes")
+    assert.ok(result().ok && /Saved \/picked\/card\.jpg/.test(result().lines[0]))
+  })
+
+  it("a name from the webview can't point outside the folder or change the type", async () => {
+    handleMessage({ type: "writeFile", kind: "pdf", base64: b64, name: "..\\..\\Windows\\evil.exe" } as any, store(), panel)
+    await settle()
+    assert.strictEqual(v.calls.saveOptions[0].defaultUri.fsPath, "evil.pdf")
+  })
+
+  it("cancelling the save dialog writes nothing and says so", async () => {
+    handleMessage({ type: "writeFile", kind: "pdf", base64: b64, name: "r.pdf" } as any, store(), panel)
+    await settle()
+    assert.strictEqual(v.calls.writes.length, 0)
+    assert.match(result().lines[0], /cancelled/)
+  })
+
+  it("an empty file or an unknown kind is refused before any dialog opens", async () => {
+    handleMessage({ type: "writeFile", kind: "jpg", base64: "", name: "x.jpg" } as any, store(), panel)
+    handleMessage({ type: "writeFile", kind: "exe", base64: b64, name: "x.exe" } as any, store(), panel)
+    await settle()
+    assert.strictEqual(v.calls.saveDialogs, 0)
+    assert.strictEqual(result().ok, false)
+  })
+
+  it("csv and json are offered under the dialog's name too", async () => {
+    handleMessage({ type: "export", format: "csv", from: today, to: today, name: "rabbithole-all-projects-x.csv" } as any, store(), panel)
+    await settle()
+    assert.strictEqual(v.calls.saveOptions[0].defaultUri.fsPath, "rabbithole-all-projects-x.csv")
+  })
+
+  it("an export's own fetch is tagged in the reply; the dashboard's is not", () => {
+    handleMessage({ type: "requestDays", from: today, to: today, for: "export" } as any, store(), panel)
+    handleMessage({ type: "requestDays", from: today, to: today } as any, store(), panel)
+    handleMessage({ type: "requestDays", from: "1990-01-01", to: today, for: "export" } as any, store(), panel)
+    assert.deepStrictEqual(posted.map(m => [m.type, m.for]), [["range", "export"], ["range", undefined], ["rangeRefused", "export"]])
+  })
+})

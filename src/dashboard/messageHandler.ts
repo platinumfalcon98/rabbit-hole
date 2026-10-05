@@ -1,5 +1,7 @@
 import * as fs from "fs/promises"
+import * as os from "os"
 import * as vscode from "vscode"
+import { ExportExt, safeFileName } from "../shared/exportName"
 import { WebviewMessage } from "../shared/types"
 import { crtSettingValue, getCrtSettings, getDailyTargetMinutes, getDailyTargetMs, getIdleThresholdMs } from "../shared/config"
 import {
@@ -11,6 +13,10 @@ import {
 } from "../tracker/storageService"
 import { DashboardPanel } from "./dashboardPanel"
 import { MAX_RANGE_DAYS, buildRange, buildYear, isValidRange } from "./payloads"
+
+// A 3× share card is about 1 MB and a report a few hundred KB; anything near
+// this is not something the dialog drew.
+const MAX_FILE_BASE64 = 40 * 1024 * 1024
 
 function todayStr(): string {
   const d = new Date()
@@ -67,9 +73,11 @@ export function handleMessage(
 
     case "requestDays": {
       const range = buildRange(storage, msg.from, msg.to)
+      // the export dialog's fetch is tagged so the dashboard's view never adopts it
+      const tag = msg.for === "export" ? { for: "export" as const } : {}
       panel.postMessage(range
-        ? { type: "range", ...range }
-        : { type: "rangeRefused", from: msg.from, to: msg.to })
+        ? { type: "range", ...range, ...tag }
+        : { type: "rangeRefused", from: msg.from, to: msg.to, ...tag })
       break
     }
 
@@ -82,8 +90,22 @@ export function handleMessage(
       const content = msg.format === "csv"
         ? storage.exportCSV(msg.from, msg.to, msg.projectId)
         : storage.exportJSON(msg.from, msg.to, msg.projectId)
-      const ext = msg.format === "csv" ? "csv" : "json"
-      writeExport(content, ext)
+      void saveFile(panel, new TextEncoder().encode(content), safeFileName(msg.name ?? "rabbit-hole-export", msg.format), msg.format)
+      break
+    }
+
+    case "writeFile": {
+      // The webview is trusted with drawing, not with the file system.
+      if (msg.kind !== "jpg" && msg.kind !== "pdf") {
+        tell(panel, false, "Rabbit Hole: Export failed: unknown file type.")
+        break
+      }
+      const bytes = typeof msg.base64 === "string" && msg.base64.length <= MAX_FILE_BASE64 ? Buffer.from(msg.base64, "base64") : null
+      if (!bytes || bytes.length === 0) {
+        tell(panel, false, "Rabbit Hole: Export failed: the file was empty or too large.")
+        break
+      }
+      void saveFile(panel, bytes, safeFileName(msg.name, msg.kind), msg.kind)
       break
     }
 
@@ -424,24 +446,26 @@ async function writeJpgExport(base64: string, projectName: string): Promise<void
   vscode.window.showInformationMessage(`Rabbit Hole: Card exported to ${uri.fsPath}`)
 }
 
-async function writeExport(content: string, ext: string): Promise<void> {
-  const defaultUri = vscode.workspace.workspaceFolders?.[0]?.uri
-    ? vscode.Uri.joinPath(
-        vscode.workspace.workspaceFolders[0].uri,
-        `rabbit-hole-export.${ext}`
-      )
-    : undefined
+const FILTERS: Record<ExportExt, Record<string, string[]>> = {
+  jpg: { "JPEG Images": ["jpg", "jpeg"] },
+  pdf: { "PDF Files": ["pdf"] },
+  csv: { "CSV Files": ["csv"] },
+  json: { "JSON Files": ["json"] },
+}
 
-  const uri = await vscode.window.showSaveDialog({
-    defaultUri,
-    filters: ext === "csv"
-      ? { "CSV Files": ["csv"] }
-      : { "JSON Files": ["json"] },
-  })
-
-  if (!uri) return
-
-  const encoder = new TextEncoder()
-  await vscode.workspace.fs.writeFile(uri, encoder.encode(content))
-  vscode.window.showInformationMessage(`Rabbit Hole: Exported to ${uri.fsPath}`)
+// Every export ends in an actionResult, so the dialog and the settings console
+// always hear how it went.
+async function saveFile(panel: DashboardPanel, bytes: Uint8Array, name: string, ext: ExportExt): Promise<void> {
+  const folder = vscode.workspace.workspaceFolders?.[0]?.uri ?? vscode.Uri.file(os.homedir())
+  const uri = await vscode.window.showSaveDialog({ defaultUri: vscode.Uri.joinPath(folder, name), filters: FILTERS[ext] })
+  if (!uri) {
+    panel.postMessage({ type: "actionResult", ok: true, lines: ["export cancelled, nothing written"] })
+    return
+  }
+  try {
+    await vscode.workspace.fs.writeFile(uri, bytes)
+    tell(panel, true, `Rabbit Hole: Saved ${uri.fsPath}`)
+  } catch (err) {
+    tell(panel, false, `Rabbit Hole: Couldn't save ${uri.fsPath}: ${err instanceof Error ? err.message : String(err)}`)
+  }
 }

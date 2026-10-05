@@ -164,3 +164,18 @@ describe("store: helpers", () => {
     assert.strictEqual(s.console[0].text, "line 3")
   })
 })
+
+// The export dialog fetches its own 90 days; that reply must never become the
+// dashboard's view data, even when its dates would cover the view.
+describe("store: replies tagged for the export dialog", () => {
+  it("ignores a tagged range and a tagged refusal", () => {
+    s.receive(year("2026-10-03", OCT3))
+    const span = fetchSpan("2026-10-03", "2026-10-03")
+    s.receive({ ...rangeMsg(span.from, span.to), for: "export" })
+    assert.strictEqual(s.days(), null)
+    s.receive({ type: "rangeRefused", ...span, for: "export" })
+    assert.strictEqual(s.refused, false)
+    s.receive(rangeMsg(span.from, span.to))
+    assert.notStrictEqual(s.days(), null)
+  })
+})

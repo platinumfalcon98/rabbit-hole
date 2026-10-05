@@ -105,6 +105,7 @@ export class Store {
         break
       }
       case "range": {
+        if (msg.for) break   // the export dialog's own fetch
         // a reply to an older request is dropped unless it still covers the view
         const span = fetchSpan(this.view.from, this.view.to)
         if (msg.from > span.from || msg.to < span.to) break
@@ -113,6 +114,7 @@ export class Store {
         break
       }
       case "rangeRefused": {
+        if (msg.for) break
         const span = fetchSpan(this.view.from, this.view.to)
         if (msg.from === span.from && msg.to === span.to) {
           this.refused = true

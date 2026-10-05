@@ -161,6 +161,11 @@ const SUITES = [
     entry: "test/webview.fonts.test.ts",
     alias: { textFit: "src/webview/textFit.ts" },
   },
+  {
+    name: "exportname",
+    entry: "test/shared.exportName.test.ts",
+    alias: { exportName: "src/shared/exportName.ts" },
+  },
 ]
 
 function parseArgs(argv) {
