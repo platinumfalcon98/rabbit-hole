@@ -8,6 +8,14 @@ import { Change, Store, Tab } from "./state"
 import { hideTip, initTooltip } from "./tooltip"
 import { initDatePicker, renderRangeButtons } from "./datePicker"
 import { initProjectPicker, renderProjectButton } from "./projectPicker"
+import type { RangeId } from "./calendar"
+import { wireFocus } from "./focus"
+import { addDaysKey } from "./format"
+import { initFiles } from "./files"
+import { initLines } from "./lines"
+import { renderOverview } from "./overview"
+import { initCols } from "./rangeColumns"
+import { initTape } from "./tape"
 
 declare function acquireVsCodeApi(): {
   postMessage(m: WebviewMessage): void
@@ -50,6 +58,28 @@ bar.push(() => {
   renderProjectButton(store)
   renderRangeButtons(store)
 })
+
+// a column opens its day; "back to range" returns to where it came from
+function openDay(date: string): void {
+  const v = store.view
+  const today = store.year?.today ?? date
+  const preset: RangeId | null = date === today ? "today" : date === addDaysKey(today, -1) ? "yday" : null
+  store.setView(date, date, preset, { from: v.from, to: v.to, preset: v.preset })
+}
+function backToRange(): void {
+  const b = store.view.back
+  if (b) store.setView(b.from, b.to, b.preset)
+}
+initTape()
+initLines()
+initFiles()
+initCols()
+wireFocus($("ov"), {
+  allowProject: () => store.view.sel === "all",
+  current: () => store.view.focus,
+  set: f => store.setFocus(f),
+})
+tabs.overview = () => renderOverview(store, openDay, backToRange)
 
 // ── start ──
 initTooltip($("tip"))
