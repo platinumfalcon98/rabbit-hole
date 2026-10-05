@@ -98,6 +98,11 @@ const SUITES = [
     alias: { crt: "src/webview/crt.ts", focus: "src/webview/focus.ts" },
   },
   {
+    name: "stepper",
+    entry: "test/webview.stepper.test.ts",
+    alias: { stepper: "src/webview/stepper.ts" },
+  },
+  {
     name: "handler",
     entry: "test/dashboard.handler.test.ts",
     alias: {

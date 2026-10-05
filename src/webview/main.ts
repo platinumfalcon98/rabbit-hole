@@ -18,6 +18,7 @@ import { initCols } from "./rangeColumns"
 import { initTape } from "./tape"
 import { initActivity, renderActivity } from "./activityTab"
 import { initHeat } from "./heatmap"
+import { initCards, renderCards } from "./projectCards"
 
 declare function acquireVsCodeApi(): {
   postMessage(m: WebviewMessage): void
@@ -86,6 +87,14 @@ tabs.overview = () => renderOverview(store, openDay, backToRange)
 initHeat()
 initActivity(store)
 tabs.activity = () => renderActivity(store)
+
+function openInOverview(id: string): void {
+  store.setSelection(id)
+  showTab("overview")
+  window.scrollTo(0, 0)
+}
+initCards(store, post, () => renderCards(store, openInOverview))
+tabs.projects = () => renderCards(store, openInOverview)
 
 // ── start ──
 initTooltip($("tip"))
