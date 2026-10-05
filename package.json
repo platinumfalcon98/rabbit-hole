@@ -4,6 +4,8 @@
   "description": "Dev time intelligence — automatic tracking, AI agent attribution, activity dashboard",
   "version": "0.5.0",
   "publisher": "rabbit-hole",
+  "icon": "resources/icon.png",
+  "galleryBanner": { "color": "#06090a", "theme": "dark" },
   "license": "MIT",
   "repository": {
     "type": "git",
