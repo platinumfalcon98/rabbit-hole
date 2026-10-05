@@ -32,6 +32,15 @@
   ],
   "main": "./out/extension.js",
   "contributes": {
+    "icons": {
+      "rabbithole-carrot": {
+        "description": "Rabbit Hole carrot",
+        "default": {
+          "fontPath": "./resources/rabbithole-icons.woff",
+          "fontCharacter": "\\E001"
+        }
+      }
+    },
     "viewsContainers": {
       "activitybar": [
         {

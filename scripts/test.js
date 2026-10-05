@@ -29,6 +29,7 @@ const outDir = path.join(root, "test", ".out")
 const src = p => path.join(root, p)
 
 const SUITES = [
+  { name: "icons", entry: "test/icons.assets.test.ts", alias: {} },
   {
     name: "datekey",
     entry: "test/storage.datekey.test.ts",
