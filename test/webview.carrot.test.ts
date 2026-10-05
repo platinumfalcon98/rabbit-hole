@@ -28,6 +28,41 @@ function iconCells(svg: string): Set<string> {
 }
 
 describe("carrot", () => {
+  it("the colour SVG paints exactly the canonical grid, including the brown tip", () => {
+    const svg = fs.readFileSync("resources/rabbithole-icon.svg", "utf8")
+    const cells = new Map<string, string>()
+    for (const [tag] of svg.matchAll(/<(?:rect|path)\b[^>]*>/g)) {
+      const attr = (key: string) => new RegExp(`\\b${key}="([^"]+)"`).exec(tag)?.[1]
+      const fill = attr("fill")
+      assert.ok(fill, tag)
+      let x: number, y: number, w: number, h: number
+      if (tag.startsWith("<rect")) {
+        x = Number(attr("x") ?? 0)
+        y = Number(attr("y") ?? 0)
+        w = Number(attr("width"))
+        h = Number(attr("height"))
+      } else {
+        const m = /^M([\d.]+) ([\d.]+)H([\d.]+)V([\d.]+)H([\d.]+)V([\d.]+)Z$/.exec(attr("d") ?? "")
+        assert.ok(m, tag)
+        x = Number(m[1])
+        y = Number(m[2])
+        w = Number(m[3]) - x
+        h = Number(m[4]) - y
+        assert.strictEqual(Number(m[5]), x)
+        assert.strictEqual(Number(m[6]), y)
+      }
+      assert.ok([x, y, w, h].every(Number.isInteger))
+      assert.ok(x >= 0 && y >= 0 && w > 0 && h > 0 && x + w <= 14 && y + h <= 10)
+      for (let row = y; row < y + h; row++) {
+        for (let col = x; col < x + w; col++) cells.set(`${col},${row}`, fill.toUpperCase())
+      }
+    }
+    const want = carrotPixels().map((p: { x: number; y: number; c: string }) =>
+      [`${p.x},${p.y}`, p.c])
+    assert.strictEqual(cells.get("0,8"), "#A5510C")
+    assert.deepStrictEqual([...cells].sort(), want.sort())
+  })
+
   it("is 14 by 10 with only known colours", () => {
     assert.strictEqual(CARROT.length, CARROT_H)
     for (const row of CARROT) assert.match(row, new RegExp(`^[.OBG]{${CARROT_W}}$`))

@@ -1,7 +1,5 @@
-// The Rabbit Hole carrot, one character per pixel. Its shape is
-// resources/icon.svg's (the carrot suite fails if they drift), including the
-// brown pixel at row 8, column 0 that resources/rabbithole-icon.svg is still
-// missing — phase 5 adds it there.
+// The Rabbit Hole carrot, one character per pixel. The carrot suite checks
+// both resource SVGs against this shape and palette, including (0, 8).
 export const CARROT = [
   ".........G....",
   ".........G..G.",
