@@ -134,12 +134,6 @@ export function activate(context: vscode.ExtensionContext): void {
     refreshStatusBar()
     refreshMiniPanel()
     if (DashboardPanel.currentPanel) {
-      DashboardPanel.currentPanel.postMessage({
-        type: "update",
-        data: storage.getToday(),
-        projectId: storage.getCurrentProjectId(),
-        globalToday: storage.getGlobalToday(),
-      })
       const panel = DashboardPanel.currentPanel
       panel.postMessage({ type: "live", ...buildLive(storage, new Date()) })
       const day = dateKey(new Date())

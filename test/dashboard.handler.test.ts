@@ -66,3 +66,43 @@ describe("export ranges", () => {
     assert.strictEqual(v.calls.saveDialogs, 2)
   })
 })
+
+// The redesigned webview builds every panel from the year and the range; the
+// old init/update messages are gone.
+describe("phase 2 protocol", () => {
+  it("ready sends settings then the year, and no init", () => {
+    handleMessage({ type: "ready" } as any, store(), panel)
+    assert.deepStrictEqual(types(), ["settings", "year"])
+  })
+
+  it("requestYear sends a year", () => {
+    handleMessage({ type: "requestYear" } as any, store(), panel)
+    assert.deepStrictEqual(types(), ["year"])
+  })
+
+  it("a project target change sends the year, and no init", () => {
+    handleMessage({ type: "updateProjectSetting", projectId: "alpha", key: "dailyTargetMinutes", value: 30 } as any, store(), panel)
+    assert.deepStrictEqual(types(), ["year"])
+  })
+})
+
+// The webview is not trusted with settings.json: VS Code would store whatever it sent.
+describe("CRT writes", () => {
+  const cfg = () => v.workspace.getConfiguration("rabbithole")
+
+  it("a value the manifest would reject is never written", async () => {
+    handleMessage({ type: "updateCrtSetting", key: "mask", value: "glitter" } as any, store(), panel)
+    await settle()
+    assert.strictEqual(cfg().get("crt.mask"), undefined)
+    assert.deepStrictEqual(types(), [])
+  })
+
+  it("strength is clamped and effects filtered before writing", async () => {
+    handleMessage({ type: "updateCrtSetting", key: "strength", value: 250 } as any, store(), panel)
+    handleMessage({ type: "updateCrtSetting", key: "effects", value: ["roll", "sparkle", "scanlines"] } as any, store(), panel)
+    await settle()
+    assert.strictEqual(cfg().get("crt.strength"), 100)
+    assert.deepStrictEqual(cfg().get("crt.effects"), ["scanlines", "roll"])
+    assert.ok(types().includes("settings"))
+  })
+})

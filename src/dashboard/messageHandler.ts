@@ -1,7 +1,7 @@
 import * as fs from "fs/promises"
 import * as vscode from "vscode"
-import { DailyLog, WebviewMessage } from "../shared/types"
-import { getCrtSettings, getDailyTargetMinutes, getDailyTargetMs, getIdleThresholdMs } from "../shared/config"
+import { WebviewMessage } from "../shared/types"
+import { crtSettingValue, getCrtSettings, getDailyTargetMinutes, getDailyTargetMs, getIdleThresholdMs } from "../shared/config"
 import {
   PROJECTS_KEY,
   SnapshotSummary,
@@ -11,11 +11,6 @@ import {
 } from "../tracker/storageService"
 import { DashboardPanel } from "./dashboardPanel"
 import { MAX_RANGE_DAYS, buildRange, buildYear, isValidRange } from "./payloads"
-
-// Module-level view state — persists for the lifetime of the panel
-let currentStartDate = ""
-let currentEndDate = ""
-let currentProjectIds: string[] = []   // [] = current project, ["all"] = aggregate, [ids] = multi
 
 function todayStr(): string {
   const d = new Date()
@@ -60,37 +55,21 @@ export function handleMessage(
 ): void {
   switch (msg.type) {
     case "ready": {
-      const today = todayStr()
-      currentStartDate = today
-      currentEndDate = today
-      currentProjectIds = []
-      // Settings first: the webview's dailyTargetMs starts at 0, and sendInit
-      // triggers the first streak render, which needs the real target.
+      // Settings first: the webview needs the target before it draws a streak.
       sendSettings(storage, panel)
-      sendInit(storage, panel)
       postYear(storage, panel)
       break
     }
 
-    case "requestRange": {
-      const { start, end } = presetToDates(msg.preset, msg.customStart, msg.customEnd)
-      currentStartDate = start
-      currentEndDate = end
-      sendInit(storage, panel)
+    case "requestYear":
+      postYear(storage, panel)
       break
-    }
 
     case "requestDays": {
       const range = buildRange(storage, msg.from, msg.to)
       panel.postMessage(range
         ? { type: "range", ...range }
         : { type: "rangeRefused", from: msg.from, to: msg.to })
-      break
-    }
-
-    case "selectProjects": {
-      currentProjectIds = msg.projectIds
-      sendInit(storage, panel)
       break
     }
 
@@ -111,7 +90,7 @@ export function handleMessage(
     case "exportPdfRequest": {
       const { start, end } = presetToDates(msg.preset, msg.customStart, msg.customEnd)
 
-      const exportPid = msg.exportProjectId ?? currentProjectIds[0] ?? "all"
+      const exportPid = msg.exportProjectId ?? "all"
       // Fetch back to the Monday-aligned start of the report's heatmap grid
       // (5 weeks for today/30d, 13 weeks for 90d), not just the stat range.
       const heatmapStart = offsetDateStr(msg.preset === "90d" ? -96 : -34)
@@ -152,16 +131,21 @@ export function handleMessage(
     }
 
     case "updateCrtSetting": {
+      // a value the manifest would reject never reaches settings.json
+      const value = crtSettingValue(msg.key, msg.value)
+      if (value === null) break
       vscode.workspace.getConfiguration("rabbithole")
-        .update(`crt.${msg.key}`, msg.value, vscode.ConfigurationTarget.Global)
-        .then(() => sendSettings(storage, panel))
+        .update(`crt.${msg.key}`, value, vscode.ConfigurationTarget.Global)
+        .then(
+          () => sendSettings(storage, panel),
+          err => tell(panel, false, `Rabbit Hole: Couldn't save the display setting (${err instanceof Error ? err.message : String(err)}).`),
+        )
       break
     }
 
     case "updateProjectSetting": {
       storage.updateProjectTarget(msg.projectId, msg.value)
       storage.updateProjectStreak(msg.projectId)
-      sendInit(storage, panel)
       postYear(storage, panel)
       break
     }
@@ -350,11 +334,9 @@ async function runImport(
   tell(panel, true, `Rabbit Hole: Restored ${names}. Previous data backed up to ${storage.getLastBackupPath()}`)
 }
 
-// Settings before init for the same reason as the ready case: sendInit renders
-// the streak, which needs the target the settings message carries.
+// Settings before the year: the webview needs the target before it draws a streak.
 function refreshAfterWipe(storage: StorageService, panel: DashboardPanel): void {
   sendSettings(storage, panel)
-  sendInit(storage, panel)
   postYear(storage, panel)
 }
 
@@ -398,70 +380,6 @@ function tell(panel: DashboardPanel, ok: boolean, text: string): void {
   if (ok) vscode.window.showInformationMessage(text)
   else vscode.window.showErrorMessage(text)
   panel.postMessage({ type: "actionResult", ok, lines: [text.replace(/^Rabbit Hole: /, "")] })
-}
-
-function sendInit(storage: StorageService, panel: DashboardPanel): void {
-  const start = currentStartDate
-  const end = currentEndDate
-
-  let data: DailyLog[]
-  let resolvedProjectId: string
-
-  if (currentProjectIds.length === 0) {
-    data = storage.getRangeByDates(start, end)
-    resolvedProjectId = storage.getCurrentProjectId()
-  } else if (currentProjectIds[0] === "all") {
-    data = storage.getAggregateRangeByDates(start, end)
-    resolvedProjectId = "all"
-  } else if (currentProjectIds.length === 1) {
-    data = storage.getRangeByDates(start, end, currentProjectIds[0])
-    resolvedProjectId = currentProjectIds[0]
-  } else {
-    data = storage.getMultiProjectRangeByDates(start, end, currentProjectIds)
-    resolvedProjectId = "all"
-  }
-
-  // Compute latest session timestamp + today's active time per project from aggregate logs
-  const projectTimestamps: Record<string, number> = {}
-  const projectActiveTimes: Record<string, number> = {}
-  const allLogs = storage.getAggregateRangeByDates(start, end)
-  const todayKey = todayStr()
-  for (const log of allLogs) {
-    for (const session of log.sessions) {
-      const pid = session.projectId
-      if (!pid) continue
-      const ts = session.endTime ?? session.startTime
-      if (!projectTimestamps[pid] || ts > projectTimestamps[pid]) {
-        projectTimestamps[pid] = ts
-      }
-      if (log.date === todayKey) {
-        projectActiveTimes[pid] = (projectActiveTimes[pid] ?? 0) + session.activeTime
-      }
-    }
-  }
-
-  const yearStart = offsetDateStr(-364)
-  const today = todayStr()
-  let heatmapData: DailyLog[]
-  if (currentProjectIds.length === 0) {
-    heatmapData = storage.getRangeByDates(yearStart, today)
-  } else if (currentProjectIds[0] === "all") {
-    heatmapData = storage.getAggregateRangeByDates(yearStart, today)
-  } else if (currentProjectIds.length === 1) {
-    heatmapData = storage.getRangeByDates(yearStart, today, currentProjectIds[0])
-  } else {
-    heatmapData = storage.getMultiProjectRangeByDates(yearStart, today, currentProjectIds)
-  }
-
-  panel.postMessage({
-    type: "init",
-    data,
-    heatmapData,
-    projects: storage.getProjects(),
-    currentProjectId: resolvedProjectId,
-    projectTimestamps,
-    projectActiveTimes,
-  })
 }
 
 function exportFilename(projectName: string, ext: string): string {

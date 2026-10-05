@@ -5,6 +5,8 @@ import * as path from "path"
 import * as vscode from "vscode"
 // @ts-ignore — esbuild alias to src/shared/config.ts
 import { getCrtSettings, CRT_DEFAULTS } from "cfg"
+// @ts-ignore — esbuild alias to src/shared/config.ts
+import { crtSettingValue } from "cfg"
 
 const v = vscode as any
 beforeEach(() => v.__resetConfig())
@@ -58,5 +60,19 @@ describe("CRT settings", () => {
     assert.strictEqual(props["rabbithole.crt.pitch"].default, CRT_DEFAULTS.pitch)
     assert.strictEqual(props["rabbithole.crt.strength"].default, CRT_DEFAULTS.strength)
     assert.deepStrictEqual(props["rabbithole.crt.effects"].default, CRT_DEFAULTS.effects)
+  })
+})
+
+describe("CRT values written from the dashboard", () => {
+  it("are normalised, or refused when the manifest would reject them", () => {
+    assert.strictEqual(crtSettingValue("mask", "grille"), "grille")
+    assert.strictEqual(crtSettingValue("mask", "glitter"), null)
+    assert.strictEqual(crtSettingValue("pitch", "coarse"), "coarse")
+    assert.strictEqual(crtSettingValue("strength", 42.6), 43)
+    assert.strictEqual(crtSettingValue("strength", -5), 0)
+    assert.strictEqual(crtSettingValue("strength", "50"), null)
+    assert.deepStrictEqual(crtSettingValue("effects", ["flicker", "bloom", "bogus"]), ["bloom", "flicker"])
+    assert.strictEqual(crtSettingValue("effects", "bloom"), null)
+    assert.strictEqual(crtSettingValue("colour", "red"), null)
   })
 })

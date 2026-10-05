@@ -113,8 +113,6 @@ export interface CrtSettings {
 // ── Message Protocol ──────────────────────────────────────────────────────
 
 export type ExtensionMessage =
-  | { type: "init"; data: DailyLog[]; heatmapData: DailyLog[]; projects: ProjectMeta[]; currentProjectId: string; projectTimestamps: Record<string, number>; projectActiveTimes: Record<string, number> }
-  | { type: "update"; data: DailyLog; projectId: string; globalToday: { activeTime: number; streak: number } }
   | { type: "settings"; dailyTargetMs: number; dailyTargetMinutes: number; idleThresholdMinutes: number; storagePath: string; crt: CrtSettings }
   | { type: "pdfData"; logs: DailyLog[]; projectName: string; dateRange: { from: string; to: string } }
   | ({ type: "year" } & YearPayload)
@@ -123,14 +121,11 @@ export type ExtensionMessage =
   | ({ type: "live" } & LivePayload)
   | { type: "actionResult"; ok: boolean; lines: string[] }
 
-export type RangePreset = "today" | "7d" | "30d" | "1y" | "custom"
 
 export type WebviewMessage =
   | { type: "ready" }
   | { type: "requestYear" }        // a live update named a project the cached year doesn't have
-  | { type: "requestRange"; preset: RangePreset; customStart?: string; customEnd?: string }
   | { type: "requestDays"; from: string; to: string }
-  | { type: "selectProjects"; projectIds: string[] }
   | { type: "export"; format: "csv" | "json"; from?: string; to?: string; projectId?: string }
   | { type: "exportPdfRequest"; preset: "today" | "7d" | "30d" | "90d" | "custom"; customStart?: string; customEnd?: string; exportProjectId?: string }
   | { type: "writePdf"; base64: string; projectName: string }

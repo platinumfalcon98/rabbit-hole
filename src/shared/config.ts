@@ -66,3 +66,20 @@ export function getCrtSettings(): CrtSettings {
       : [...CRT_DEFAULTS.effects],
   }
 }
+
+// What the dashboard may write for one CRT key: the value normalised the way
+// getCrtSettings reads it, or null when the manifest would reject it.
+export function crtSettingValue(key: string, value: unknown): CrtMask | CrtPitch | number | CrtEffect[] | null {
+  switch (key) {
+    case "mask":
+      return CRT_MASKS.includes(value as CrtMask) ? (value as CrtMask) : null
+    case "pitch":
+      return CRT_PITCHES.includes(value as CrtPitch) ? (value as CrtPitch) : null
+    case "strength":
+      return typeof value === "number" && isFinite(value) ? Math.min(100, Math.max(0, Math.round(value))) : null
+    case "effects":
+      return Array.isArray(value) ? CRT_EFFECTS.filter(e => value.includes(e)) : null
+    default:
+      return null
+  }
+}

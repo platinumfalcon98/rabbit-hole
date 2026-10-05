@@ -76,7 +76,12 @@
         },
         "rabbithole.crt.mask": {
           "type": "string",
-          "enum": ["slot", "grille", "shadow", "off"],
+          "enum": [
+            "slot",
+            "grille",
+            "shadow",
+            "off"
+          ],
           "enumDescriptions": [
             "Staggered RGB slots, as on most consumer TVs and terminals.",
             "Unbroken vertical stripes (Trinitron).",
@@ -88,7 +93,11 @@
         },
         "rabbithole.crt.pitch": {
           "type": "string",
-          "enum": ["fine", "medium", "coarse"],
+          "enum": [
+            "fine",
+            "medium",
+            "coarse"
+          ],
           "default": "fine",
           "description": "Size of the mask's phosphor cells."
         },
@@ -101,9 +110,21 @@
         },
         "rabbithole.crt.effects": {
           "type": "array",
-          "items": { "type": "string", "enum": ["scanlines", "bloom", "convergence", "roll", "flicker"] },
+          "items": {
+            "type": "string",
+            "enum": [
+              "scanlines",
+              "bloom",
+              "convergence",
+              "roll",
+              "flicker"
+            ]
+          },
           "uniqueItems": true,
-          "default": ["scanlines", "bloom"],
+          "default": [
+            "scanlines",
+            "bloom"
+          ],
           "description": "Extra CRT effects. Refresh roll and flicker are skipped when the OS asks for reduced motion."
         }
       }
@@ -119,15 +140,12 @@
     "package": "vsce package"
   },
   "devDependencies": {
-    "@types/d3": "^7.4.0",
     "@types/node": "^20.0.0",
     "@types/vscode": "^1.85.0",
     "esbuild": "^0.20.0",
     "typescript": "^5.3.0"
   },
   "dependencies": {
-    "chart.js": "^4.4.0",
-    "d3": "^7.9.0",
     "jspdf": "^4.2.1"
   }
 }
