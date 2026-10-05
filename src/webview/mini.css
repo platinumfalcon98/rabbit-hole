@@ -14,7 +14,12 @@ body { padding: 12px 12px 18px; }
 .brand .word { font-weight: 700; font-size: 14px; line-height: 1.1; color: var(--ink); }
 .brand .proj { color: var(--ink-dim); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-.mini .row { display: flex; flex-wrap: wrap; gap: 2px 14px; align-items: baseline; }
+/* One line, never wrapping: a focus changes the numbers, and a row that wraps
+   or unwraps moves everything below it out from under the pointer. What
+   doesn't fit is cut with an ellipsis instead. */
+.mini .row { display: flex; flex-wrap: nowrap; gap: 0 14px; align-items: baseline; min-width: 0; }
+.mini .row > * { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mini .row > .big { flex: none; }
 .mini .big { font-size: 30px; line-height: 1.05; font-weight: 600; font-variation-settings: "wdth" 75; }
 .mini .mid { font-size: 22px; line-height: 1.1; font-weight: 600; font-variation-settings: "wdth" 75; }
 .mini .k { color: var(--ink-dim); }

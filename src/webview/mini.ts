@@ -103,6 +103,8 @@ function render(): void {
   if (!year) return
   const now = Date.now()
   const v = miniView(year, logs, focus, now)
+  // a focused project that vanished must stop dimming the rest, not just the legends
+  focus = v.focus
   keepFocus(() => {
     streak(v)
     today(v, now)
