@@ -394,5 +394,26 @@ fieldset.danger legend b { color: var(--del); }
 
 /* export dialog */
 .xd-back { position: fixed; inset: 0; z-index: 40; background: rgba(0,0,0,.45); display: grid; place-items: center; padding: 16px; }
-.xd { width: min(560px, 100%); }
+.xd { width: min(1100px, 100%); max-height: calc(100vh - 32px); overflow: auto; background: var(--bg); padding: 12px; display: grid; grid-template-columns: minmax(0, 340px) minmax(0, 1fr); gap: 20px; align-items: start; }
+@media (max-width: 860px) { .xd { grid-template-columns: minmax(0, 1fr); } }
+.xd-form { border-color: var(--chrome); }
+.xd-row { display: grid; gap: 6px; padding-block: 8px; }
+.xd-row + .xd-row { border-top: 1px dashed var(--rule); }
+.xd-row .k { color: var(--ink-dim); }
+.xd-row .desc, .xd-row .dest { color: var(--ink-mute); overflow-wrap: anywhere; }
+.opts button:disabled { color: var(--ink-mute); opacity: .5; cursor: default; }
+.btn.primary { background: var(--chrome); color: var(--chrome-ink); padding: 3px 10px; text-shadow: none; }
+.btn.primary::before, .btn.primary::after { content: none; }
+.btn.primary:disabled { background: var(--rule); color: var(--ink-mute); }
+.xd-status { min-height: 1.5em; margin-top: 6px; color: var(--add); }
+.xd-status.bad { color: var(--del); }
+.xd-stage { display: grid; gap: 10px; min-width: 0; background: var(--panel); border: 1px solid var(--rule); padding: 12px; }
+.xd-head { display: flex; flex-wrap: wrap; gap: 4px 18px; color: var(--ink-dim); }
+.xd-head b { color: var(--ink); font-weight: 600; }
+.xd-canvas { display: flex; justify-content: center; border: 1px dashed var(--rule); padding: 14px; min-height: 120px; }
+.xd-canvas canvas { width: min(420px, 100%); height: auto; box-shadow: 0 10px 40px rgba(0,0,0,.35); }
+.xd-outline { margin: 0; padding: 0; list-style: none; width: 100%; }
+.xd-outline li { color: var(--ink-dim); padding-left: 2ch; }
+.xd-outline li.pg { color: var(--chrome); padding-left: 0; margin-top: 6px; }
+.hint.bad { color: var(--del); }
 .xd-foot { display: flex; justify-content: flex-end; gap: 12px; margin-top: 14px; }

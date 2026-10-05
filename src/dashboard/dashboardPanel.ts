@@ -313,19 +313,32 @@ export class DashboardPanel {
 
 <div class="xd-back" id="xd" hidden>
   <div class="xd" role="dialog" aria-modal="true" aria-labelledby="xd-title">
-    <fieldset>
+    <fieldset class="xd-form">
       <legend><b id="xd-title">export</b></legend>
-      <div class="osd">
+      <div class="xd-row">
         <span class="k">format</span>
         <div class="opts" id="xd-format" role="group" aria-label="Format"><button data-v="card">share card</button><button data-v="report">report</button><button data-v="csv">csv</button><button data-v="json">json</button></div>
-        <span class="k">range</span>
-        <div class="opts" id="xd-range" role="group" aria-label="Range"></div>
-        <span class="k"><label for="xd-project">project</label></span>
-        <div class="opts"><select class="tin" id="xd-project"></select></div>
-        <p class="why" id="xd-what"></p>
+        <span class="desc" id="xd-what"></span>
       </div>
-      <div class="xd-foot"><button class="btn" id="xd-cancel">cancel</button><button class="btn" id="xd-go">export</button></div>
+      <div class="xd-row">
+        <span class="k">range</span>
+        <div class="opts" id="xd-range" role="group" aria-label="Range"><button data-v="today">today</button><button data-v="7d">7d</button><button data-v="30d">30d</button><button data-v="90d">90d</button></div>
+      </div>
+      <div class="xd-row">
+        <span class="k">project</span>
+        <div class="opts" id="xd-project" role="group" aria-label="Project"></div>
+      </div>
+      <div class="xd-row">
+        <span class="k">saves as</span>
+        <span class="dest" id="xd-dest"></span>
+      </div>
+      <div class="xd-foot"><button class="btn" id="xd-cancel">cancel</button><button class="btn primary" id="xd-go">export</button></div>
+      <div class="xd-status" id="xd-status" aria-live="polite"></div>
     </fieldset>
+    <section class="xd-stage" aria-label="Preview">
+      <div class="xd-head" id="xd-head"></div>
+      <div class="xd-canvas" id="xd-preview"></div>
+    </section>
   </div>
 </div>
 

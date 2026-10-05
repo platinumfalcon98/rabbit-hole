@@ -157,3 +157,16 @@ describe("export files", () => {
     assert.deepStrictEqual(posted.map(m => [m.type, m.for]), [["range", "export"], ["range", undefined], ["rangeRefused", "export"]])
   })
 })
+
+// The webview now renders cards and reports from data it already has; the old
+// round trip through the host is gone.
+describe("the old export protocol", () => {
+  it("exportPdfRequest, writePdf and writeJpg do nothing", async () => {
+    handleMessage({ type: "exportPdfRequest", preset: "today" } as any, store(), panel)
+    handleMessage({ type: "writePdf", base64: "eA==", projectName: "x" } as any, store(), panel)
+    handleMessage({ type: "writeJpg", base64: "eA==", projectName: "x" } as any, store(), panel)
+    await settle()
+    assert.deepStrictEqual(posted, [])
+    assert.strictEqual(v.calls.saveDialogs, 0)
+  })
+})

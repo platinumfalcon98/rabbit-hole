@@ -115,7 +115,6 @@ export interface CrtSettings {
 
 export type ExtensionMessage =
   | { type: "settings"; dailyTargetMs: number; dailyTargetMinutes: number; idleThresholdMinutes: number; storagePath: string; crt: CrtSettings }
-  | { type: "pdfData"; logs: DailyLog[]; projectName: string; dateRange: { from: string; to: string } }
   | ({ type: "year" } & YearPayload)
   | ({ type: "range"; for?: "export" } & RangePayload)   // for: the export dialog's own fetch, which the dashboard ignores
   | { type: "rangeRefused"; from: string; to: string; for?: "export" }
@@ -129,9 +128,6 @@ export type WebviewMessage =
   | { type: "requestDays"; from: string; to: string; for?: "export" }
   | { type: "export"; format: "csv" | "json"; from?: string; to?: string; projectId?: string; name?: string }
   | { type: "writeFile"; kind: "jpg" | "pdf"; base64: string; name: string }
-  | { type: "exportPdfRequest"; preset: "today" | "7d" | "30d" | "90d" | "custom"; customStart?: string; customEnd?: string; exportProjectId?: string }
-  | { type: "writePdf"; base64: string; projectName: string }
-  | { type: "writeJpg"; base64: string; projectName: string }
   | { type: "updateSetting"; key: "dailyTargetMinutes" | "idleThresholdMinutes"; value: number }
   | { type: "updateProjectSetting"; projectId: string; key: "dailyTargetMinutes"; value: number | null }
   | { type: "updateCrtSetting"; key: "mask" | "pitch" | "strength" | "vignette" | "effects"; value: string | number | string[] }

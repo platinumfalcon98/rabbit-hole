@@ -19,7 +19,7 @@ import { initTape } from "./tape"
 import { initActivity, renderActivity } from "./activityTab"
 import { initHeat } from "./heatmap"
 import { initCards, renderCards } from "./projectCards"
-import { initExport, onExportData, openExport } from "./exportDialog"
+import { initExport, onExportMessage, openExport } from "./exportDialog"
 import { initSettings, renderSettings } from "./settingsTab"
 
 declare function acquireVsCodeApi(): {
@@ -103,7 +103,7 @@ initCards(store, post, () => renderCards(store, openInOverview))
 tabs.projects = () => renderCards(store, openInOverview)
 
 initExport(store, post)
-extra.push(onExportData)
+extra.push(onExportMessage)
 initSettings(store, post, openExport)
 tabs.settings = c => renderSettings(store, c)
 

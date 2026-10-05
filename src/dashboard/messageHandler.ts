@@ -18,42 +18,6 @@ import { MAX_RANGE_DAYS, buildRange, buildYear, isValidRange } from "./payloads"
 // this is not something the dialog drew.
 const MAX_FILE_BASE64 = 40 * 1024 * 1024
 
-function todayStr(): string {
-  const d = new Date()
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, "0")
-  const day = String(d.getDate()).padStart(2, "0")
-  return `${y}-${m}-${day}`
-}
-
-function offsetDateStr(daysOffset: number): string {
-  const d = new Date()
-  d.setDate(d.getDate() + daysOffset)
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, "0")
-  const day = String(d.getDate()).padStart(2, "0")
-  return `${y}-${m}-${day}`
-}
-
-function presetToDates(
-  preset: string,
-  customStart?: string,
-  customEnd?: string
-): { start: string; end: string } {
-  const today = todayStr()
-  switch (preset) {
-    case "today":  return { start: today, end: today }
-    case "7d":     return { start: offsetDateStr(-6), end: today }
-    case "30d":    return { start: offsetDateStr(-29), end: today }
-    case "90d":    return { start: offsetDateStr(-89), end: today }
-    case "1y":     return { start: offsetDateStr(-364), end: today }
-    case "custom":
-      if (customStart && customEnd) return { start: customStart, end: customEnd }
-      return { start: today, end: today }
-    default:       return { start: today, end: today }
-  }
-}
-
 export function handleMessage(
   msg: WebviewMessage,
   storage: StorageService,
@@ -108,37 +72,6 @@ export function handleMessage(
       void saveFile(panel, bytes, safeFileName(msg.name, msg.kind), msg.kind)
       break
     }
-
-    case "exportPdfRequest": {
-      const { start, end } = presetToDates(msg.preset, msg.customStart, msg.customEnd)
-
-      const exportPid = msg.exportProjectId ?? "all"
-      // Fetch back to the Monday-aligned start of the report's heatmap grid
-      // (5 weeks for today/30d, 13 weeks for 90d), not just the stat range.
-      const heatmapStart = offsetDateStr(msg.preset === "90d" ? -96 : -34)
-      const logs = exportPid === "all"
-        ? storage.getAggregateRangeByDates(heatmapStart, end)
-        : storage.getRangeByDates(heatmapStart, end, exportPid)
-
-      const projects = storage.getProjects()
-      const pid = exportPid
-      const projectName = pid === "all" ? "All Projects"
-        : projects.find(p => p.id === pid)?.name ?? "Rabbit Hole"
-
-      const from = new Date(start + "T00:00:00").toLocaleDateString(undefined, { month: "numeric", day: "numeric", year: "numeric" })
-      const to   = new Date(end   + "T00:00:00").toLocaleDateString(undefined, { month: "numeric", day: "numeric", year: "numeric" })
-
-      panel.postMessage({ type: "pdfData", logs, projectName, dateRange: { from, to } })
-      break
-    }
-
-    case "writePdf":
-      writePdfExport(msg.base64, msg.projectName)
-      break
-
-    case "writeJpg":
-      writeJpgExport(msg.base64, msg.projectName)
-      break
 
     case "updateSetting": {
       const cfg = vscode.workspace.getConfiguration("rabbithole")
@@ -402,48 +335,6 @@ function tell(panel: DashboardPanel, ok: boolean, text: string): void {
   if (ok) vscode.window.showInformationMessage(text)
   else vscode.window.showErrorMessage(text)
   panel.postMessage({ type: "actionResult", ok, lines: [text.replace(/^Rabbit Hole: /, "")] })
-}
-
-function exportFilename(projectName: string, ext: string): string {
-  const slug = projectName.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "")
-  const date = todayStr().replace(/-/g, "")
-  return `rabbit_hole_${slug}_${date}.${ext}`
-}
-
-async function writePdfExport(base64: string, projectName: string): Promise<void> {
-  const filename = exportFilename(projectName, "pdf")
-  const defaultUri = vscode.workspace.workspaceFolders?.[0]?.uri
-    ? vscode.Uri.joinPath(vscode.workspace.workspaceFolders[0].uri, filename)
-    : undefined
-
-  const uri = await vscode.window.showSaveDialog({
-    defaultUri,
-    filters: { "PDF Files": ["pdf"] },
-  })
-
-  if (!uri) return
-
-  const bytes = Buffer.from(base64, "base64")
-  await vscode.workspace.fs.writeFile(uri, bytes)
-  vscode.window.showInformationMessage(`Rabbit Hole: Report exported to ${uri.fsPath}`)
-}
-
-async function writeJpgExport(base64: string, projectName: string): Promise<void> {
-  const filename = exportFilename(projectName, "jpg")
-  const defaultUri = vscode.workspace.workspaceFolders?.[0]?.uri
-    ? vscode.Uri.joinPath(vscode.workspace.workspaceFolders[0].uri, filename)
-    : undefined
-
-  const uri = await vscode.window.showSaveDialog({
-    defaultUri,
-    filters: { "JPEG Images": ["jpg", "jpeg"] },
-  })
-
-  if (!uri) return
-
-  const bytes = Buffer.from(base64, "base64")
-  await vscode.workspace.fs.writeFile(uri, bytes)
-  vscode.window.showInformationMessage(`Rabbit Hole: Card exported to ${uri.fsPath}`)
 }
 
 const FILTERS: Record<ExportExt, Record<string, string[]>> = {
