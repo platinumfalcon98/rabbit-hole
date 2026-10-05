@@ -1,0 +1,16 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Export harness</title>
+<!-- Serve the repo root (python -m http.server 8123) and open /test/harness/exports.html.
+     Build first: npx esbuild test/harness/exports.ts --bundle --platform=browser --loader:.ttf=base64 --outfile=test/.out/harness/exports.js -->
+<style>
+  @font-face { font-family: "Martian Mono"; src: url("/src/webview/fonts/MartianMono-VF.woff2") format("woff2"); font-weight: 100 800; font-stretch: 75% 112.5%; }
+  body { background: #1b1b1b; color: #ddd; font: 13px system-ui, sans-serif; padding: 16px; }
+  #cards { display: flex; flex-wrap: wrap; gap: 16px; }
+  figure { margin: 0; }
+  canvas { width: 420px; display: block; }
+  button { margin: 4px 6px 4px 0; }
+</style>
+<div id="reports"></div>
+<div id="cards"></div>
+<script src="/test/.out/harness/exports.js"></script>
