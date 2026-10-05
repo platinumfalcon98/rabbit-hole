@@ -57,7 +57,59 @@ export function wireFocus(root: HTMLElement, w: FocusWiring): void {
   })
   root.addEventListener("pointerleave", () => apply(null, null))
   root.addEventListener("focusin", e => {
+    if (restoring) return
     const hit = read(e.target)
     apply(hit ? hit.f : null, hit ? hit.src : null)
   })
+  // Tabbing out of the overview clears a keyboard focus, as leaving it with the
+  // pointer does. A focused element removed by a re-render is not leaving.
+  root.addEventListener("focusout", e => {
+    if (restoring) return
+    const next = e.relatedTarget
+    if (!(e.target instanceof Node) || !e.target.isConnected) return
+    if (next instanceof Node && root.contains(next)) return
+    apply(null, null)
+  })
+}
+
+// Panels are rebuilt on every 10 s live tick and on every focus change, which
+// throws away the element holding keyboard focus. These find its replacement.
+const KEY_ATTRS = ["hl", "ap", "v", "key", "range", "tab", "i"]
+
+// Set while keepFocus hands focus back. That element already showed the current
+// focus, so it is not a new one: reading it again re-rendered, which restored
+// focus again, and recursed until the stack overflowed.
+let restoring = false
+
+export function focusSelector(id: string, data: Record<string, string | undefined>): string | null {
+  const q = (v: string) => `"${v.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`
+  if (id) return `[id=${q(id)}]`
+  for (const k of KEY_ATTRS) {
+    const v = data[k]
+    if (v !== undefined) return `[data-${k}=${q(v)}]`
+  }
+  return null
+}
+
+const TAB_STOPS = "[tabindex], button, input, select, a[href]"
+
+// Runs a render and, if it removed the focused element, focuses the element
+// that took its place (looked up within the nearest ancestor that has an id;
+// by position there when the element carries nothing that identifies it).
+export function keepFocus(render: () => void): void {
+  const a = document.activeElement
+  if (!(a instanceof HTMLElement) || a === document.body) return render()
+  const sel = focusSelector(a.id, { ...a.dataset })
+  const scopeEl = a.parentElement?.closest<HTMLElement>("[id]")
+  const scopeId = scopeEl?.id
+  const index = scopeEl ? Array.from(scopeEl.querySelectorAll(TAB_STOPS)).indexOf(a) : -1
+  render()
+  if (a.isConnected) return
+  const scope = (scopeId && document.getElementById(scopeId)) || null
+  const next = sel
+    ? (scope ?? document).querySelector<HTMLElement>(sel)
+    : scope && index >= 0 ? scope.querySelectorAll<HTMLElement>(TAB_STOPS)[index] : null
+  if (!next) return
+  restoring = true
+  try { next.focus({ preventScroll: true }) } finally { restoring = false }
 }

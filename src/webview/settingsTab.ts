@@ -3,7 +3,7 @@
 import type { CrtEffect, WebviewMessage } from "../shared/types"
 import { applyCrt } from "./crt"
 import { $, el, press } from "./dom"
-import type { Store } from "./state"
+import type { Change, Store } from "./state"
 import { setSaved, wireSteppers } from "./stepper"
 
 type Post = (m: WebviewMessage) => void
@@ -81,7 +81,7 @@ export function initSettings(store: Store, post: Post, openExport: () => void): 
   })
 }
 
-export function renderSettings(store: Store): void {
+export function renderSettings(store: Store, change: Change | "tab"): void {
   const s = store.settings
   if (s) {
     setSaved($<HTMLInputElement>("pref-target"), String(s.dailyTargetMinutes))
@@ -114,6 +114,9 @@ export function renderSettings(store: Store): void {
     proj.dataset.ids = ids
     proj.dispatchEvent(new Event("change"))
   }
+  // The console is a live region: rebuilding it on every 10 s tick would make a
+  // screen reader read every line again.
+  if (change !== "console" && change !== "tab") return
   const lines = store.console
   $("console").replaceChildren(...lines.map((l, i) => el("div", [l.cls, i === lines.length - 1 ? "cursor" : ""].filter(Boolean).join(" ") || null, l.text)))
 }

@@ -3,7 +3,7 @@ import * as assert from "node:assert"
 // @ts-ignore — esbuild alias to src/webview/crt.ts
 import { crtParams, themeOf } from "crt"
 // @ts-ignore — esbuild alias to src/webview/focus.ts
-import { hlOf, parseHl, sameFocus } from "focus"
+import { focusSelector, hlOf, parseHl, sameFocus } from "focus"
 
 const C = (o: any = {}): any => ({ mask: "slot", pitch: "fine", strength: 30, effects: ["scanlines", "bloom"], ...o })
 
@@ -68,5 +68,20 @@ describe("focus attributes", () => {
     assert.strictEqual(sameFocus({ kind: "language", id: "go" }, { kind: "language", id: "go" }), true)
     assert.strictEqual(sameFocus({ kind: "language", id: "go" }, { kind: "project", id: "go" }), false)
     assert.strictEqual(sameFocus(null, { kind: "project", id: "a" }), false)
+  })
+})
+
+// Panels are rebuilt on every 10 s live tick; the element that had keyboard
+// focus is found again in the new markup by these attributes.
+describe("refocusing after a re-render", () => {
+  it("uses the id, else the first identifying data attribute", () => {
+    assert.strictEqual(focusSelector("pref-target", {}), '[id="pref-target"]')
+    assert.strictEqual(focusSelector("", { hl: "p:git@github.com:me/x.git" }), '[data-hl="p:git@github.com:me/x.git"]')
+    assert.strictEqual(focusSelector("", { i: "3", ap: "alpha" }), '[data-ap="alpha"]')
+    assert.strictEqual(focusSelector("", { other: "x" }), null)
+  })
+
+  it("escapes quotes and backslashes in the value", () => {
+    assert.strictEqual(focusSelector("", { hl: 'l:a"b\\c' }), '[data-hl="l:a\\"b\\\\c"]')
   })
 })

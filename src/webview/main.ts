@@ -9,7 +9,7 @@ import { hideTip, initTooltip } from "./tooltip"
 import { initDatePicker, renderRangeButtons } from "./datePicker"
 import { initProjectPicker, renderProjectButton } from "./projectPicker"
 import type { RangeId } from "./calendar"
-import { wireFocus } from "./focus"
+import { keepFocus, wireFocus } from "./focus"
 import { addDaysKey } from "./format"
 import { initFiles } from "./files"
 import { initLines } from "./lines"
@@ -41,9 +41,13 @@ const bar: Render[] = []
 // Messages the store doesn't handle (the interim export's data) go to whoever asked.
 const extra: ((msg: ExtensionMessage) => void)[] = []
 
+// Panels rebuild their rows on every change, including the 10 s live tick;
+// keepFocus puts keyboard focus back on the element that replaced the focused one.
 function render(change: Change | "tab"): void {
-  for (const r of bar) r(change)
-  tabs[tab]?.(change)
+  keepFocus(() => {
+    for (const r of bar) r(change)
+    tabs[tab]?.(change)
+  })
 }
 
 function showTab(next: Tab): void {
@@ -101,7 +105,7 @@ tabs.projects = () => renderCards(store, openInOverview)
 initExport(store, post)
 extra.push(onExportData)
 initSettings(store, post, openExport)
-tabs.settings = () => renderSettings(store)
+tabs.settings = c => renderSettings(store, c)
 
 // ── start ──
 initTooltip($("tip"))
