@@ -6,6 +6,8 @@ import { applyCrt, initCrt } from "./crt"
 import { $ } from "./dom"
 import { Change, Store, Tab } from "./state"
 import { hideTip, initTooltip } from "./tooltip"
+import { initDatePicker, renderRangeButtons } from "./datePicker"
+import { initProjectPicker, renderProjectButton } from "./projectPicker"
 
 declare function acquireVsCodeApi(): {
   postMessage(m: WebviewMessage): void
@@ -42,6 +44,12 @@ function showTab(next: Tab): void {
 }
 
 // ── panels ──
+initProjectPicker(store)
+initDatePicker(store)
+bar.push(() => {
+  renderProjectButton(store)
+  renderRangeButtons(store)
+})
 
 // ── start ──
 initTooltip($("tip"))
