@@ -166,6 +166,11 @@ const SUITES = [
     entry: "test/shared.exportName.test.ts",
     alias: { exportName: "src/shared/exportName.ts" },
   },
+  {
+    name: "exportdata",
+    entry: "test/webview.exportData.test.ts",
+    alias: { exportModel: "src/webview/exportModel.ts" },
+  },
 ]
 
 function parseArgs(argv) {
