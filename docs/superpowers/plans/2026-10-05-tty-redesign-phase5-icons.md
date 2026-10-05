@@ -72,10 +72,10 @@ No tracker, storage, mirror schema, sidebar runtime, lockfile or font-copy pipel
 
 ## Execution preflight
 
-- [ ] Read AGENTS.md and CLAUDE.md; inspect `git status --short` and `git branch --show-current`. Work on tty-redesign and preserve any later user edits or negative controls.
-- [ ] Run `npm.cmd test`, `npm.cmd run typecheck`, `npm.cmd run build` separately. Expected: baseline green. Stop and report unrelated baseline failures rather than folding fixes into this phase.
-- [ ] For every task below, run the listed focused check and all three gates before committing. On PowerShell check each exit code; don't use an unconditional semicolon chain as evidence that all commands passed.
-- [ ] Keep the first red run before each fix. These are asset/manifest changes, so the actual pre-edit asset is the negative control (no alias can substitute a filesystem SVG or manifest). For a TypeScript behaviour change, use CLAUDE.md's adjacent src/ negative-control copy and runner alias. Never overwrite someone else's temporary copy.
+- [x] Read AGENTS.md and CLAUDE.md; inspect `git status --short` and `git branch --show-current`. Work on tty-redesign and preserve any later user edits or negative controls.
+- [x] Run `npm.cmd test`, `npm.cmd run typecheck`, `npm.cmd run build` separately. Expected: baseline green. Stop and report unrelated baseline failures rather than folding fixes into this phase.
+- [x] For every task below, run the listed focused check and all three gates before committing. On PowerShell check each exit code; don't use an unconditional semicolon chain as evidence that all commands passed.
+- [x] Keep the first red run before each fix. These are asset/manifest changes, so the actual pre-edit asset is the negative control (no alias can substitute a filesystem SVG or manifest). For a TypeScript behaviour change, use CLAUDE.md's adjacent src/ negative-control copy and runner alias. Never overwrite someone else's temporary copy.
 
 ---
 
@@ -85,7 +85,7 @@ No tracker, storage, mirror schema, sidebar runtime, lockfile or font-copy pipel
 
 **Interfaces:** Consume existing carrotPixels(): { x: number; y: number; c: string }[]. Preserve all exports. Produce strict colour-SVG equivalence alongside the existing mono-shape test.
 
-- [ ] **Step 1: Add the failing test to the existing carrot suite**
+- [x] **Step 1: Add the failing test to the existing carrot suite**
 
 Keep iconCells() and the existing tests. Append this test inside describe("carrot"):
 
@@ -131,7 +131,7 @@ The parser respects document order: the existing SVG intentionally paints brown 
 Run: `node scripts/test.js --suite carrot`.
 Expected: FAIL specifically because (0,8) is absent. Record this pre-fix negative control.
 
-- [ ] **Step 2: Add the missing rectangle**
+- [x] **Step 2: Add the missing rectangle**
 
 Insert before the closing SVG tag:
 
@@ -149,7 +149,7 @@ Replace the first comment in carrot.ts with:
 Run: `node scripts/test.js --suite carrot`.
 Expected: PASS including existing mono test; no runtime module changes.
 
-- [ ] **Step 3: Gate and commit**
+- [x] **Step 3: Gate and commit**
 
 Run all three gates, then:
 
@@ -169,7 +169,7 @@ git commit -m "Align the colour carrot SVG with the canonical grid"
 - scripts/build-icon-font.py accepts an optional output filename; default is resources/rabbithole-icons.woff.
 - Manifest icon id rabbithole-carrot maps to U+E001 in that WOFF. Existing statusText() consumes the id unchanged.
 
-- [ ] **Step 1: Write the failing Node asset tests and register their suite**
+- [x] **Step 1: Write the failing Node asset tests and register their suite**
 
 Create test/icons.assets.test.ts:
 
@@ -212,7 +212,7 @@ Append to scripts/test.js SUITES:
 Run: `node scripts/test.js --suite icons`.
 Expected: FAIL for missing contributes.icons (the second test already passes and guards preservation).
 
-- [ ] **Step 2: Add the developer grid bridge**
+- [x] **Step 2: Add the developer grid bridge**
 
 Create scripts/carrot-data.js:
 
@@ -242,7 +242,7 @@ This loads the actual module, without regex-extracting TypeScript or duplicating
 Run: `node scripts/carrot-data.js`.
 Expected: JSON with ten 14-character rows and exactly the existing palette.
 
-- [ ] **Step 3: Write the font verification before generating the font**
+- [x] **Step 3: Write the font verification before generating the font**
 
 Only after explicit installation approval, if fonttools is absent:
 
@@ -303,7 +303,7 @@ if __name__ == "__main__":
 Run: `python test/icon-font.test.py`.
 Expected: FAIL on missing WOFF, not on missing fonttools. This test belongs to developer regeneration, not npm test.
 
-- [ ] **Step 4: Implement the generator**
+- [x] **Step 4: Implement the generator**
 
 Create scripts/build-icon-font.py:
 
@@ -357,7 +357,7 @@ fb.save(str(output))
 
 The rectangle contours are clockwise and y-flipped from screen coordinates. At 16 px this gives a 14×10 carrot inside a 16 px advance. Inspect actual baseline visually; do not mistake the geometry test for platform rendering proof.
 
-- [ ] **Step 5: Generate and register**
+- [x] **Step 5: Generate and register**
 
 Run: `python scripts/build-icon-font.py`.
 
@@ -389,7 +389,7 @@ node -e "const f=require('node:fs');require('node:assert').deepStrictEqual(f.rea
 
 Expected: all PASS; repeat bytes equal using the same recorded fonttools version. Ordinary npm checks require only the committed font, never the Python test.
 
-- [ ] **Step 6: Gate and commit**
+- [x] **Step 6: Gate and commit**
 
 Run all three gates, then:
 
@@ -406,7 +406,7 @@ git commit -m "Register the carrot icon font for the status bar"
 
 **Interfaces:** Consume loadCarrot() from Task 2. Generator accepts optional output path; defaults to resources/icon.png. PNG is RGB, 8 bits per channel, non-interlaced, filter 0, opaque, 128×128. Grid is 112×80 at (8,24).
 
-- [ ] **Step 1: Add the failing PNG and manifest test**
+- [x] **Step 1: Add the failing PNG and manifest test**
 
 Add these imports to test/icons.assets.test.ts:
 
@@ -485,7 +485,7 @@ it("regenerates the committed PNG byte for byte", () => {
 Run: `node scripts/test.js --suite icons`.
 Expected: new tests FAIL for missing listing fields/generator. Existing WOFF tests pass. This pins pre-change behaviour.
 
-- [ ] **Step 2: Implement the built-in PNG generator**
+- [x] **Step 2: Implement the built-in PNG generator**
 
 Create scripts/build-icon-png.js:
 
@@ -539,7 +539,7 @@ fs.writeFileSync(out, png)
 
 No image-generation service, canvas, image library or resampling: this is deterministic pixel encoding from the approved grid.
 
-- [ ] **Step 3: Generate and add listing metadata**
+- [x] **Step 3: Generate and add listing metadata**
 
 Run: `node scripts/build-icon-png.js`.
 Add at the top level of package.json:
@@ -552,7 +552,7 @@ Add at the top level of package.json:
 Run: `node scripts/test.js --suite icons`.
 Expected: PASS, including all pixel, CRC and reproducibility assertions. Open the PNG at 100% and enlarged with nearest-neighbour display: expected clean edges, brown (0,8), no blur, 8 px horizontal and 24 px vertical padding.
 
-- [ ] **Step 4: Gate and commit**
+- [x] **Step 4: Gate and commit**
 
 Run all three gates, then:
 
@@ -571,7 +571,7 @@ git commit -m "Add the pixel carrot Marketplace icon and banner"
 
 This is documentation and integration verification, so use content checks and manual acceptance cases rather than inventing a failing unit test for prose.
 
-- [ ] **Step 1: Replace DESIGN.md with the following current reference**
+- [x] **Step 1: Replace DESIGN.md with the following current reference**
 
 ```markdown
 # Rabbit Hole — TTY design system
@@ -685,7 +685,7 @@ the host pass; login and publishing remain user-run.
 Run: `rg -n 'derivePalette|Press Start|Unica One|Electrolize|Chart.js|CHART_FONT' DESIGN.md`.
 Expected: no matches. Check paths against current files, token values against style.css and export dimensions against the spec. Do not rewrite live CSS to match documentation.
 
-- [ ] **Step 2: Update local CLAUDE.md and retain explicit follow-ups**
+- [x] **Step 2: Update local CLAUDE.md and retain explicit follow-ups**
 
 Append after phase 4:
 
@@ -730,7 +730,7 @@ Deferred phase 4 minors:
 
 Only add the completed-implementation paragraph after Tasks 1–3 pass. Add actual gate results, fonttools version, host/platform outcomes and any remaining limitations as factual lines after running the checks; never copy intended results as observed facts. Update Relevant files and the tests table for the icons suite; use actual runner counts. Replace old branding backlog claims that icon/banner are absent, while preserving the unresolved publisher and publishing boundary. Do not force-add CLAUDE.md.
 
-- [ ] **Step 3: Check packaging and the no-Python build path**
+- [x] **Step 3: Check packaging and the no-Python build path**
 
 Run all three gates with no generator invocation.
 
@@ -763,7 +763,7 @@ Use the real Extension Development Host; browser harnesses cannot render contrib
 
 After the wider §6 host checklist has actually passed (themes, narrow layouts, hover, CRT settings, exports, midnight), capture Marketplace screenshots from the TTY implementation. Do not claim those earlier-phase checks happened during this plan-writing turn.
 
-- [ ] **Step 5: Diff check and commit documentation**
+- [x] **Step 5: Diff check and commit documentation**
 
 Run: `git diff --check`.
 Expected: no whitespace errors. Inspect `git diff -- DESIGN.md` and `git status --short`; preserve unrelated files.
@@ -809,3 +809,19 @@ follow-up and all three deferred phase 4 minors.
   previous-phase export/midnight host checklist. Marketplace screenshots wait
   for that wider pass. The isolated test window was closed after inspection.
 - Publisher remains `rabbit-hole`. Nothing was published or pushed.
+
+### Independent review
+
+The fresh reviewer found no phase 5 blockers or additional phase 5 minors.
+Independent carrot/status/icons tests (9 assertions), Python font geometry,
+VSIX contents and all four Windows host screenshots checked out.
+
+One **pre-existing Important issue** remains outside this icon phase:
+`src/webview/model.ts:276` treats elapsed minutes since midnight as local clock
+minutes. In `America/New_York`, a session at 23:00–23:30 on 2026-03-08 paints
+at 22:00; on 2026-11-01 the same 30 minutes disappear from the tape because
+the 1440-minute clamp collapses the interval. Stored activity totals remain
+intact. This affects consumers of the shared tape model, including exports.
+Follow up separately with offset-transition/repeated-hour handling and
+spring-forward/fall-back regressions; no model code was changed in phase 5.
+The review approves phase 5, not unconditional whole-branch release readiness.
