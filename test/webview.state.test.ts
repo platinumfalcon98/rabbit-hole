@@ -128,6 +128,18 @@ describe("store: live updates", () => {
     assert.strictEqual(s.here, "newcomer")
   })
 
+  // After "clear everything" the tracker's project stays unregistered until a
+  // reload, so every live names it; asking again on each tick was a 10 s loop.
+  it("asks about an unknown project once, even after the year it asked for arrives", () => {
+    s.receive(year("2026-10-03", OCT3))
+    s.receive(live("ghost"))
+    s.receive(year("2026-10-03", OCT3))
+    s.receive(live("ghost"))
+    assert.strictEqual(posts.filter(m => m.type === "requestYear").length, 1)
+    s.receive(live("other"))
+    assert.strictEqual(posts.filter(m => m.type === "requestYear").length, 2)
+  })
+
   it("is ignored before the first year", () => {
     s.receive(live("alpha"))
     assert.deepStrictEqual(posts, [])

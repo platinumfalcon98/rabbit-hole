@@ -48,7 +48,7 @@ export class Store {
   console: ConsoleLine[] = []
   view: ViewState = { sel: "all", from: "", to: "", preset: "today", back: null, focus: null }
   private range: RangePayload | null = null
-  private askedYear = false
+  private askedFor: string | null = null   // the unknown live project a year was last requested for
   private readonly listeners: ((c: Change) => void)[] = []
 
   constructor(private readonly post: (m: WebviewMessage) => void) {}
@@ -92,7 +92,6 @@ export class Store {
         const { type: _type, ...year } = msg
         const prev = this.year
         this.year = year
-        this.askedYear = false
         if (this.view.sel !== "all" && !year.projects.some(p => p.id === this.view.sel)) this.view = { ...this.view, sel: "all" }
         // A year arrives on open, and again whenever stored data changed (a
         // wipe, an import, a new target) or the date did. A preset view moves
@@ -125,8 +124,10 @@ export class Store {
         const { type: _type, ...live } = msg
         this.here = live.projectId || null
         if (!this.year) break
-        if (!mergeLive(this.year, this.range, live) && !this.askedYear) {
-          this.askedYear = true
+        // Once per project: after a wipe the tracker's project stays unregistered
+        // until a reload, and the fresh year still won't list it.
+        if (!mergeLive(this.year, this.range, live) && this.askedFor !== live.projectId) {
+          this.askedFor = live.projectId
           this.post({ type: "requestYear" })
         }
         this.emit("year")
