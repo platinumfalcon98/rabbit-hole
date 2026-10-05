@@ -178,7 +178,9 @@ export function seriesFor(year: YearPayload, sel: Selection): Series {
     return { days: year.days, active: year.global.active, targetMs }
   }
   const p = year.projects.find(q => q.id === sel)
-  const current = p?.dailyTargetMinutes !== undefined ? p.dailyTargetMinutes * 60_000 : year.globalTargetMs
+  // settings.json takes any number; the host clamps a project target the same way
+  const own = p?.dailyTargetMinutes
+  const current = own !== undefined ? Math.min(1440, Math.max(1, Math.round(own))) * 60_000 : year.globalTargetMs
   if (!p) return { days: year.days, active: year.days.map(() => 0), targetMs: year.days.map(() => current) }
   const targetMs = p.targetMs.map(t => t ?? current)
   if (n) targetMs[n - 1] = current
@@ -362,7 +364,9 @@ export function targetMetAt(sessions: ActivitySession[], targetMs: number, now: 
 
 // Fold a 10-second live update into the cached payloads. It replaces today's
 // values and never adds to them, so leaving the dashboard open can't inflate today.
-export function mergeLive(year: YearPayload, range: RangePayload | null, live: LivePayload): void {
+// Returns false when the update names a project the year doesn't list yet (the
+// first edit in a new folder), so the caller can ask for a fresh year.
+export function mergeLive(year: YearPayload, range: RangePayload | null, live: LivePayload): boolean {
   // Streaks move when today's target is met, which can happen while the dashboard is open.
   year.global.streak = live.globalStreak
   for (const p of year.projects) {
@@ -375,10 +379,12 @@ export function mergeLive(year: YearPayload, range: RangePayload | null, live: L
     }
     year.global.active[i] = live.globalToday
   }
-  if (range && live.today >= range.from && live.today <= range.to) {
+  // no project open (an empty window) means no log to file under one
+  if (range && live.projectId && live.today >= range.from && live.today <= range.to) {
     const logs: DailyLog[] = range.logs[live.projectId] ?? (range.logs[live.projectId] = [])
     const j = logs.findIndex(l => l.date === live.today)
     if (j >= 0) logs[j] = live.log
     else logs.push(live.log)
   }
+  return !live.projectId || year.projects.some(p => p.id === live.projectId)
 }

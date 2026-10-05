@@ -127,6 +127,7 @@ export type RangePreset = "today" | "7d" | "30d" | "1y" | "custom"
 
 export type WebviewMessage =
   | { type: "ready" }
+  | { type: "requestYear" }        // a live update named a project the cached year doesn't have
   | { type: "requestRange"; preset: RangePreset; customStart?: string; customEnd?: string }
   | { type: "requestDays"; from: string; to: string }
   | { type: "selectProjects"; projectIds: string[] }

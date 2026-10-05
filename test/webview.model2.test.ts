@@ -160,3 +160,31 @@ describe("active intervals", () => {
     assert.strictEqual(targetMetAt([gappy], 15 * MIN, at(20)), at(9, 35))
   })
 })
+describe("phase 2 fixes", () => {
+  const liveFor = (projectId: string): any => ({
+    today: "2026-10-03", projectId,
+    log: { date: "2026-10-03", totalTime: 0, activeTime: 0, streak: 0, languages: {}, agents: {}, files: [], sessions: [] },
+    todayActive: {}, globalToday: 0, globalStreak: 0, streaks: {},
+  })
+
+  it("a hand-edited project target is clamped the way the host clamps it", () => {
+    const y = year()
+    y.projects[0].dailyTargetMinutes = 0
+    let s = seriesFor(y, "alpha")
+    assert.strictEqual(s.targetMs[s.targetMs.length - 1], MIN)
+    y.projects[0].dailyTargetMinutes = 5000
+    s = seriesFor(y, "alpha")
+    assert.strictEqual(s.targetMs[s.targetMs.length - 1], 1440 * MIN)
+  })
+
+  it("a live update with no project leaves no empty key in the range", () => {
+    const range: any = { from: "2026-10-03", to: "2026-10-03", logs: {} }
+    assert.strictEqual(mergeLive(year(), range, liveFor("")), true)
+    assert.deepStrictEqual(Object.keys(range.logs), [])
+  })
+
+  it("says when the live project isn't in the year yet", () => {
+    assert.strictEqual(mergeLive(year(), null, liveFor("newcomer")), false)
+    assert.strictEqual(mergeLive(year(), null, liveFor("alpha")), true)
+  })
+})
