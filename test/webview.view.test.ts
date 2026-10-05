@@ -130,8 +130,21 @@ describe("layout", () => {
     assert.deepStrictEqual(heatCells(0, 53), [])
     // 2025-09-29 is a Monday; September only shows two days at the left edge, so its label is skipped
     const days = Array.from({ length: 371 }, (_: unknown, i: number) => addDaysKey("2025-09-29", i))
-    assert.deepStrictEqual(heatMonths(days, 53)[0], { text: "oct", col: 2 })
+    assert.deepStrictEqual(heatMonths(days, 53)[0], { text: "oct", col: 2, span: 4 })
     assert.deepStrictEqual(heatMonths([], 53), [])
+  })
+
+  // A label placed past the grid's last column overflowed it and gave the
+  // heatmap a horizontal scrollbar: labels stay inside, and a month that only
+  // reaches the last column (one week shown) gets none, as at the left edge.
+  it("month labels never run past the last column", () => {
+    // 2025-10-06 is a Monday, so 5 Oct 2026's week starts in column 53
+    const days = Array.from({ length: 365 }, (_: unknown, i: number) => addDaysKey("2025-10-06", i))
+    for (const weeks of [53, 26]) {
+      const labels = heatMonths(days, weeks)
+      assert.ok(labels.length > 0)
+      for (const l of labels) assert.ok(l.col + l.span - 1 <= weeks && l.span >= 2, `${l.text} at ${l.col}+${l.span} of ${weeks}`)
+    }
   })
 
   it("sparklines and the target meter", () => {

@@ -88,10 +88,12 @@ export function heatCells(total: number, weeks: number): (number | null)[] {
   return out
 }
 
-export function heatMonths(days: string[], weeks: number): { text: string; col: number }[] {
+// Labels span up to four week columns but never past the last one; a month
+// reaching only the last column has no room for its name and is skipped.
+export function heatMonths(days: string[], weeks: number): { text: string; col: number; span: number }[] {
   const all = Math.ceil(days.length / 7)
   const first = Math.max(0, all - weeks)
-  const out: { text: string; col: number }[] = []
+  const out: { text: string; col: number; span: number }[] = []
   let last = -1
   for (let w = first; w < all; w++) {
     const m = fromKey(days[w * 7]).getMonth()
@@ -99,7 +101,10 @@ export function heatMonths(days: string[], weeks: number): { text: string; col: 
     last = m
     // a month showing only its last days at the left edge would collide with the next label
     if (w === first && fromKey(days[Math.min(days.length - 1, (first + 2) * 7)]).getMonth() !== m) continue
-    out.push({ text: MON[m].toLowerCase(), col: w - first + 1 })
+    const col = w - first + 1
+    const span = Math.min(4, all - first - col + 1)
+    if (span < 2) continue
+    out.push({ text: MON[m].toLowerCase(), col, span })
   }
   return out
 }

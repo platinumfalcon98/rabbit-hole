@@ -49,7 +49,7 @@ function draw(d: HeatData): void {
   months.style.setProperty("--weeks", String(weeks))
   months.replaceChildren(...heatMonths(d.days, weeks).map(m => {
     const s = el("span", null, m.text)
-    s.style.gridColumn = `${m.col} / span 4`
+    s.style.gridColumn = `${m.col} / span ${m.span}`
     return s
   }))
 }
