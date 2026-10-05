@@ -222,8 +222,8 @@ legend b { color: var(--chrome); font-weight: 600; }
 
 /* languages */
 .lang { display: grid; gap: 6px; }
-.lang .row { display: grid; grid-template-columns: 8em 1fr 4.4em 6.4em; gap: 10px; align-items: center; cursor: default; }
-.lang.wide .row { grid-template-columns: 8em 1fr 4.4em 10.5em; }
+.lang .row { display: grid; grid-template-columns: 8em 1fr 6.4em 4.4em; gap: 10px; align-items: center; cursor: default; }
+.lang.wide .row { grid-template-columns: 8em 1fr 10.5em 4.4em; }
 .lang .row:hover, .lang .row:focus-visible { background: color-mix(in srgb, var(--ink) 7%, transparent); }
 .lang .name { display: flex; gap: 6px; align-items: center; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lang .track { height: 10px; background: color-mix(in srgb, var(--ink) 8%, transparent); }
