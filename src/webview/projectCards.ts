@@ -7,22 +7,32 @@ import { MIN, ago, dstr, fmt } from "./format"
 import { sparkGlyphs } from "./layout"
 import { seriesFor, streakInfo } from "./model"
 import type { Store } from "./state"
-import { wireSteppers } from "./stepper"
+import { syncApply, wireSteppers } from "./stepper"
 import { delegateTip, tipLine } from "./tooltip"
 
 type SortBy = "time" | "last" | "name"
 let sortBy: SortBy = "time"
 
-// The tab re-renders every 10 s; that must not wipe a target being typed.
-function busy(host: HTMLElement): boolean {
-  if (document.activeElement instanceof HTMLInputElement && host.contains(document.activeElement)) return true
-  return Array.from(host.querySelectorAll<HTMLInputElement>("input")).some(i => i.value.trim() !== (i.dataset.saved ?? ""))
+// The tab re-renders every 10 s. An input being typed in holds the render off;
+// a changed but unapplied target is carried into the new cards, so it neither
+// freezes the tab (sorting, today's times) nor gets wiped.
+function typing(host: HTMLElement): boolean {
+  return document.activeElement instanceof HTMLInputElement && host.contains(document.activeElement)
+}
+
+function pendingTargets(host: HTMLElement): Map<string, string> {
+  const m = new Map<string, string>()
+  host.querySelectorAll<HTMLInputElement>("input[data-project]").forEach(i => {
+    if (i.value.trim() !== (i.dataset.saved ?? "")) m.set(i.dataset.project ?? "", i.value)
+  })
+  return m
 }
 
 export function renderCards(store: Store, openInOverview: (id: string) => void): void {
   const year = store.year
   const host = $("pcards")
-  if (!year || busy(host)) return
+  if (!year || typing(host)) return
+  const pending = pendingTargets(host)
   const last = year.days.length - 1
   const globalMin = Math.round(year.globalTargetMs / MIN)
   const now = Date.now()
@@ -108,6 +118,12 @@ export function renderCards(store: Store, openInOverview: (id: string) => void):
     return card
   }))
   if (!list.length) host.append(el("p", "hint", "No projects yet. Open a folder and start typing."))
+  host.querySelectorAll<HTMLInputElement>("input[data-project]").forEach(i => {
+    const v = pending.get(i.dataset.project ?? "")
+    if (v === undefined) return
+    i.value = v
+    syncApply(i)
+  })
 }
 
 export function initCards(store: Store, post: (m: WebviewMessage) => void, rerender: () => void): void {
