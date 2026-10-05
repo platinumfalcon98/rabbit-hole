@@ -144,6 +144,14 @@ describe("export files", () => {
     assert.strictEqual(result().ok, false)
   })
 
+  it("an export format other than csv or json is refused before any dialog opens", async () => {
+    handleMessage({ type: "export", format: "../../x", name: "r.csv" } as any, store(), panel)
+    handleMessage({ type: "export", format: "exe", name: "r.csv" } as any, store(), panel)
+    await settle()
+    assert.strictEqual(v.calls.saveDialogs, 0)
+    assert.strictEqual(result().ok, false)
+  })
+
   it("csv and json are offered under the dialog's name too", async () => {
     handleMessage({ type: "export", format: "csv", from: today, to: today, name: "rabbithole-all-projects-x.csv" } as any, store(), panel)
     await settle()

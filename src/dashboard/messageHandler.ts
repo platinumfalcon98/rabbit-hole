@@ -46,6 +46,11 @@ export function handleMessage(
     }
 
     case "export": {
+      // The format becomes the file's extension and filter, so it is checked like writeFile's kind.
+      if (msg.format !== "csv" && msg.format !== "json") {
+        tell(panel, false, "Rabbit Hole: Export failed: unknown format.")
+        break
+      }
       // No range is the long-standing 90-day export; a given range must be a real one.
       if ((msg.from !== undefined || msg.to !== undefined) && !(msg.from && msg.to && isValidRange(msg.from, msg.to))) {
         tell(panel, false, `Rabbit Hole: Export needs a date range of at most ${MAX_RANGE_DAYS} days.`)
