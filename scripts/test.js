@@ -73,6 +73,16 @@ const SUITES = [
     alias: { model: "src/webview/model.ts" },
   },
   {
+    name: "view",
+    entry: "test/webview.view.test.ts",
+    alias: {
+      format: "src/webview/format.ts",
+      layout: "src/webview/layout.ts",
+      colors: "src/webview/colors.ts",
+      calendar: "src/webview/calendar.ts",
+    },
+  },
+  {
     name: "handler",
     entry: "test/dashboard.handler.test.ts",
     alias: {
