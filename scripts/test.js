@@ -176,6 +176,11 @@ const SUITES = [
     entry: "test/webview.exportLayout.test.ts",
     alias: { exportModel: "src/webview/exportModel.ts", exportLayout: "src/webview/exportLayout.ts" },
   },
+  {
+    name: "report",
+    entry: "test/webview.report.test.ts",
+    alias: { exportModel: "src/webview/exportModel.ts", report: "src/webview/reportPdf.ts" },
+  },
 ]
 
 function parseArgs(argv) {

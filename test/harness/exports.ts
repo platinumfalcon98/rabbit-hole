@@ -1,6 +1,7 @@
 // Draws every share card variant (and, from Task 6, offers every report) from
 // fixture data, for a visual check against docs/design/mockups/exports.html.
 import { Span, exportData } from "../../src/webview/exportModel"
+import { reportPdf } from "../../src/webview/reportPdf"
 import { cardFontsReady, drawCard } from "../../src/webview/shareCard"
 import { sampleWorld, world } from "../helpers/exportFixtures"
 
@@ -27,6 +28,18 @@ async function main(): Promise<void> {
     cap.textContent = label
     fig.append(canvas, cap)
     host.append(fig)
+  }
+  const reports = document.getElementById("reports")!
+  for (const [label, w, sel] of CASES) {
+    for (const span of ["today", "7d", "30d", "90d"] as Span[]) {
+      const b = document.createElement("button")
+      b.textContent = `report: ${label.split(",")[1].trim()}, ${span}`
+      b.onclick = () => {
+        const blob = new Blob([reportPdf(exportData(w.range, w.year, sel, span, Date.now()))], { type: "application/pdf" })
+        window.open(URL.createObjectURL(blob))
+      }
+      reports.append(b)
+    }
   }
 }
 void main()
