@@ -156,7 +156,9 @@ button:focus-visible, [tabindex]:focus-visible, select:focus-visible, input:focu
 /* box-drawn panels: fieldset/legend gives the btop "title in the border" for free */
 .grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 14px; }
 fieldset { margin: 0; min-width: 0; border: 1px solid var(--rule); background: var(--panel); padding: 10px 14px 14px; border-radius: 0; }
-legend { padding: 0 6px; color: var(--ink-dim); margin-left: -2px; }
+/* one line: a focus appends "· name only", and a wrapped title pushed the whole
+   panel down under a still pointer, which moved the focus — a hover vibrated */
+legend { padding: 0 6px; color: var(--ink-dim); margin-left: -2px; max-width: calc(100% - 8px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 legend b { color: var(--chrome); font-weight: 600; }
 .span-12 { grid-column: span 12; } .span-8 { grid-column: span 8; } .span-4 { grid-column: span 4; }
 .span-7 { grid-column: span 7; } .span-5 { grid-column: span 5; } .span-6 { grid-column: span 6; }
@@ -177,7 +179,9 @@ legend b { color: var(--chrome); font-weight: 600; }
 .tape span:hover, .tape span:focus-visible { background: color-mix(in srgb, var(--ink) 10%, transparent); }
 .tape .off { color: var(--ink-mute); opacity: .55; transform: none; }
 .ticks { display: grid; color: var(--ink-mute); font-size: 10.5px; margin-top: 4px; }
-.target { margin-top: 12px; color: var(--ink-dim); }
+/* one line always: a focus swaps in longer text, and a wrap would move the keys below it */
+.target { margin-top: 12px; color: var(--ink-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ghost { visibility: hidden; }
 .target .meter { color: var(--add); letter-spacing: 1px; }
 .target .meter i { font-style: normal; color: var(--ink-mute); }
 .tod-k { margin-top: 18px; color: var(--ink-dim); }

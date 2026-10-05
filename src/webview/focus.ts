@@ -1,7 +1,7 @@
 // Hover focus: pointing at a project or a language (anything carrying
 // data-hl="p:<id>" or "l:<name>") narrows the other panels to it. The panel
 // under the pointer keeps its rows; panels hold their height while a focus is
-// shown, so nothing moves under the pointer.
+// shown, so nothing moves under the pointer. Leaving the item clears it.
 import type { Focus } from "./model"
 
 export function parseHl(v: string | undefined): Focus {
@@ -25,6 +25,8 @@ export function lockHeights(root: HTMLElement, on: boolean): void {
   root.querySelectorAll<HTMLElement>(".grid > fieldset").forEach(f => { f.style.minHeight = on ? `${f.offsetHeight}px` : "" })
 }
 
+const CLEAR_GRACE_MS = 120
+
 export interface FocusWiring {
   allowProject: () => boolean   // a project focus only means something with all projects shown
   current: () => Focus
@@ -32,16 +34,14 @@ export interface FocusWiring {
 }
 
 export function wireFocus(root: HTMLElement, w: FocusWiring): void {
-  let src: HTMLElement | null = null
-  const read = (t: EventTarget | null): { f: NonNullable<Focus>; src: HTMLElement | null } | null => {
+  const read = (t: EventTarget | null): NonNullable<Focus> | null => {
     const h = t instanceof Element ? t.closest<HTMLElement>("[data-hl]") : null
     if (!h || !root.contains(h)) return null
     const f = parseHl(h.dataset.hl)
     if (!f || (f.kind === "project" && !w.allowProject())) return null
-    return { f, src: h.closest<HTMLElement>("fieldset") }
+    return f
   }
-  const apply = (f: Focus, from: HTMLElement | null) => {
-    src = from
+  const apply = (f: Focus) => {
     const cur = w.current()
     if (sameFocus(cur, f)) return
     // measure before the focused render changes anything
@@ -49,17 +49,26 @@ export function wireFocus(root: HTMLElement, w: FocusWiring): void {
     if (!f) lockHeights(root, false)
     w.set(f)
   }
+  // Leaving a hoverable item clears its focus, after a short grace so that
+  // crossing the gap to a neighbouring key doesn't flash the unfocused view.
+  let clearing: ReturnType<typeof setTimeout> | undefined
+  const cancelClear = () => { clearTimeout(clearing); clearing = undefined }
   root.addEventListener("pointerover", e => {
     const hit = read(e.target)
-    if (hit) return apply(hit.f, hit.src)
-    // leaving the source panel clears the focus; moving within it does not
-    if (w.current() && !(src && e.target instanceof Node && src.contains(e.target))) apply(null, null)
+    if (hit) {
+      cancelClear()
+      return apply(hit)
+    }
+    if (w.current() && clearing === undefined) clearing = setTimeout(() => { clearing = undefined; apply(null) }, CLEAR_GRACE_MS)
   })
-  root.addEventListener("pointerleave", () => apply(null, null))
+  root.addEventListener("pointerleave", () => {
+    cancelClear()
+    apply(null)
+  })
   root.addEventListener("focusin", e => {
     if (restoring) return
     const hit = read(e.target)
-    apply(hit ? hit.f : null, hit ? hit.src : null)
+    apply(hit)
   })
   // Tabbing out of the overview clears a keyboard focus, as leaving it with the
   // pointer does. A focused element removed by a re-render is not leaving.
@@ -68,7 +77,7 @@ export function wireFocus(root: HTMLElement, w: FocusWiring): void {
     const next = e.relatedTarget
     if (!(e.target instanceof Node) || !e.target.isConnected) return
     if (next instanceof Node && root.contains(next)) return
-    apply(null, null)
+    apply(null)
   })
 }
 

@@ -130,12 +130,15 @@ export function renderOverview(store: Store, openDay: (date: string) => void, ba
         ` of ${hours(view.wholeMs)} in the range (${pct(view.totalMs, view.wholeMs)}%)`)
     } else {
       target.replaceChildren(`target ${Math.round(targetOn(to) / MIN)}m · met on `, el("b", null, String(metDays)), ` of ${n} days`)
-      for (const [cls, text] of [["met", "target met"], ["under", "under target"], ["now", "today"]]) {
-        if (cls === "now" && to !== year.today) continue
-        const s = el("span")
-        s.append(el("i", cls), text)
-        leg.append(s)
-      }
+    }
+    // The column keys mean nothing under a focus, but they stay in the layout:
+    // removing them slid every project and language key along, so the key under
+    // a still pointer changed, which changed the focus back — a hover vibrated.
+    for (const [cls, text] of [["met", "target met"], ["under", "under target"], ["now", "today"]]) {
+      if (cls === "now" && to !== year.today) continue
+      const s = el("span", focus ? "ghost" : null)
+      s.append(el("i", cls), text)
+      leg.append(s)
     }
     const wholeActive = view.days.filter(d => d.whole.activeMs > 0)
     tapeSessions = activeDays.flatMap(d => d.shown.sessions)

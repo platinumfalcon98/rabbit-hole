@@ -28,7 +28,7 @@ extension the font is bundled and the data is real; everything else carries over
 | 1 | Record each session's language time from now on. Older sessions fall back to project colour. |
 | 2 | Redesign the exports too (share card and PDF report), keeping canvas and jsPDF as the renderers. CSV and JSON follow the dialog's range and project, as the prototype showed. |
 | 3 | The PDF report stays dark with the hairline terminal frame. Heatmaps are centred. The carrot is prominent: 5× in the card header, 4× in the report header, 2× in footers. |
-| 4 | CRT is on by default, subtle: slot mask, fine pitch, 30% strength, scanlines and bloom. Convergence, refresh roll and flicker default off. |
+| 4 | CRT is on by default, subtle: slot mask, fine pitch, 23% strength (30% until the first manual pass), edges at 35%, scanlines and bloom. Convergence, refresh roll and flicker default off. |
 | 5 | Redesign ships before the first Marketplace release. |
 | 6 | Work happens on `tty-redesign`, branched from `main` after fast-forwarding `accurate-line-counts`. |
 | 7 | Architecture: rebuild the webview front end as small modules; keep the extension host side. |
@@ -145,7 +145,10 @@ Everything in dashboard mockup v8:
 - Hover focus: a project (legend key, day-bar segment, session's project label) or a language (legend key, language
   row, session bar segment) narrows hero columns, tape, lines, languages, files and the days/sessions card. The panel
   under the pointer keeps its rows and dims the rest; panels lock their height while a focus is shown; focus clears
-  when the pointer leaves the source panel. Keyboard focus does the same.
+  when the pointer leaves the item (after a short grace, so crossing to a neighbouring key doesn't flash). Nothing under
+  the pointer may move when a focus is applied: panel titles and the target line stay on one line, and focused rows dim
+  rather than redraw (changed 2026-10-05 after the first manual pass: the old rule left a focus on, and moving keys
+  made a hover vibrate at narrow widths). Keyboard focus does the same.
 - Activity: year stats, block heatmap (53 weeks, 26 below 600 px), project share; hovering a project row narrows stats
   and heatmap.
 - Projects: sortable cards with today, streak, 14-day sparkline, per-project target with stepper and apply.
@@ -169,7 +172,8 @@ New configuration (Settings tab writes them via `updateSetting`; both webviews r
 |---|---|---|
 | `rabbithole.crt.mask` | `slot`, `grille`, `shadow`, `off` | `slot` |
 | `rabbithole.crt.pitch` | `fine`, `medium`, `coarse` | `fine` |
-| `rabbithole.crt.strength` | integer 0–100 | `30` |
+| `rabbithole.crt.strength` | integer 0–100 | `23` |
+| `rabbithole.crt.vignette` | integer 0–100: how much the glass darkens the screen's edges | `35` |
 | `rabbithole.crt.effects` | array of `scanlines`, `bloom`, `convergence`, `roll`, `flicker` | `["scanlines", "bloom"]` |
 
 Reads go through `src/shared/config.ts` with clamping, like the existing settings. Light themes scale the

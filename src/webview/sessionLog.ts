@@ -5,6 +5,7 @@ import { Names, langColor } from "./colors"
 import { $, el, keyBox } from "./dom"
 import { clock, dstr, fmt, plural, shortDate, weekday } from "./format"
 import type { DayView, Focus } from "./model"
+import { hlOf } from "./focus"
 import { bindTip, tipLine, tipSub } from "./tooltip"
 
 export interface LogOpts {
@@ -73,11 +74,14 @@ export function renderDays(days: DayView[], o: DaysOpts): void {
   const maxDay = Math.max(1, ...days.map(d => d.whole.activeMs))
   host.replaceChildren(...days.slice().reverse().map(d => {
     const ms = d.shown.activeMs
-    const li = el("li")
-    // one bar per day, as long as the day; split by project (all projects) or by language
-    const segs: [string, number, string][] = o.multi && (!f || f.kind === "project")
-      ? o.byProject(d.date).filter(([id]) => !f || id === f.id).map(([id, v]) => ["p:" + id, v, o.names.color(id)] as [string, number, string])
-      : d.shown.languages.map(l => ["l:" + l.name, l.ms, langColor(o.colors, l.name)] as [string, number, string])
+    const li = el("li", f && !ms ? "dim" : null)
+    // One bar per day, as long as the whole day; split by project (all projects)
+    // or by language. A focus dims the other segments rather than redrawing the
+    // bar: a segment that shrank or moved out from under the pointer cleared the
+    // focus, which redrew it under the pointer again — a hover vibrated.
+    const segs: [string, number, string][] = o.multi
+      ? o.byProject(d.date).map(([id, v]) => ["p:" + id, v, o.names.color(id)] as [string, number, string])
+      : d.whole.languages.map(l => ["l:" + l.name, l.ms, langColor(o.colors, l.name)] as [string, number, string])
     const track = el("span", "dtrack")
     const bar = el("span", "dbar")
     bar.style.width = `${segs.reduce((n, s) => n + s[1], 0) / maxDay * 100}%`
@@ -86,10 +90,11 @@ export function renderDays(days: DayView[], o: DaysOpts): void {
       seg.dataset.hl = hl
       seg.style.flex = String(v)
       seg.style.background = color
+      if (f && hl.startsWith(f.kind === "project" ? "p:" : "l:") && hl !== hlOf(f)) seg.style.opacity = ".15"
       bar.append(seg)
     }
     track.append(bar)
-    li.append(el("span", "when", `${weekday(d.date)} ${shortDate(d.date)}`), el("span", ms ? "dur" : "dur z", ms ? fmt(ms) : "·"), ms ? track : el("span"))
+    li.append(el("span", "when", `${weekday(d.date)} ${shortDate(d.date)}`), el("span", ms ? "dur" : "dur z", ms ? fmt(ms) : "·"), d.whole.activeMs ? track : el("span"))
     bindTip(li, () => {
       if (!ms) return [tipLine("no activity", dstr(d.date))]
       const ss = d.shown.sessions
