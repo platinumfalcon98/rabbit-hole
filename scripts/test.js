@@ -156,6 +156,11 @@ const SUITES = [
     entry: "test/storage.files.test.ts",
     alias: { vscode: "test/stubs/vscode.ts", storage: "src/tracker/storageService.ts" },
   },
+  {
+    name: "fonts",
+    entry: "test/webview.fonts.test.ts",
+    alias: { textFit: "src/webview/textFit.ts" },
+  },
 ]
 
 function parseArgs(argv) {
@@ -204,6 +209,7 @@ function main() {
       format: "cjs",
       sourcemap: "inline",
       alias,
+      loader: { ".ttf": "base64" },
       logLevel: "warning",
     })
 
