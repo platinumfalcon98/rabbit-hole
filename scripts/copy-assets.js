@@ -4,10 +4,12 @@ const path = require("path")
 const destDir = path.join(__dirname, "..", "out", "webview")
 fs.mkdirSync(destDir, { recursive: true })
 
-// CSS
-const cssSrc = path.join(__dirname, "..", "src", "webview", "style.css")
-fs.copyFileSync(cssSrc, path.join(destDir, "style.css"))
-console.log("Copied style.css →", path.join(destDir, "style.css"))
+// CSS: the dashboard's styles, and the sidebar's, which load on top of them
+for (const css of ["style.css", "mini.css"]) {
+  const from = path.join(__dirname, "..", "src", "webview", css)
+  fs.copyFileSync(from, path.join(destDir, css))
+  console.log(`Copied ${css} →`, path.join(destDir, css))
+}
 
 // Fonts
 const fontsSrc = path.join(__dirname, "..", "src", "webview", "fonts")

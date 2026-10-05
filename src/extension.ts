@@ -5,6 +5,7 @@ import { DashboardPanel } from "./dashboard/dashboardPanel"
 import { MiniPanel } from "./dashboard/miniPanel"
 import { handleMessage, onConfigChanged, postYear } from "./dashboard/messageHandler"
 import { buildLive } from "./dashboard/payloads"
+import { handleMiniMessage, onMiniConfigChanged, postMini } from "./dashboard/miniHandler"
 import { MirrorService } from "./tracker/mirrorService"
 import { getDailyTargetMs } from "./shared/config"
 import { statusText } from "./shared/statusText"
@@ -70,50 +71,14 @@ export function activate(context: vscode.ExtensionContext): void {
     statusBar.color = tracker.isActivelyTracking ? "#22c55e" : undefined
   }
 
-  const refreshMiniPanel = () => {
-    const global = storage.getGlobalToday()
-    const today = storage.getToday()
-    const todayKey = dateKey(new Date())
-    const aggregate = storage.getAggregateRangeByDates(todayKey, todayKey)
-    const aggToday = aggregate[0]
-    const langEntries = Object.entries(today.languages)
-    const topLang = langEntries.length > 0
-      ? langEntries.reduce((a, b) => a[1].time >= b[1].time ? a : b)[0]
-      : ""
-    const projects = storage.getProjects()
-    const projectActiveTimes: Record<string, number> = {}
-    const projectNames: Record<string, string> = {}
-    for (const p of projects) {
-      const pLog = storage.getRangeByDates(todayKey, todayKey, p.id)[0]
-      if (pLog && pLog.activeTime > 0) {
-        projectActiveTimes[p.id] = pLog.activeTime
-        projectNames[p.id] = p.name
-      }
-    }
-    miniPanel.update({
-      activeTime: global.activeTime,
-      streak: global.streak,
-      linesAdded: aggToday?.files.reduce((s, f) => s + f.linesAdded, 0) ?? 0,
-      linesDeleted: aggToday?.files.reduce((s, f) => s + f.linesDeleted, 0) ?? 0,
-      topLanguage: topLang,
-      sessionCount: today.sessions.length,
-      isTracking: tracker.isActivelyTracking,
-      projectActiveTimes,
-      projectNames,
-      dailySeries: storage.getGlobalActiveSeries(7),
-    })
-  }
-
   refreshStatusBar()
   statusBar.show()
   context.subscriptions.push(statusBar)
 
-  // Mini panel (Activity Bar sidebar) — registered after refreshMiniPanel is defined
-  const miniPanel = new MiniPanel(context.extensionUri)
-  miniPanel.setOnReady(() => refreshMiniPanel())
-  context.subscriptions.push(
-    vscode.window.registerWebviewViewProvider(MiniPanel.viewId, miniPanel)
-  )
+  // Activity Bar sidebar: it sends "ready" when it loads or is shown again
+  const miniPanel: MiniPanel = new MiniPanel(context.extensionUri, msg =>
+    handleMiniMessage(msg, storage, miniPanel, () => { void vscode.commands.executeCommand("rabbithole.openDashboard") }))
+  context.subscriptions.push(vscode.window.registerWebviewViewProvider(MiniPanel.viewId, miniPanel))
 
   // The year grid ends today; when the date changes the open dashboard needs a new one.
   let yearDay = dateKey(new Date())
@@ -123,7 +88,7 @@ export function activate(context: vscode.ExtensionContext): void {
     storage.updateStreak()
     storage.updateProjectStreak(storage.getCurrentProjectId())
     refreshStatusBar()
-    refreshMiniPanel()
+    if (miniPanel.visible) postMini(storage, miniPanel)
     if (DashboardPanel.currentPanel) {
       const panel = DashboardPanel.currentPanel
       panel.postMessage({ type: "live", ...buildLive(storage, new Date()) })
@@ -142,6 +107,7 @@ export function activate(context: vscode.ExtensionContext): void {
       if (DashboardPanel.currentPanel) {
         onConfigChanged(section => e.affectsConfiguration(section), storage, DashboardPanel.currentPanel)
       }
+      if (miniPanel.visible) onMiniConfigChanged(section => e.affectsConfiguration(section), storage, miniPanel)
     })
   )
 

@@ -1,0 +1,76 @@
+/* The Activity Bar sidebar: the TTY dashboard folded into one column. Loaded
+   after style.css, whose theme tokens, panels, tape, tooltip and CRT layers it
+   reuses; only the sidebar's own layout lives here. A webview's viewport is the
+   sidebar itself, so the width rules are plain media queries. */
+body { padding: 12px 12px 18px; }
+.mini { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; max-width: none; }
+.mini fieldset { padding: 6px 10px 10px; }
+/* the dashboard's rounded glass would show bezel-coloured corners in a narrow column */
+.crt-glass { border-radius: 0; }
+
+.brand { display: flex; align-items: center; gap: 10px; padding-bottom: 2px; }
+.brand svg { display: block; flex: none; filter: var(--carrot-glow); }
+.brand > div { min-width: 0; }
+.brand .word { font-weight: 700; font-size: 14px; line-height: 1.1; color: var(--ink); }
+.brand .proj { color: var(--ink-dim); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.mini .row { display: flex; flex-wrap: wrap; gap: 2px 14px; align-items: baseline; }
+.mini .big { font-size: 30px; line-height: 1.05; font-weight: 600; font-variation-settings: "wdth" 75; }
+.mini .mid { font-size: 22px; line-height: 1.1; font-weight: 600; font-variation-settings: "wdth" 75; }
+.mini .k { color: var(--ink-dim); }
+.mini .streak .big { color: var(--add); }
+.mini .add { color: var(--add); }
+.mini .del { color: var(--del); }
+
+.days { display: grid; grid-template-columns: repeat(14, 1fr); margin-top: 6px; font-size: 12px; text-align: center; }
+.days .hit { color: var(--add); }
+.days .miss { color: var(--ink-mute); }
+.days .now { color: var(--chrome); }
+.meter { margin-top: 4px; color: var(--ink-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.meter .on { color: var(--add); }
+.meter .off { color: var(--ink-mute); }
+.mini .tape { padding-top: 12px; }
+.mini .ticks { font-size: 10px; }
+
+/* 7 days: four rows of eighth blocks, like btop */
+/* height: auto undoes the dashboard's range columns, which share the class name */
+.cols { display: grid; grid-template-columns: 2.6em repeat(7, minmax(0, 1fr)); gap: 0 4px; align-items: end; height: auto; margin-top: 4px; }
+.cols .axis { display: grid; grid-template-rows: repeat(4, 1fr); height: 64px; color: var(--ink-mute); font-size: 10px; text-align: right; }
+.cols .axis span:first-child { align-self: start; }
+.cols .axis span:last-child { align-self: end; }
+.col { display: grid; grid-template-rows: repeat(4, 16px); font-size: 18px; line-height: 16px; color: var(--add); cursor: default; overflow: hidden; }
+.col span { display: block; height: 16px; text-align: center; overflow: hidden; }
+.col.now { color: var(--chrome); }
+.col:hover, .col:focus-visible { background: color-mix(in srgb, var(--ink) 8%, transparent); }
+.dlabels { display: grid; grid-template-columns: 2.6em repeat(7, minmax(0, 1fr)); gap: 0 4px; color: var(--ink-mute); font-size: 10px; text-align: center; margin-top: 3px; }
+.dlabels .now { color: var(--chrome); }
+.pkeys { display: flex; flex-wrap: wrap; gap: 2px 12px; margin-top: 8px; color: var(--ink-dim); font-size: 11px; }
+.pkeys > span { display: inline-flex; gap: 6px; align-items: center; padding: 0 2px; cursor: default; max-width: 100%; min-width: 0; }
+/* text-overflow doesn't reach a flex item's bare text, so the name gets its own box */
+.pkeys .n { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pkeys > span:hover, .pkeys > span:focus-visible { color: var(--ink); }
+
+/* projects today: one split bar, then the list that carries the numbers */
+.split { display: flex; gap: 2px; height: 10px; margin: 6px 0 8px; }
+.split span { height: 100%; min-width: 2px; }
+.plist { display: grid; gap: 3px; }
+.plist .p { display: grid; grid-template-columns: 8px minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 1px 2px; cursor: default; }
+.plist .p:hover, .plist .p:focus-visible { background: color-mix(in srgb, var(--ink) 8%, transparent); }
+.plist .n { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.plist .t { color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+.mini .dim { opacity: .32; }
+
+.open { font: inherit; font-weight: 600; width: 100%; padding: 6px 8px; border: 0; cursor: pointer; background: var(--chrome); color: var(--chrome-ink); text-shadow: none; }
+.open:hover { filter: brightness(1.08); }
+
+/* narrow sidebars drop what stops being readable */
+@media (max-width: 230px) {
+  body { padding-inline: 8px; }
+  .brand .proj { display: none; }
+  .days { grid-template-columns: repeat(7, 1fr); }
+  .days span:nth-child(-n+7) { display: none; }
+  .mini .ticks span:nth-child(even) { visibility: hidden; }
+  .cols, .dlabels { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+  .cols .axis, .dlabels .gap { display: none; }
+  .plist .pct { display: none; }
+}

@@ -3,19 +3,21 @@ const fs = require("fs")
 const path = require("path")
 
 const root = path.resolve(__dirname, "..")
-const cssSrc = path.join(root, "src", "webview", "style.css")
-const cssOut = path.join(root, "out", "webview", "style.css")
+const CSS = ["style.css", "mini.css"]
 
-function copyCss() {
-  fs.mkdirSync(path.dirname(cssOut), { recursive: true })
-  fs.copyFileSync(cssSrc, cssOut)
+function copyCss(name) {
+  const out = path.join(root, "out", "webview", name)
+  fs.mkdirSync(path.dirname(out), { recursive: true })
+  fs.copyFileSync(path.join(root, "src", "webview", name), out)
 }
 
-copyCss()
-fs.watch(cssSrc, () => {
-  try { copyCss(); console.log("[css] style.css updated") }
-  catch (e) { console.error("[css] copy failed:", e.message) }
-})
+for (const name of CSS) {
+  copyCss(name)
+  fs.watch(path.join(root, "src", "webview", name), () => {
+    try { copyCss(name); console.log(`[css] ${name} updated`) }
+    catch (e) { console.error(`[css] ${name} copy failed:`, e.message) }
+  })
+}
 
 // Both contexts below share this plugin, so logging per build emitted two
 // "started"/"finished" pairs per round. VS Code's background problemMatcher is
@@ -68,7 +70,7 @@ async function main() {
       plugins: [logPlugin],
     }),
     esbuild.context({
-      entryPoints: ["src/webview/main.ts", "src/webview/miniTheme.ts"],
+      entryPoints: ["src/webview/main.ts", "src/webview/mini.ts"],
       bundle: true,
       outdir: "out/webview",
       platform: "browser",
