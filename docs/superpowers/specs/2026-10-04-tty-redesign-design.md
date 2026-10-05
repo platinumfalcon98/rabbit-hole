@@ -126,9 +126,13 @@ CRT mask is a canvas pattern, no `img-src` needed). One font: Martian Mono varia
 | `projectCards.ts`, `settingsTab.ts`, `exportDialog.ts` | other tabs and the dialog |
 | `jpgExport.ts`, `pdfExport.ts` | §4 |
 | `style.css` | rewritten from the mockup tokens |
+| `format.ts`, `layout.ts`, `colors.ts`, `calendar.ts` | pure helpers: text, layout arithmetic, colours, range picking |
+| `overview.ts`, `activityTab.ts` | tab composition, so `main.ts` stays wiring only |
+| `stepper.ts` | the `−`/`+`/apply controls shared by Settings and Projects |
 
-Deleted: `charts.ts`, old `heatmap.ts`, `theme.ts`, `derivePalette.ts`, `exportShared.ts` (folded into `model.ts`
-where still needed). Dependencies removed: `chart.js`, `d3`. `jspdf` stays.
+Deleted in phase 2: `charts.ts`, the d3 `heatmap.ts` (replaced), `theme.ts`; dependencies `chart.js`, `d3`. Deleted with
+the phase that replaces their last user: `exportShared.ts` and the Electrolize TTF (phase 3, exports), `derivePalette.ts`,
+`miniTheme.ts` and the Press Start 2P / Unica One fonts (phase 4, sidebar). `jspdf` stays.
 
 ### 2.3 Behaviour
 
