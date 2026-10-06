@@ -29,8 +29,8 @@ body { padding: 12px 12px 18px; }
 .days .hit { color: var(--add); }
 .days .miss { color: var(--ink-mute); }
 .days .now { color: var(--chrome); }
-/* the tape's block glyphs draw taller than their line box: without the gap they run into "met HH:MM" */
-.meter { margin: 4px 0 8px; color: var(--ink-dim); display: flex; flex-wrap: wrap; column-gap: 1ch; white-space: nowrap; }
+/* the tape's block glyphs draw taller than their line box: without the gap they run into "daily target met at HH:MM" */
+.meter { margin: 4px 0 8px; color: var(--ink-dim); display: flex; flex-wrap: wrap; column-gap: 1ch; }
 .meter .on { color: var(--add); }
 .meter .off { color: var(--ink-mute); }
 .mini .tape { padding-top: 12px; }

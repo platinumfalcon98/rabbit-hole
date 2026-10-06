@@ -37,7 +37,7 @@ function today(v: MiniView, now: number): void {
   const bar = el("span")
   bar.append(el("span", "on", "█".repeat(v.meter[0])), el("span", "off", "░".repeat(v.meter[1])))
   // its own item, so a narrow sidebar wraps the time under the bar rather than cutting it off
-  $("td-meter").replaceChildren(bar, el("span", null, v.metAt !== null ? `met ${clock(v.metAt)}` : `${fmt(v.remainingMs)} to go`))
+  $("td-meter").replaceChildren(bar, el("span", null, v.metAt !== null ? `daily target met at ${clock(v.metAt)}` : `${fmt(v.remainingMs)} to daily target`))
   setTape({
     sessions: v.sessions,
     base: v.baseSessions,
