@@ -123,7 +123,7 @@ export interface CrtSettings {
 // ── Message Protocol ──────────────────────────────────────────────────────
 
 export type ExtensionMessage =
-  | { type: "settings"; dailyTargetMs: number; dailyTargetMinutes: number; idleThresholdMinutes: number; storagePath: string; crt: CrtSettings }
+  | { type: "settings"; dailyTargetMs: number; dailyTargetMinutes: number; idleThresholdMinutes: number; storagePath: string; crt: CrtSettings; lineNotes?: string[] }
   | ({ type: "year" } & YearPayload)
   | ({ type: "range"; for?: "export" } & RangePayload)   // for: the export dialog's own fetch, which the dashboard ignores
   | { type: "rangeRefused"; from: string; to: string; for?: "export" }

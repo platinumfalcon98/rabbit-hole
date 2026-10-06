@@ -3,9 +3,10 @@ import { StorageService, dateKey } from "./tracker/storageService"
 import { ActivityTracker } from "./tracker/activityTracker"
 import { DashboardPanel } from "./dashboard/dashboardPanel"
 import { MiniPanel } from "./dashboard/miniPanel"
-import { handleMessage, onConfigChanged, postYear } from "./dashboard/messageHandler"
+import { handleMessage, onConfigChanged, postYear, sendSettings } from "./dashboard/messageHandler"
 import { buildLive } from "./dashboard/payloads"
 import { handleMiniMessage, onMiniConfigChanged, postMini } from "./dashboard/miniHandler"
+import { lineNotes } from "./tracker/lineNotes"
 import { MirrorService } from "./tracker/mirrorService"
 import { getDailyTargetMs } from "./shared/config"
 import { statusText } from "./shared/statusText"
@@ -23,6 +24,11 @@ export function activate(context: vscode.ExtensionContext): void {
   storage.setSessionDiscardHook(() => tracker.discardCurrentSession())
 
   tracker.start()
+  // A note found after the dashboard opened (a capture hitting its cap a minute
+  // in) is pushed straight away, not left for the next settings change.
+  context.subscriptions.push(lineNotes.onChange(() => {
+    if (DashboardPanel.currentPanel) sendSettings(storage, DashboardPanel.currentPanel)
+  }))
   storage.updateStreak()
   storage.updateProjectStreak(storage.getCurrentProjectId())
 

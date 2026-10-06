@@ -94,6 +94,7 @@ const SUITES = [
     entry: "test/webview.carrot.test.ts",
     alias: { carrot: "src/webview/carrot.ts" },
   },
+  { name: "linenotes", entry: "test/tracker.notes.test.ts", alias: { lineNotes: "src/tracker/lineNotes.ts" } },
   {
     name: "state",
     entry: "test/webview.state.test.ts",
@@ -116,6 +117,7 @@ const SUITES = [
       vscode: "test/stubs/vscodeHost.ts",
       storage: "src/tracker/storageService.ts",
       handler: "src/dashboard/messageHandler.ts",
+      lineNotes: "src/tracker/lineNotes.ts",
     },
   },
   {

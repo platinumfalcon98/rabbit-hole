@@ -4,6 +4,8 @@ import * as vscode from "vscode"
 import { MIN, PROJECTS_KEY, cleanupStorageRoot, daysAgo, log, makeStore, proj, today } from "./helpers/store"
 // @ts-ignore — esbuild alias to src/dashboard/messageHandler.ts
 import { handleMessage, onConfigChanged } from "handler"
+// @ts-ignore — esbuild alias to src/tracker/lineNotes.ts
+import { lineNotes } from "lineNotes"
 
 const v = vscode as any
 after(cleanupStorageRoot)
@@ -176,5 +178,14 @@ describe("the old export protocol", () => {
     await settle()
     assert.deepStrictEqual(posted, [])
     assert.strictEqual(v.calls.saveDialogs, 0)
+  })
+})
+
+describe("line notes reach the dashboard", () => {
+  it("the settings message carries today's notes", () => {
+    lineNotes.add(today, "capture partial in c:\w")
+    handleMessage({ type: "ready" } as any, store(), panel)
+    const settings = posted.find(m => m.type === "settings")
+    assert.deepStrictEqual(settings.lineNotes, ["capture partial in c:\w"])
   })
 })

@@ -8,9 +8,11 @@ import {
   PROJECTS_KEY,
   SnapshotSummary,
   StorageService,
+  dateKey,
   scopeSnapshotToProjects,
   validateSnapshot,
 } from "../tracker/storageService"
+import { lineNotes } from "../tracker/lineNotes"
 import { DashboardPanel } from "./dashboardPanel"
 import { MAX_RANGE_DAYS, buildRange, buildYear, isValidRange } from "./payloads"
 
@@ -312,6 +314,7 @@ export function sendSettings(storage: StorageService, panel: Poster): void {
     idleThresholdMinutes: Math.round(getIdleThresholdMs() / 60_000),
     storagePath: storage.getStoragePath(),
     crt: getCrtSettings(),
+    lineNotes: lineNotes.current(dateKey(new Date())),
   })
 }
 

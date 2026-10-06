@@ -12,6 +12,7 @@ export interface Settings {
   idleThresholdMinutes: number
   storagePath: string
   crt: CrtSettings
+  lineNotes?: string[]
 }
 export interface Back { from: string; to: string; preset: RangeId | null }
 export interface ViewState {
@@ -46,6 +47,7 @@ export class Store {
   here: string | null = null    // the project this window is working in, from live updates
   refused = false
   console: ConsoleLine[] = []
+  private notesShown = new Set<string>()
   view: ViewState = { sel: "all", from: "", to: "", preset: "today", back: null, focus: null }
   private range: RangePayload | null = null
   private askedFor: string | null = null   // the unknown live project a year was last requested for
@@ -138,6 +140,11 @@ export class Store {
       case "settings": {
         const { type: _type, ...settings } = msg
         this.settings = settings
+        for (const n of settings.lineNotes ?? []) {
+          if (this.notesShown.has(n)) continue
+          this.notesShown.add(n)
+          this.note("bad", n)
+        }
         this.emit("settings")
         break
       }

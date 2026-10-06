@@ -179,3 +179,17 @@ describe("store: replies tagged for the export dialog", () => {
     assert.notStrictEqual(s.days(), null)
   })
 })
+
+describe("line notes in the console", () => {
+  const settings = (lineNotes?: string[]): any => ({ type: "settings", dailyTargetMs: 0, dailyTargetMinutes: 20, idleThresholdMinutes: 5, storagePath: "", crt: {}, lineNotes })
+  it("each note is printed once, even when settings arrive again", () => {
+    s.receive(settings(["git unavailable in c:\w: x"]))
+    s.receive(settings(["git unavailable in c:\w: x", "catch-up capped at 20,000 files; the rest count from their next edit"]))
+    assert.deepStrictEqual(s.console.map((l: any) => l.text), ["git unavailable in c:\w: x", "catch-up capped at 20,000 files; the rest count from their next edit"])
+    assert.ok(s.console.every((l: any) => l.cls === "bad"))
+  })
+  it("settings without notes print nothing", () => {
+    s.receive(settings())
+    assert.deepStrictEqual(s.console, [])
+  })
+})
