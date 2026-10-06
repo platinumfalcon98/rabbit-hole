@@ -164,6 +164,11 @@ const SUITES = [
     alias: { gitBaseline: "src/tracker/gitBaseline.ts" },
   },
   {
+    name: "gitreal",
+    entry: "test/tracker.git.test.ts",
+    alias: { gitBaseline: "src/tracker/gitBaseline.ts" },
+  },
+  {
     name: "files",
     entry: "test/storage.files.test.ts",
     alias: { vscode: "test/stubs/vscode.ts", storage: "src/tracker/storageService.ts" },
