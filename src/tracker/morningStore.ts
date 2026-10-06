@@ -104,6 +104,8 @@ export class MorningStore {
   }
 
   private async fromGit(fsPath: string, repo: Repo): Promise<Morning> {
+    // a repo whose top is not a prefix of the path cannot give a repo-relative path
+    if (!isUnder(fsPath, repo.topRaw)) return "unknown"
     if (!repo.baseline) return "unknown"
     const top = repo.topRaw.replace(/\\/g, "/").replace(/\/+$/, "")
     const rel = fsPath.replace(/\\/g, "/").slice(top.length + 1)

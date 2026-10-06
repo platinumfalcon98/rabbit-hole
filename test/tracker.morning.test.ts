@@ -31,6 +31,8 @@ describe("classify", () => {
     assert.strictEqual(classify(st(MID + 2, MID + 1), MID, false, false, true), "unknown"))
   it("untracked, modified after midnight, no creation time: unknown", () =>
     assert.strictEqual(classify(st(MID + 2, 0), MID, false, false, false), "unknown"))
+  it("untracked, born before midnight, modified after: unknown", () =>
+    assert.strictEqual(classify(st(MID + 2, MID - 1), MID, false, false, false), "unknown"))
 })
 
 const ROOT = path.join(DIR, "w")
@@ -112,6 +114,14 @@ describe("MorningStore.lookup", () => {
     const { store, ready } = setup({ blobs: { "lfs.json": "unknown" } })
     ready()
     assert.strictEqual(await store.lookup(P("lfs.json")), "unknown")
+  })
+  it("a repo whose top is not a prefix of the path is unknown, never read", async () => {
+    const { store, reads } = setup({ blobs: { "a.ts": "a\n" } })
+    const other: any = { top: normalizePath(path.join(DIR, "other")), topRaw: path.join(DIR, "other"), baseline: "B", worktree: false, listed: new Set(), listedDirs: [], reflog: [] }
+    ;(store as any).deps.findRepo = async () => other
+    store.folderReady(ROOT, "git")
+    assert.strictEqual(await store.lookup(P("a.ts")), "unknown")
+    assert.deepStrictEqual(reads, [])
   })
   it("a path outside every workspace folder is unknown", async () => {
     const { store, ready } = setup(); ready()
