@@ -245,6 +245,7 @@ const SUITES = [
     alias: { dayCapture: "src/tracker/dayCapture.ts", captureStore: "src/tracker/captureStore.ts" },
   },
   { name: "firstsight", entry: "test/tracker.firstsight.test.ts", alias: { vscode: "test/stubs/vscodeWindow.ts", tracker: "src/tracker/activityTracker.ts", lineNotes: "src/tracker/lineNotes.ts" } },
+  { name: "verifytool", entry: "test/tools.verify.test.ts", alias: { verifyCore: "scripts/verify-lines/core.ts" } },
 ]
 
 function parseArgs(argv) {

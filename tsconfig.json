@@ -10,7 +10,7 @@
     "skipLibCheck": true,
     "sourceMap": true
   },
-  // `test` is excluded because rootDir is src: the tests are type-checked by
+  // `test` is excluded because rootDir is src: the tests (and scripts/verify-lines) are type-checked by
   // tsconfig.test.json instead (npm run typecheck runs both).
-  "exclude": ["node_modules", "out", "test"]
+  "exclude": ["node_modules", "out", "test", "scripts"]
 }

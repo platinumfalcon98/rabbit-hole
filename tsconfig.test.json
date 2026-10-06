@@ -5,6 +5,6 @@
     "noEmit": true,
     "types": ["node", "vscode"]
   },
-  "include": ["test/**/*.ts", "src/webview/fonts.d.ts"],
-  "exclude": ["node_modules", "out", "test/.out"]
+  "include": ["test/**/*.ts", "scripts/verify-lines/*.ts", "src/webview/fonts.d.ts"],
+  "exclude": ["node_modules", "out", "test/.out", "scripts/*.js"]
 }
