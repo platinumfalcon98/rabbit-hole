@@ -159,6 +159,11 @@ const SUITES = [
     alias: { vscode: "test/stubs/vscode.ts", paths: "src/tracker/pathRules.ts" },
   },
   {
+    name: "capfile",
+    entry: "test/tracker.capfile.test.ts",
+    alias: { captureStore: "src/tracker/captureStore.ts", ledger: "src/tracker/lineLedger.ts" },
+  },
+  {
     name: "baseline",
     entry: "test/tracker.baseline.test.ts",
     alias: { gitBaseline: "src/tracker/gitBaseline.ts" },
