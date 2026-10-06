@@ -106,7 +106,9 @@ export class Repos {
         ignoredDirs: st.ignored.filter(r => r.endsWith("/")).map(join),
         // -uall lists untracked files one by one, so a directory here is a nested repo
         nested: [...st.untracked.filter(r => r.endsWith("/")).map(join), ...(await this.git.submodules(topRaw)).map(join)]
-          .filter(d => fs.existsSync(path.join(d, ".git"))),
+          .filter(d => fs.existsSync(path.join(d, ".git")))
+          // a linked worktree (its own `.git` file) is not a nested repo: Repos.find loads it as a worktree
+          .filter(d => normalizePath(worktreeInfo(path.join(d, "x"))?.root ?? "") !== normalizePath(d)),
       }
       for (const f of scan.files) listed.add(normalizePath(f.raw))
       for (const d of scan.ignoredDirs) listedDirs.push(normalizePath(d) + "/")
@@ -155,9 +157,9 @@ export function startDay(rootsRaw: string[], day: string, midnightMs: number, de
   if (loaded.kind === "today") done = reload(loaded.capture, rootsRaw, midnightMs, store, repos, git)
   else if (writer) done = capture(rootsRaw, day, midnightMs, deps, store, repos, git, writer, new Set(loaded.kind === "stale" ? loaded.paths.map(p => normalizePath(p)) : []))
   else {
-    deps.note(`line capture failed: ${message(writerFailed)}`)
-    for (const root of rootsRaw) store.folderReady(root, "plain")
+    for (const root of rootsRaw) store.folderReady(root, "plain") // before the note: a throwing note must not leave lookups waiting
     done = Promise.resolve({ changed: [], saved: false })
+    try { deps.note(`line capture failed: ${message(writerFailed)}`) } catch { /* a reporter must not break tracking */ }
   }
   return { store, done }
 }
@@ -222,11 +224,28 @@ async function capture(
     try {
       st = await fs.promises.stat(raw)
     } catch {
-      if (tracked) { store.put(raw, snap ? writer.add(snap) : "useB"); count++ } // dirty tracked, deleted at day start
+      // A dirty tracked file that is gone at day start. Its parent directory's
+      // mtime tells when: unchanged since before midnight means it was deleted
+      // before today (morning content []), otherwise B. A missing parent is a
+      // recent deletion too.
+      if (tracked) {
+        let entry: CaptureEntry
+        if (snap) entry = writer.add(snap)
+        else {
+          let parentBefore = false
+          try { parentBefore = (await fs.promises.stat(path.dirname(raw))).mtimeMs < midnightMs } catch { /* parent gone */ }
+          entry = parentBefore ? "empty" : "useB"
+        }
+        store.put(raw, entry)
+        count++
+        changed.add(raw)
+      }
       return true
     }
     if (!st.isFile() || st.size > MAX_FILE_BYTES) return true
-    const existedBefore = previous.has(normalizePath(raw)) || snap !== undefined
+    // existence does not depend on the snapshot being usable for content
+    const key = normalizePath(raw)
+    const existedBefore = previous.has(key) || snapshotByKey.has(key)
     const c = classify({ mtimeMs: st.mtimeMs, birthtimeMs: st.birthtimeMs }, midnightMs, tracked, snap !== undefined, existedBefore)
     if (c === "exact") {
       let text: string
@@ -248,7 +267,10 @@ async function capture(
 
   const captureRepo = async (repo: Repo & { scan: Scan | null }, rootRaw: string): Promise<void> => {
     if (!repo.scan) return
-    for (const f of repo.scan.files) if (isUnder(f.raw, rootRaw) && !(await consider(f.raw, f.tracked, repo))) return
+    for (const f of repo.scan.files) {
+      if (isUnder(f.raw, rootRaw) && !(await consider(f.raw, f.tracked, repo))) return
+      await budget.tick() // also for entries consider() rejects: a huge status list must still yield
+    }
     for (const d of repo.scan.ignoredDirs) {
       if (!isUnder(d, rootRaw) && normalizePath(d) !== normalizePath(rootRaw)) continue
       if (!(await walk(d, raw => consider(raw, false, repo), budget))) return
@@ -257,8 +279,11 @@ async function capture(
       if (!isUnder(n, rootRaw)) continue
       const inner = await repos!.load(n, false)
       if (inner) {
-        folders.push({ root: n, repo: { top: inner.topRaw, baseline: inner.baseline }, partial: false })
+        const entry: CaptureFolder = { root: n, repo: { top: inner.topRaw, baseline: inner.baseline }, partial: false }
+        folders.push(entry)
         await captureRepo(inner, n)
+        entry.partial = full
+        if (entry.partial) deps.note(`line counts in ${n} start from each file's first edit: more than 20,000 files to capture`)
       }
     }
   }
@@ -322,6 +347,7 @@ async function capture(
         if (count >= cap) break
         store.put(raw, writer.add(hashes))
         count++
+        changed.add(raw) // e.g. dirty at midnight, restored this morning: catch-up credits the difference
       }
     }
 
@@ -329,8 +355,8 @@ async function capture(
     saveCapture(deps.jsonPath, { version: 1, day, bin: writer.name, folders, index: store.index() })
     return { changed: [...changed], saved: true }
   } catch (e) {
+    for (const root of rootsRaw) store.folderReady(root, "plain") // before the note, which may itself throw
     deps.note(`line capture failed: ${message(e)}`)
-    for (const root of rootsRaw) store.folderReady(root, "plain")
     return { changed: [...changed], saved: false }
   } finally {
     writer.close() // idempotent; also covers a throwing add() (ENOSPC) or note()

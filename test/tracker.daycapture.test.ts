@@ -205,6 +205,62 @@ describe("caps, failures and plain folders", () => {
   })
 })
 
+describe("fix round 1", () => {
+  const setDirTime = (dir: string, ms: number) => fs.utimesSync(dir, ms / 1000, ms / 1000)
+  it("a tracked file deleted before midnight (parent unchanged since) is empty, not B", async () => {
+    const r = repo(); r.write("sub/d.ts", "1\n2\n"); r.write("sub/keep.ts", "k\n"); r.commitAll("y", yesterdayNoon())
+    fs.unlinkSync(r.path("sub/d.ts")); setDirTime(r.path("sub"), yesterdayNoon())
+    const { day } = run([r.dir]); await day.done
+    assert.strictEqual(day.store.index()[r.path("sub/d.ts")], "empty")
+    assert.deepStrictEqual(await day.store.lookup(r.path("sub/d.ts")), [])
+  })
+  // Regression guard for the other branch: a deletion today keeps B.
+  it("a tracked file deleted today (parent changed today) is B", async () => {
+    const r = repo(); r.write("sub/d.ts", "1\n2\n"); r.write("sub/keep.ts", "k\n"); r.commitAll("y", yesterdayNoon())
+    fs.unlinkSync(r.path("sub/d.ts"))
+    const { day } = run([r.dir]); await day.done
+    assert.strictEqual(day.store.index()[r.path("sub/d.ts")], "useB")
+    assert.deepStrictEqual(await day.store.lookup(r.path("sub/d.ts")), h("1\n2\n"))
+  })
+  it("an untracked file created today that is in an unusable snapshot is unknown, not empty", async () => {
+    const r = repo(); r.write("a.ts", "1\n"); r.commitAll("y", yesterdayNoon())
+    r.write("a.ts", "1\n2\n"); r.commitAll("late", yesterdayNoon() + 2 * 3_600_000) // git moved in the gap
+    r.write("n.md", "today\n")
+    const yesterday = { savedAt: yesterdayNoon() + 3_600_000, files: new Map([[r.path("n.md"), h("old\n")]]) }
+    const { day } = run([r.dir], { yesterday }); await day.done
+    assert.strictEqual(day.store.index()[r.path("n.md")], "unknown")
+  })
+  it("a linked worktree that is not gitignored is not a nested repo; its files resolve through its own B", async () => {
+    const r = repo(); r.write("a.ts", "1\n"); r.write("c.ts", "c\n"); r.commitAll("y", yesterdayNoon())
+    r.git(["worktree", "add", "-q", "-b", "w1", ".worktrees/w1"])
+    r.write(".worktrees/w1/a.ts", "1\nwt\n")
+    const { day, jsonPath } = run([r.dir]); await day.done
+    const folders = (loadCapture(jsonPath, DAY) as any).capture.folders.map((f: any) => path.basename(f.root))
+    assert.deepStrictEqual(folders, [path.basename(r.dir)])
+    assert.deepStrictEqual(await day.store.lookup(r.path(".worktrees/w1/c.ts")), h("c\n"))
+    assert.deepStrictEqual(await day.store.lookup(r.path(".worktrees/w1/a.ts")), h("1\n")) // dirty but a worktree: B
+  })
+  it("the cap reached inside a nested repo marks that folder partial, with a note naming it", async () => {
+    const r = repo(); r.write("a.ts", "1\n"); r.commitAll("y", yesterdayNoon())
+    const inner = r.path("sub")
+    fs.mkdirSync(inner)
+    const g = (args: string[]) => spawnSync("git", ["-c", "user.name=t", "-c", "user.email=t@t", ...args], { cwd: inner })
+    g(["init", "-q", "-b", "main"])
+    for (const f of ["u1.ts", "u2.ts", "u3.ts", "u4.ts"]) { const p = path.join(inner, f); fs.writeFileSync(p, "u\n"); fs.utimesSync(p, yesterdayNoon() / 1000, yesterdayNoon() / 1000) }
+    const { day, notes, jsonPath } = run([r.dir], { cap: 2 }); await day.done
+    const entry = (loadCapture(jsonPath, DAY) as any).capture.folders.find((f: any) => path.basename(f.root) === "sub")
+    assert.strictEqual(entry?.partial, true)
+    assert.ok(notes.some(t => t.startsWith(`line counts in ${inner} start from each file's first edit`)), notes.join("\n"))
+  })
+  it("a file dirty at midnight and restored this morning is caught up from the snapshot", async () => {
+    const r = repo(); r.write("a.ts", "1\n"); r.commitAll("y", yesterdayNoon())
+    const yesterday = { savedAt: yesterdayNoon() + 3_600_000, files: new Map([[r.path("a.ts"), h("1\nyesterday\n")]]) }
+    const { day } = run([r.dir], { yesterday }); const out = await day.done
+    assert.deepStrictEqual(await day.store.lookup(r.path("a.ts")), h("1\nyesterday\n"))
+    assert.ok(out.changed.some((p: string) => path.basename(p) === "a.ts"), out.changed.join("\n"))
+  })
+})
+
 describe("reloading today's capture", () => {
   it("a second start the same day loads it instead of retaking, and keeps B", async () => {
     const r = repo(); r.write("a.ts", "1\n"); r.commitAll("y", yesterdayNoon())
