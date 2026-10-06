@@ -7,18 +7,24 @@
 import * as fs from "fs"
 import * as os from "os"
 import * as path from "path"
-import { Git } from "../../src/tracker/gitBaseline"
-import { isExcludedPath, languageForFile, normalizePath } from "../../src/tracker/pathRules"
+import { Git, MAX_BLOB_BYTES } from "../../src/tracker/gitBaseline"
+import { isExcludedPath, languageForFile, normalizePath, worktreeInfo } from "../../src/tracker/pathRules"
 import { Diff, compare, netDiff } from "./core"
+
+const USAGE = "usage: node scripts/verify-lines.js [YYYY-MM-DD] --repo <path> [--repo …] [--mirror <dir>]"
+function usage(): never { console.error(USAGE); process.exit(2) }
 
 function args() {
   const a = process.argv.slice(2)
   const repos: string[] = []
   let date = "", mirror = ""
   for (let i = 0; i < a.length; i++) {
-    if (a[i] === "--repo") repos.push(path.resolve(a[++i]))
-    else if (a[i] === "--mirror") mirror = a[++i]
-    else date = a[i]
+    if (a[i] === "--repo" || a[i] === "--mirror") {
+      const v = a[++i]
+      if (!v || v.startsWith("--")) usage()
+      if (a[i - 1] === "--repo") repos.push(path.resolve(v)); else mirror = v
+    } else if (/^\d{4}-\d{2}-\d{2}$/.test(a[i]) && !date) date = a[i]
+    else usage()
   }
   const d = new Date()
   if (!date) date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
@@ -26,7 +32,7 @@ function args() {
     const base = process.platform === "win32" ? process.env.APPDATA! : process.platform === "darwin" ? path.join(os.homedir(), "Library", "Application Support") : path.join(os.homedir(), ".config")
     mirror = path.join(base, "Code", "User", "globalStorage", "rabbit-hole.rabbit-hole", "mirror")
   }
-  if (repos.length === 0) { console.error("usage: node scripts/verify-lines.js [date] --repo <path> [--repo …] [--mirror <dir>]"); process.exit(2) }
+  if (repos.length === 0) usage()
   return { repos, date, mirror }
 }
 
@@ -43,16 +49,24 @@ async function main() {
     for (const rel of (await git.status(repo)).untracked) names.add(rel)
     for (const rel of names) {
       const p = path.join(repo, ...rel.split("/"))
-      if (isExcludedPath(p) || !languageForFile(path.basename(p))) continue
+      if (worktreeInfo(p) || isExcludedPath(p) || !languageForFile(path.basename(p))) continue
       const [blob] = await git.readBlobs(repo, base, [rel])
       if (blob === "unknown") continue
       const before = blob === "missing" ? "" : blob.toString("utf8")
+      // the tracker skips a file over 5 MB, never treating it as a deletion
+      if (fs.existsSync(p) && fs.statSync(p).size > MAX_BLOB_BYTES) continue
       const after = fs.existsSync(p) ? fs.readFileSync(p, "utf8") : ""
       const d = netDiff(before, after)
       if (d.added || d.deleted) expected.set(normalizePath(p), d)
     }
   }
-  const day = JSON.parse(fs.readFileSync(path.join(mirror, "days", `${date}.json`), "utf8"))
+  const dayFile = path.join(mirror, "days", `${date}.json`)
+  let text: string
+  try { text = fs.readFileSync(dayFile, "utf8") } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === "ENOENT") { console.error(`no mirror file for ${date} at ${dayFile}`); process.exit(2) }
+    throw e
+  }
+  const day = JSON.parse(text)
   const recorded = new Map<string, Diff>()
   const unverifiable: string[] = []
   for (const log of Object.values(day.projects) as { files?: { path: string; linesAdded: number; linesDeleted: number }[] }[])
@@ -75,4 +89,4 @@ async function main() {
   process.exit(mismatches.length === 0 ? 0 : 1)
 }
 
-void main()
+main().catch(e => { console.error("verify-lines: " + (e instanceof Error ? e.message : String(e))); process.exit(2) })
