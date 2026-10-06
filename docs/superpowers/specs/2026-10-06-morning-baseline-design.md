@@ -5,7 +5,9 @@ redesign branch itself, not a separate branch). Amended after review, 2026-10-06
 capture's dirty list is known before hashing (section 2, "Before the capture finishes"),
 yesterday's ledger snapshot is folded into the capture (section 2, "Yesterday's
 snapshot"), creation time is trusted only for files git does not track, and soft/mixed
-resets are an accepted limit.
+resets are an accepted limit. Amended during planning, 2026-10-06: D1–D6 (see the plan).
+Amended after the build, 2026-10-06: review rulings R9, R10 and R12–R14 and the accepted
+limits 10–13 below.
 
 ## Problem
 
@@ -92,10 +94,14 @@ parsed entries, `chooseBaseline(entries, midnightMs)`):
 
 - The git executable is the one VS Code's git extension reports (`vscode.git` API
   `git.path`), passed to the adapter by the tracker; otherwise `git` on PATH.
-- Content is read with `git cat-file --batch --filters` (paths given as `B:<path>`), in
-  batches of up to 200 paths per process, so working-tree filters apply: line-ending
-  conversion and smudge filters such as Git LFS. Without `--filters` an LFS file would be
-  compared against its pointer and score as a rewrite.
+- Content is read with plain `git cat-file --batch` (paths given as `B:<path>`), in batches
+  of up to 200 paths per process (D1; the original `--filters` plan fails on git 2.51 with
+  `fatal: missing path`). Line-ending conversion is harmless because hashing strips CR. A
+  blob that is a Git LFS pointer resolves as `unknown`; other smudge filters and
+  `working-tree-encoding` are accepted limit 9. Skipping the smudge also avoids network
+  fetches.
+- `git diff --name-only` runs with `--no-renames`, so a renamed file's old path is caught up
+  as a deletion and its new path as a creation.
 - Every git command has a 10 s timeout. A missing binary, a failure or a timeout makes the
   folder a non-git folder for the day (it is scanned instead) and adds a note.
 - Blobs over 5 MB are `unknown`, matching `measure()`'s limit.
@@ -117,7 +123,8 @@ reads and writes it.
 
 - At `start()` when no capture for today exists for this workspace.
 - At local midnight while running (the existing 10 s tick sees the date change).
-- In the background, in batches of 50 files that yield (`setImmediate`) between them. A
+- In the background, yielding to the event loop whenever 8 ms of work has accumulated (D5:
+  `Budget`; a fixed batch of 50 files could exceed the 50 ms gap limit on a large file). A
   failure is caught and noted; the next start-up retries. It never throws.
 
 ### Candidates (per workspace folder)
@@ -134,10 +141,13 @@ test-runner download of VS Code itself).
 ### Before the capture finishes
 
 The first step of a git folder's capture is `git status`, which takes about 0.1 s; hashing
-takes longer. As soon as status returns, the store holds the folder's **pending set**: every
+takes longer. As soon as status returns (R9: the capture marks **every** folder ready in a first
+pass as soon as its status is known, before any hashing starts), the store holds the folder's **pending set**: every
 dirty, untracked and ignored candidate path. Until the capture reaches a pending path, a
-lookup for it returns `unknown`; clean tracked paths resolve through git right away. Before
-status returns, every lookup in that folder is `unknown`. A non-git folder is wholly pending
+lookup for it returns `unknown`; clean tracked paths resolve through git right away. A
+lookup made before status returns **waits** for it (D2; bounded by the 10 s git timeout)
+and then applies these rules, so documents restored at start-up do not resolve `unknown`
+during the first 0.1 s. A non-git folder is wholly pending
 until its walk reaches each file. Pending sets live in memory only; a capture interrupted by
 shutdown is retaken at the next start-up, since no file for today was written.
 
@@ -186,6 +196,13 @@ capture is the wrong-day `morning-*.json`; its index keys are read before it is 
 
 Every dirty tracked file gets an entry, so the store never treats it as clean.
 
+**A tracked file that is missing at capture time** (deleted, with no usable snapshot entry;
+R10) is classified by its parent directory's mtime: before midnight, the deletion happened
+before today and the entry is `empty`; otherwise it is `useB`. Accepted limit 10.
+`existedBefore` is true for any path in yesterday's snapshot, usable or not. Linked
+worktrees are never captured as nested repos (section 3, "Worktrees"). A nested repo that
+hits the cap is marked `partial` and a note is added.
+
 ### Cap
 
 20,000 captured files per workspace window in total. In a git repo only the dirty,
@@ -196,11 +213,17 @@ file's first edit: more than 20,000 files to capture".
 
 ### On disk
 
-`globalStorage/ledger/morning-<workspace hash>.json` and `.bin`, the hash computed like
-`ledgerFile()`.
+`globalStorage/ledger/morning-<workspace hash>.json` and the per-capture `.bin`, the hash
+computed like `ledgerFile()`.
 
-- `.json`: `{ version: 1, day, folders: [{ root, repo?: { top, baseline }, partial }],
-  index: { [normalizedPath]: [offset, count] | "empty" | "useB" | "unknown" } }`.
+- `.json` (D4): `{ version: 1, day, bin, folders: [{ root, repo?: { top, baseline },
+  partial }], index: { [rawPath]: [offset, count] | "empty" | "useB" | "unknown" } }`. The
+  index is keyed by the **raw** path and normalised in memory (catch-up needs real-case
+  paths, and ledger keys are VS Code `fsPath`s). `bin` names the capture's `.bin`, which
+  is `morning-<hash>-<day>-<rand>.bin`, per capture; the `.json` is written last, so the
+  pair is consistent after a crash.
+- If the `.bin` cannot be created, git folders fall back to plain for the day (accepted
+  limit 13).
 - `.bin`: line hashes as packed little-endian `uint32`, 4 bytes per line.
 - Only the index is held in memory; a file's hashes are read from `.bin` (one positioned
   read) at its first sighting.
@@ -214,7 +237,9 @@ file's first edit: more than 20,000 files to capture".
 
 `ObserveOptions` gains `morning?: LineHashes`. On first sighting with `morning` set, the
 entry starts from `morning` (not the current content) and the difference is credited
-immediately, exactly as for a create with `seed`. Consequences:
+immediately, exactly as for a create with `seed`. D6: `measure()` calls for one path run
+one after another (`runMeasure`), and live first sightings share one git process through
+`BlobQueue` (20 ms coalescing, at most 200 paths). Consequences:
 
 - the first edit to an unopened file counts;
 - a file deleted before the tracker ever saw it, whose morning content is known, is
@@ -235,7 +260,7 @@ have changed since midnight:
   deletions) plus capture entries created or modified after midnight;
 - non-git folders: capture entries created or modified after midnight.
 
-Each goes through the normal debounced `measure()` with a `catchUp` flag that skips
+Each goes through the normal `measure()` (serialised per path, D6) with a `catchUp` flag that skips
 `onActivity()`: lines count, time does not. `measure()` credits only the change not yet
 credited, so measuring a file twice is harmless. Capped at 20,000 files per start-up; the
 rest are left to the watcher, with a note.
@@ -243,8 +268,17 @@ rest are left to the watcher, with a note.
 ### Restart
 
 Order in `start()`: keep yesterday's snapshot aside (renamed, section 2) → restore today's
-ledger snapshot (as now) → load or take today's capture → catch-up. A file in today's snapshot keeps its morning baseline and the store is never
-consulted for it. Catch-up also measures snapshot files changed while VS Code was closed
+ledger snapshot (as now) → load or take today's capture → catch-up. A file in today's snapshot keeps its morning
+baseline and the store is never consulted for it.
+
+**Open documents (D3, R12, R13).** VS Code restores tabs at start-up, so opening a document
+consults the store before priming; priming from current content would drop every
+closed-period edit to an open tab. A document whose morning content is known goes through
+`measure()` (R12), so it gets suppression and existence checks, and no time is added. While
+today's capture runs, a document inside a workspace folder whose morning content is still
+unknown is primed only after the capture finishes (R13; accepted limit 12). Documents
+outside the workspace are primed at once. `stop()` halts catch-up and priming (R14), so
+nothing is credited after the final save. Catch-up also measures snapshot files changed while VS Code was closed
 and not touched since; today those wait for their next edit.
 
 ### Midnight while running
@@ -257,7 +291,8 @@ or anything before status returns, is `unknown` (section 2, "Before the capture 
 
 ### Worktrees
 
-Created worktree files keep the existing seed from the main checkout. A pre-existing
+Linked worktrees are never captured as nested repos. Created worktree files keep the
+existing seed from the main checkout. A pre-existing
 worktree file seen for the first time resolves against that worktree's own B (its own
 reflog); worktrees are not captured, so this is treated as `useB`.
 
@@ -298,6 +333,22 @@ for the files it affects and adds a note.
    while VS Code was closed. If it is in neither yesterday's snapshot nor the previous
    capture, it counts as created, with every line added. That happens on the first day
    after install, or for a file untouched since before the previous capture.
+9. Files with a smudge filter other than Git LFS, or with `working-tree-encoding`, are
+   compared against the raw blob (D1). `git cat-file --batch --filters` fails on git 2.51
+   (`fatal: missing path`), and line-ending conversion is already harmless because hashing
+   strips CR. Git LFS pointers resolve as `unknown`.
+10. A tracked file deleted and uncommitted before VS Code opened, with no usable snapshot
+    entry, is classified by its parent directory's mtime (R10). An old uncommitted deletion
+    in a directory whose entries changed today is classified `useB` and credited again that
+    day.
+11. Case-only path mismatches (the `fsPath` casing differs from the git index on Windows or
+    macOS) make B report the file missing, so the whole file is credited as added.
+12. A document inside a workspace folder, opened while today's capture runs and whose
+    morning content is still unknown, is primed only after the capture finishes (R13). An
+    edit typed into it in that window is uncounted. A ledger `rebase` method is a possible
+    follow-up.
+13. If the capture's `.bin` cannot be created, git folders fall back to plain for the day,
+    so clean files no longer resolve through B.
 
 ## 5. Testing
 
@@ -345,10 +396,11 @@ give the reflog a yesterday and a today; `now` injected)
 **Performance:** capturing a synthetic 20,000-file non-git folder while a 10 ms interval
 records the longest gap; the test fails on any gap over 50 ms.
 
-**Verification tool:** `scripts/verify-lines.js [date]` recomputes the expected net per
+**Verification tool:** `scripts/verify-lines.js [date] --repo <path>` recomputes the expected net per
 file for a day (multiset diff against B per repo, same exclusions and language filter,
 CR-stripped) and compares it with the mirror's rows for that day, printing totals and every
-mismatch. It covers git repos only: a non-git folder has no record of its morning content
+mismatch. It skips worktree paths and files over 5 MB, exactly as the tracker does, and
+exits 2 with a one-line message on bad input or a missing mirror day. It covers git repos only: a non-git folder has no record of its morning content
 to check against. The acceptance check is a real working day in the Extension Development Host with
 no mismatches outside the accepted limits.
 
