@@ -560,25 +560,48 @@ export class StorageService {
     }
   }
 
+  // A project's current streak from its own day records. Never writes today's
+  // log, so it is safe for projects that weren't touched today.
+  private projectStreakParts(project: ProjectMeta, now: Date): { targetMs: number; todayLog: DailyLog; streak: number } {
+    const targetMs = resolveProjectTargetMinutes(project.dailyTargetMinutes) * 60_000
+    const todayLog = this.getLog(project.id, dateKey(now))
+    const yd = new Date(now)
+    yd.setDate(yd.getDate() - 1)
+    // Same walk as the global chain: yesterday is judged against the target it
+    // was set at the time, and a provably-wrong stored 0 left behind by a clear
+    // or restore is repaired rather than allowed to cap every later day.
+    const chainSoFar = this.projectChainEndingAt(project.id, dateKey(yd), targetMs)
+    return { targetMs, todayLog, streak: todayLog.activeTime >= targetMs ? chainSoFar + 1 : chainSoFar }
+  }
+
+  // ProjectMeta.streak is only a cache, refreshed for the open project by
+  // updateProjectStreak; anything shown must come from here.
+  projectStreak(projectId: string, now = new Date()): number {
+    const project = this.getProjects().find(p => p.id === projectId)
+    return project ? this.projectStreakParts(project, now).streak : 0
+  }
+
+  // Brings every project's cached streak up to date: the mirror publishes it, and
+  // a project nobody opens would otherwise keep its last count for ever.
+  refreshProjectStreaks(now = new Date()): void {
+    const projects = this.getProjects()
+    let changed = false
+    for (const p of projects) {
+      const streak = this.projectStreakParts(p, now).streak
+      if ((p.streak ?? 0) !== streak) { p.streak = streak; changed = true }
+    }
+    if (!changed) return
+    this.context.globalState.update(PROJECTS_KEY, projects)
+    this.mirror?.markProjectsDirty()
+  }
+
   updateProjectStreak(projectId: string): void {
     if (!projectId) return
     const projects = this.getProjects()
     const project = projects.find(p => p.id === projectId)
     if (!project) return
 
-    const targetMs = resolveProjectTargetMinutes(project.dailyTargetMinutes) * 60_000
-
-    const todayLog = this.getLog(projectId, todayKey())
-    const todayMet = todayLog.activeTime >= targetMs
-
-    const yd = new Date()
-    yd.setDate(yd.getDate() - 1)
-    // Same walk as the global chain: yesterday is judged against the target it
-    // was set at the time, and a provably-wrong stored 0 left behind by a clear
-    // or restore is repaired rather than allowed to cap every later day.
-    const chainSoFar = this.projectChainEndingAt(projectId, dateKey(yd), targetMs)
-
-    const newStreak = todayMet ? chainSoFar + 1 : chainSoFar
+    const { targetMs, todayLog, streak: newStreak } = this.projectStreakParts(project, new Date())
 
     // Write streak into today's per-project DailyLog (enables history-based reading)
     if (todayLog.streak !== newStreak || todayLog.targetMs !== targetMs) {

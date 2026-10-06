@@ -31,6 +31,7 @@ export function activate(context: vscode.ExtensionContext): void {
   }))
   storage.updateStreak()
   storage.updateProjectStreak(storage.getCurrentProjectId())
+  storage.refreshProjectStreaks()
 
   // Prompt for a daily target once, for anyone who has never chosen one. The
   // default moved 5 → 20 in v0.4.0, so this also covers existing installs whose
@@ -93,6 +94,8 @@ export function activate(context: vscode.ExtensionContext): void {
   const interval = setInterval(() => {
     storage.updateStreak()
     storage.updateProjectStreak(storage.getCurrentProjectId())
+    // the mirror publishes every project's cached streak, not just the open one's
+    storage.refreshProjectStreaks()
     refreshStatusBar()
     if (miniPanel.visible) postMini(storage, miniPanel)
     if (DashboardPanel.currentPanel) {

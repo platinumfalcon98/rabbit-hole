@@ -140,6 +140,33 @@ describe("updateProjectStreak target resolution (backend half of Bug A)", () => 
     assert.strictEqual(resolveProjectTargetMinutes(undefined), 20))
 })
 
+// The registry's streak is what the mirror publishes (and the CLI reads). Only the
+// open project's tick used to refresh it, so an idle project kept its last count.
+describe("refreshProjectStreaks", () => {
+  before(() => v.__setConfig("dailyTargetMinutes", 20))
+
+  const meta = (id: string, streak: number) => ({ id, name: id, path: `/${id}`, detectionMethod: "folder-hash", streak })
+  const threeDaysAgo = (() => { const d = new Date(); d.setDate(d.getDate() - 3); return dateKey(d) })()
+
+  it("drops an idle project's cached streak to 0 and keeps a live one", () => {
+    const { ctx, store } = makeContext()
+    store.set(PROJECTS_KEY, [meta("idle", 1), meta("live", 7)])
+    store.set(...projLog("idle", threeDaysAgo, 50 * MIN, 1))
+    store.set(...projLog("live", yesterday, 50 * MIN, 7))
+    new StorageService(ctx).refreshProjectStreaks()
+    const streaks = (store.get(PROJECTS_KEY) as any[]).map(p => [p.id, p.streak])
+    assert.deepStrictEqual(streaks, [["idle", 0], ["live", 7]])
+  })
+
+  it("never creates a log for a project that was not touched today", () => {
+    const { ctx, store } = makeContext()
+    store.set(PROJECTS_KEY, [meta("idle", 1)])
+    store.set(...projLog("idle", threeDaysAgo, 50 * MIN, 1))
+    new StorageService(ctx).refreshProjectStreaks()
+    assert.strictEqual(store.has(`rabbithole:log:idle:${today}`), false)
+  })
+})
+
 describe("updateProjectTarget write clamp", () => {
   const run = (input: any) => {
     const { ctx, store } = makeContext()

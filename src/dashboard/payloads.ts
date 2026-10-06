@@ -43,7 +43,7 @@ export function buildYear(storage: StorageService, now: Date, globalTargetMs: nu
       name: p.name,
       path: p.path,
       dailyTargetMinutes: p.dailyTargetMinutes,
-      streak: p.streak ?? 0,
+      streak: storage.projectStreak(p.id, now),
       lastActive,
       active: logs.map(l => l.activeTime),
       targetMs: logs.map(l => l.targetMs ?? null),
@@ -84,7 +84,7 @@ export function buildLive(storage: StorageService, now: Date): LivePayload {
   const streaks: Record<string, number> = {}
   for (const p of storage.getProjects()) {
     todayActive[p.id] = storage.getRangeByDates(today, today, p.id)[0].activeTime
-    streaks[p.id] = p.streak ?? 0
+    streaks[p.id] = storage.projectStreak(p.id, now)
   }
   const global = storage.getGlobalToday()
   return {

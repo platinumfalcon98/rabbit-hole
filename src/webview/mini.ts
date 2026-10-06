@@ -34,11 +34,10 @@ function today(v: MiniView, now: number): void {
   $("td-who").textContent = v.who
   $("td-t").textContent = fmt(v.todayMs)
   $("td-k").textContent = `of ${fmt(v.targetMs)}`
-  $("td-meter").replaceChildren(
-    el("span", "on", "█".repeat(v.meter[0])),
-    el("span", "off", "░".repeat(v.meter[1])),
-    document.createTextNode(v.metAt !== null ? ` met ${clock(v.metAt)}` : ` ${fmt(v.remainingMs)} to go`),
-  )
+  const bar = el("span")
+  bar.append(el("span", "on", "█".repeat(v.meter[0])), el("span", "off", "░".repeat(v.meter[1])))
+  // its own item, so a narrow sidebar wraps the time under the bar rather than cutting it off
+  $("td-meter").replaceChildren(bar, el("span", null, v.metAt !== null ? `met ${clock(v.metAt)}` : `${fmt(v.remainingMs)} to go`))
   setTape({
     sessions: v.sessions,
     base: v.baseSessions,

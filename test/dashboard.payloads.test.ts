@@ -17,6 +17,8 @@ function store() {
       targetMs: TARGET,
       sessions: [{ id: "a1", startTime: sessionEnd - 30 * MIN, endTime: sessionEnd, duration: 30 * MIN, activeTime: 30 * MIN }],
     },
+    // alpha's 4 rests on yesterday: today (30m of its 45m target) isn't met yet
+    [`rabbithole:log:alpha:${daysAgo(1)}`]: { ...log(50 * MIN, daysAgo(1)), streak: 4 },
     [`rabbithole:log:beta:${daysAgo(2)}`]: log(12 * MIN, daysAgo(2)),
     [`rabbithole:global:${today}`]: { date: today, activeTime: 30 * MIN, streak: 6, targetMs: TARGET },
     [`rabbithole:global:${daysAgo(2)}`]: { date: daysAgo(2), activeTime: 12 * MIN, streak: 5 },
@@ -105,6 +107,35 @@ describe("live payload", () => {
     const l = buildLive(store(), new Date())
     assert.strictEqual(l.globalStreak, 6)
     assert.deepStrictEqual(l.streaks, { alpha: 4, beta: 0 })
+  })
+})
+
+// ProjectMeta.streak is a cache that only the open project's tick refreshes, so a
+// project left alone kept its last streak for ever (mekatrone showed 1 three idle
+// days after its last met day). Payloads must read the chain, not the cache.
+describe("per-project streaks for a project not opened lately", () => {
+  function idle() {
+    return makeStore({
+      [PROJECTS_KEY]: [proj("alpha", 0), proj("gamma", 1)],
+      [`rabbithole:log:gamma:${daysAgo(3)}`]: { ...log(50 * MIN, daysAgo(3)), streak: 1 },
+    }).s
+  }
+
+  it("drops to 0 in the year payload once the chain is broken", () => {
+    const y = buildYear(idle(), new Date(), TARGET)
+    assert.strictEqual(y.projects.find((p: any) => p.id === "gamma").streak, 0)
+  })
+
+  it("drops to 0 in the live payload too", () => {
+    assert.strictEqual(buildLive(idle(), new Date()).streaks.gamma, 0)
+  })
+
+  it("keeps a streak that is only at risk today", () => {
+    const s = makeStore({
+      [PROJECTS_KEY]: [proj("alpha", 0), proj("gamma", 9)],
+      [`rabbithole:log:gamma:${daysAgo(1)}`]: { ...log(50 * MIN, daysAgo(1)), streak: 3 },
+    }).s
+    assert.strictEqual(buildLive(s, new Date()).streaks.gamma, 3)
   })
 })
 
