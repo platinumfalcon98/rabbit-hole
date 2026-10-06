@@ -1,10 +1,15 @@
 import * as vscode from "vscode"
+import * as nodePath from "path"
 import { ActivitySession } from "../shared/types"
 import { SESSION_EXPIRY_MS, getIdleThresholdMs } from "../shared/config"
 import { StorageService, dateKey } from "./storageService"
 import { detectProject, clearDetectionCache } from "./projectDetector"
-import { LineHashes, LineLedger, hashLines } from "./lineLedger"
-import { ledgerFile, loadLedger, pruneLedgers, saveLedger } from "./ledgerStore"
+import { LineDelta, LineHashes, LineLedger, LedgerSnapshot, hashLines } from "./lineLedger"
+import { dropYesterday, keepYesterday, ledgerFile, loadLedger, loadYesterday, pruneLedgers, saveLedger, yesterdayFile } from "./ledgerStore"
+import { captureFile, pruneCaptures } from "./captureStore"
+import { Day, startDay } from "./dayCapture"
+import { Git } from "./gitBaseline"
+import { lineNotes } from "./lineNotes"
 import {
   EXCLUDED_LANGUAGE_IDS, WorktreeInfo, isExcludedPath, isGitOpSignal, isGitPath, languageForFile, worktreeInfo,
 } from "./pathRules"
@@ -33,6 +38,8 @@ function trackableLanguage(doc: vscode.TextDocument): string | undefined {
 const MEASURE_DEBOUNCE_MS = 2_000      // let agents finish streaming writes; let typing pause
 const GIT_OP_SUPPRESS_MS = 5_000       // ignore file churn around checkout/pull/merge
 const EXTERNAL_MAX_FILE_BYTES = 5 * 1024 * 1024
+const CATCH_UP_MAX = 20_000
+const CAPTURE_PRUNE_MS = 30 * 86_400_000 // other workspaces' captures
 
 function uuidSimple(): string {
   return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, c => {
@@ -68,6 +75,12 @@ export class ActivityTracker {
   private lastGitOpTime = 0
   private ledgerPath: string | undefined   // today's snapshots on disk (see restoreLedger)
   private ledgerSaved = -1                 // ledger.changes() at the last save
+  private day: Day | null = null           // today's morning store (see beginDay)
+  private dayKey = ""
+  private dayDone: Promise<void> = Promise.resolve() // capture + catch-up; tests await it
+  private restoredPaths: string[] = []     // files in today's snapshot, re-measured by catch-up
+  private inflight = new Map<string, Promise<void>>() // one measure() per file at a time
+  private gitInstance: Git | null = null
 
   // Project tracking
   private currentProjectId = ""
@@ -90,10 +103,13 @@ export class ActivityTracker {
     // Before any priming or measuring: a restored morning photo must win over
     // the current content an open document would prime with.
     this.restoreLedger()
+    // The morning store answers first sightings; its catch-up measures what
+    // changed while VS Code was closed. Started before priming: priming asks it.
+    this.beginDay(new Date(), true)
 
     this.subscriptions.push(
       vscode.workspace.onDidChangeTextDocument(e => this.onTextChange(e)),
-      vscode.workspace.onDidOpenTextDocument(d => this.primeDocument(d)),
+      vscode.workspace.onDidOpenTextDocument(d => void this.primeDocument(d)),
       vscode.window.onDidChangeWindowState(s => this.onWindowState(s)),
       vscode.window.onDidChangeActiveTextEditor(e => this.onEditorChange(e)),
       vscode.window.onDidChangeActiveTerminal(() => this.onActivity()),
@@ -101,7 +117,7 @@ export class ActivityTracker {
       vscode.workspace.onDidChangeWorkspaceFolders(e => this.onWorkspaceFoldersChange(e)),
     )
     this.initExternalWatcher()
-    for (const d of vscode.workspace.textDocuments) this.primeDocument(d)
+    for (const d of vscode.workspace.textDocuments) void this.primeDocument(d)
     this.context.subscriptions.push(
       ...this.subscriptions,
       { dispose: () => this.stop() }
@@ -111,6 +127,7 @@ export class ActivityTracker {
     // The snapshot save sits outside saveCheckpoint, which skips paused
     // sessions — exactly when a background agent is editing files.
     this.checkpointInterval = setInterval(() => {
+      this.checkDay()
       this.persistLedger()
       this.saveCheckpoint()
     }, 10_000)
@@ -221,12 +238,35 @@ export class ActivityTracker {
     this.scheduleMeasure(e.document.uri, language)
   }
 
-  // An opened document's content is its baseline, so its first edit is measurable.
-  private primeDocument(doc: vscode.TextDocument): void {
-    if (!trackableLanguage(doc)) return
+  // A document opening (or a tab restored at start-up). A file the ledger has
+  // not seen is asked of the morning store first: if it changed today while
+  // unseen, that change is credited (catch-up rules, no time) instead of being
+  // primed away. Otherwise its content is its baseline, so its first edit is
+  // measurable.
+  private async primeDocument(doc: vscode.TextDocument): Promise<void> {
+    const language = trackableLanguage(doc)
+    if (!language) return
     const path = doc.uri.fsPath
     if (this.pendingCreates.has(path)) return // a just-created file: let the create be counted
-    this.ledger.prime(path, hashLines(doc.getText()), dateKey(new Date()))
+    let morning = this.ledger.has(path) ? undefined : await this.morningFor(path)
+    // A tab restored at start-up opens while the capture is still hashing; its
+    // file, if dirty, is pending and answers "unknown". Priming it now would
+    // make its closed-period edit the baseline, so ask again once the capture
+    // has reached it. Edits in the meantime go through measure() as usual.
+    const capture = this.day
+    if (!morning && capture && !this.ledger.has(path)) {
+      await capture.done.catch(() => undefined)
+      if (this.day === capture && !this.ledger.has(path)) morning = await this.morningFor(path)
+    }
+    if (this.pendingCreates.has(path)) return // became a create while the store answered
+    const day = dateKey(new Date())
+    const hashes = hashLines(doc.getText())
+    if (!morning || this.ledger.has(path)) {
+      this.ledger.prime(path, hashes, day)
+      return
+    }
+    const delta = this.ledger.observe(path, hashes, { day, morning })
+    if (delta) this.credit(doc.uri, language, delta)
   }
 
   private onWindowState(state: vscode.WindowState): void {
@@ -500,15 +540,17 @@ export class ActivityTracker {
     if (existing) clearTimeout(existing)
     this.measureTimers.set(key, setTimeout(() => {
       this.measureTimers.delete(key)
-      void this.measure(uri, language)
+      void this.runMeasure(uri, language)
     }, MEASURE_DEBOUNCE_MS))
   }
 
-  private async measure(uri: vscode.Uri, language: string): Promise<void> {
+  private async measure(uri: vscode.Uri, language: string, catchUp = false): Promise<void> {
     const path = uri.fsPath
     const isCreate = this.pendingCreates.delete(path)
     const uriStr = uri.toString()
     const doc = vscode.workspace.textDocuments.find(d => d.uri.toString() === uriStr && !d.isClosed)
+    // First sighting of a pre-existing file: its midnight content, if anything holds it.
+    const morning = !isCreate && !this.ledger.has(path) ? await this.morningFor(path) : undefined
 
     let hashes: LineHashes
     let fromDisk: boolean // false only for unsaved typing in an open buffer
@@ -524,7 +566,7 @@ export class ActivityTracker {
     } else {
       const text = await this.readText(uri)
       if (text === null) return                                // too large or unreadable: skip, never "delete"
-      if (text === undefined && !this.ledger.has(path)) return // deleted, and never seen
+      if (text === undefined && !this.ledger.has(path) && !morning) return // deleted, never seen, morning unknown
       hashes = text === undefined ? [] : hashLines(text)
       fromDisk = true
     }
@@ -536,20 +578,11 @@ export class ActivityTracker {
     const seed = isCreate && wt ? await this.readHashes(wt.mainPath) : undefined
     const suppress = fromDisk && await this.isNonAuthored(path, hashes, wt)
 
-    if (!doc && !suppress) this.onActivity()
+    if (!doc && !suppress && !catchUp) this.onActivity()
 
-    const delta = this.ledger.observe(path, hashes, { day: dateKey(new Date()), isCreate, seed, suppress })
+    const delta = this.ledger.observe(path, hashes, { day: dateKey(new Date()), isCreate, seed, suppress, morning })
     if (!delta) return
-    this.storage.appendFileActivity(
-      {
-        path: wt?.mainPath ?? path, // worktree work is credited to the main-checkout file
-        language,
-        linesAdded: delta.added,
-        linesDeleted: delta.deleted,
-        lastModified: Date.now(),
-      },
-      this.resolveProjectForUri(uri)
-    )
+    this.credit(uri, language, delta)
   }
 
   // A disk-originated change that nobody authored: a checkout/merge/rebase in
@@ -589,9 +622,107 @@ export class ActivityTracker {
     this.ledgerPath = ledgerFile(dir, folders.map(f => f.uri.toString()))
     const midnight = new Date()
     midnight.setHours(0, 0, 0, 0)
+    keepYesterday(this.ledgerPath, dateKey(new Date(midnight.getTime() - 1)))
     pruneLedgers(this.ledgerPath, midnight.getTime())
-    this.ledger.restore(loadLedger(this.ledgerPath), dateKey(new Date()))
+    const snapshot = loadLedger(this.ledgerPath)
+    if (this.ledger.restore(snapshot, dateKey(new Date()))) this.restoredPaths = Object.keys((snapshot as LedgerSnapshot).files)
     this.ledgerSaved = this.ledger.changes()
+  }
+
+  // A new day's morning store: load today's capture or take it, in the
+  // background. At start-up it also recovers yesterday's snapshot and runs the
+  // catch-up; at midnight neither is needed (seen files roll over in the ledger,
+  // and the capture reads unseen files as they were at midnight).
+  private beginDay(now: Date, startUp: boolean): void {
+    this.dayKey = dateKey(now)
+    const dir = this.context.globalStorageUri?.fsPath
+    const folders = (vscode.workspace.workspaceFolders ?? []).filter(f => f.uri.scheme === "file")
+    if (!dir || folders.length === 0) { this.day = null; return }
+    const midnight = new Date(now)
+    midnight.setHours(0, 0, 0, 0)
+    const keys = folders.map(f => f.uri.toString())
+    // The renamed snapshot sits beside today's, whose name restoreLedger derived
+    // from ALL workspace folders; recomputing it over file folders only would
+    // miss it in a multi-root window with a virtual folder.
+    const yFile = this.ledgerPath ? yesterdayFile(this.ledgerPath) : null
+    pruneCaptures(nodePath.join(dir, "ledger"), Date.now() - CAPTURE_PRUNE_MS)
+    const day = startDay(folders.map(f => f.uri.fsPath), this.dayKey, midnight.getTime(), {
+      git: this.gitClient(),
+      jsonPath: captureFile(dir, keys),
+      yesterday: startUp && yFile ? loadYesterday(yFile, dateKey(new Date(midnight.getTime() - 1))) : null,
+      note: text => lineNotes.add(this.dayKey, text),
+    })
+    this.day = day
+    this.dayDone = day.done.then(async outcome => {
+      if (outcome.saved && yFile) dropYesterday(yFile)
+      if (startUp && this.day === day) await this.catchUp(outcome.changed)
+    }, () => {})
+  }
+
+  private checkDay(now = new Date()): void {
+    if (this.dayKey && dateKey(now) !== this.dayKey) this.beginDay(now, false)
+  }
+
+  // VS Code's own git when its extension reports one, else git on PATH.
+  private gitClient(): Git {
+    if (!this.gitInstance) {
+      let gitPath = "git"
+      try {
+        const ext = vscode.extensions.getExtension("vscode.git")
+        const p = ext?.isActive ? ext.exports?.getAPI?.(1)?.git?.path : undefined
+        if (typeof p === "string" && p) gitPath = p
+      } catch { /* fall back to PATH */ }
+      this.gitInstance = new Git(gitPath)
+    }
+    return this.gitInstance
+  }
+
+  private async morningFor(fsPath: string): Promise<LineHashes | undefined> {
+    const m = await this.day?.store.lookup(fsPath)
+    return m && m !== "unknown" ? m : undefined
+  }
+
+  private credit(uri: vscode.Uri, language: string, delta: LineDelta): void {
+    const wt = worktreeInfo(uri.fsPath)
+    this.storage.appendFileActivity(
+      {
+        path: wt?.mainPath ?? uri.fsPath, // worktree work is credited to the main-checkout file
+        language,
+        linesAdded: delta.added,
+        linesDeleted: delta.deleted,
+        lastModified: Date.now(),
+      },
+      this.resolveProjectForUri(uri)
+    )
+  }
+
+  // Files that may have changed since midnight while VS Code was closed. Lines
+  // count; time does not (measure skips onActivity for catch-up).
+  private async catchUp(changed: string[]): Promise<void> {
+    const paths = new Set([...changed, ...this.restoredPaths])
+    let n = 0
+    for (const p of paths) {
+      if (isExcludedPath(p)) continue
+      const language = languageForFile(nodePath.basename(p))
+      if (!language) continue
+      if (n++ >= CATCH_UP_MAX) {
+        lineNotes.add(this.dayKey, "catch-up capped at 20,000 files; the rest count from their next edit")
+        break
+      }
+      await this.runMeasure(vscode.Uri.file(p), language, true)
+    }
+  }
+
+  // Measures of one file run one after another: two overlapping measures would
+  // both see the file as unseen and both credit its first sighting.
+  private runMeasure(uri: vscode.Uri, language: string, catchUp = false): Promise<void> {
+    const key = uri.fsPath
+    const run = (this.inflight.get(key) ?? Promise.resolve())
+      .then(() => this.measure(uri, language, catchUp))
+      .catch(() => {})
+    this.inflight.set(key, run)
+    void run.then(() => { if (this.inflight.get(key) === run) this.inflight.delete(key) })
+    return run
   }
 
   private persistLedger(): void {

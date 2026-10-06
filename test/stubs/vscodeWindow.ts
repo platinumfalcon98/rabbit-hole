@@ -4,6 +4,12 @@
 // The capture-model suite needs this rather than the plain config stub because
 // it exercises the external-edit path end to end: watcher event → debounce →
 // workspace.fs.readFile → line-bag diff → appendFileActivity.
+//
+// Disk mode (__useDisk): integration suites run the tracker against a real
+// directory (a real git repo). workspace.fs then reads the disk instead of the
+// in-memory map, and the workspace folder points at that directory.
+
+import * as nodeFs from "fs"
 
 type Listener = (arg: any) => void
 
@@ -39,6 +45,24 @@ function makeUri(fsPath: string) {
 
 const folder = { uri: makeUri("/repo"), name: "repo", index: 0 }
 
+let diskMode = false
+let gitPath: string | undefined
+
+// Integration suites run the tracker against a real directory (a real git
+// repo): workspace.fs then reads the disk, and the folder points at it.
+export function __useDisk(root: string): void {
+  diskMode = true
+  ;(folder as any).uri = makeUri(root)
+}
+
+export function __setGitPath(p: string | undefined): void { gitPath = p }
+
+export const extensions = {
+  getExtension: (id: string) => id === "vscode.git" && gitPath
+    ? { isActive: true, exports: { getAPI: () => ({ git: { path: gitPath } }) } }
+    : undefined,
+}
+
 // Long idle threshold so the timer never fires mid-test.
 const config: Record<string, unknown> = {
   idleThresholdMinutes: 60,
@@ -72,11 +96,13 @@ export const workspace = {
   }),
   fs: {
     stat: async (uri: { fsPath: string }) => {
+      if (diskMode) return { size: (await nodeFs.promises.stat(uri.fsPath)).size }
       const c = fileContents.get(uri.fsPath)
       if (c === undefined) throw new Error("ENOENT")
       return { size: Buffer.byteLength(c, "utf8") }
     },
     readFile: async (uri: { fsPath: string }) => {
+      if (diskMode) return nodeFs.promises.readFile(uri.fsPath)
       const c = fileContents.get(uri.fsPath)
       if (c === undefined) throw new Error("ENOENT")
       return Buffer.from(c, "utf8")
