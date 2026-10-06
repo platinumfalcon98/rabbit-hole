@@ -232,6 +232,16 @@ const SUITES = [
     entry: "test/tracker.morning.test.ts",
     alias: { morningStore: "src/tracker/morningStore.ts", captureStore: "src/tracker/captureStore.ts", ledger: "src/tracker/lineLedger.ts", paths: "src/tracker/pathRules.ts" },
   },
+  {
+    name: "daycapture",
+    entry: "test/tracker.daycapture.test.ts",
+    alias: { dayCapture: "src/tracker/dayCapture.ts", gitBaseline: "src/tracker/gitBaseline.ts", captureStore: "src/tracker/captureStore.ts", ledger: "src/tracker/lineLedger.ts", ledgerStore: "src/tracker/ledgerStore.ts" },
+  },
+  {
+    name: "captureperf",
+    entry: "test/tracker.captureperf.test.ts",
+    alias: { dayCapture: "src/tracker/dayCapture.ts", captureStore: "src/tracker/captureStore.ts" },
+  },
 ]
 
 function parseArgs(argv) {
