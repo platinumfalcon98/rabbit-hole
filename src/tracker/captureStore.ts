@@ -10,7 +10,7 @@ import * as path from "path"
 import { LineHashes, hashLine } from "./lineLedger"
 
 export type CaptureEntry = [number, number] | "empty" | "useB" | "unknown"
-export interface CaptureFolder { root: string; repo?: { top: string; baseline: string | null }; partial: boolean }
+export interface CaptureFolder { root: string; repo?: { top: string; baseline: string | null; operation?: string }; partial: boolean }
 export interface Capture { version: 1; day: string; bin: string; folders: CaptureFolder[]; index: Record<string, CaptureEntry> }
 export type Loaded = { kind: "today"; capture: Capture } | { kind: "stale"; paths: string[] } | { kind: "none" }
 
@@ -49,32 +49,41 @@ export class CaptureWriter {
   }
 }
 
-function binsOf(jsonPath: string): string[] {
+export function saveCapture(jsonPath: string, capture: Capture): boolean {
   try {
-    return fs.readdirSync(path.dirname(jsonPath)).filter(f => f.startsWith(stem(jsonPath) + "-") && f.endsWith(".bin"))
-  } catch {
-    return []
-  }
-}
-
-function removeAll(jsonPath: string, keepBin?: string): void {
-  for (const f of binsOf(jsonPath)) if (f !== keepBin) try { fs.unlinkSync(path.join(path.dirname(jsonPath), f)) } catch { /* best-effort */ }
-}
-
-export function saveCapture(jsonPath: string, capture: Capture): void {
-  try {
-    const tmp = `${jsonPath}.tmp`
+    const tmp = `${jsonPath}.${capture.bin}.tmp`
     fs.writeFileSync(tmp, JSON.stringify(capture))
     fs.renameSync(tmp, jsonPath)
-    removeAll(jsonPath, capture.bin)
+    // Other windows may still be reading an earlier bin or writing a new one.
+    // Reclaim these with age-based pruning, never during a save/load.
+    return true
   } catch {
     // best-effort: the next start-up retakes the capture
+    return false
   }
 }
 
 function isEntry(v: unknown): v is CaptureEntry {
   return v === "empty" || v === "useB" || v === "unknown" ||
-    (Array.isArray(v) && v.length === 2 && Number.isInteger(v[0]) && Number.isInteger(v[1]) && v[0] >= 0 && v[1] >= 0)
+    (Array.isArray(v) && v.length === 2 && Number.isSafeInteger(v[0]) && Number.isSafeInteger(v[1]) && v[0] >= 0 && v[1] >= 0)
+}
+
+function isFolder(v: unknown): v is CaptureFolder {
+  if (!v || typeof v !== "object") return false
+  const f = v as Partial<CaptureFolder>
+  return typeof f.root === "string" && typeof f.partial === "boolean" &&
+    (f.repo === undefined || (!!f.repo && typeof f.repo.top === "string" &&
+      (f.repo.baseline === null || typeof f.repo.baseline === "string") &&
+      (f.repo.operation === undefined || typeof f.repo.operation === "string")))
+}
+
+function validBin(jsonPath: string, c: Partial<Capture>): boolean {
+  if (typeof c.bin !== "string" || /[/\\]/.test(c.bin) || !c.bin.startsWith(stem(jsonPath) + "-") || !c.bin.endsWith(".bin")) return false
+  try {
+    const st = fs.statSync(path.join(path.dirname(jsonPath), c.bin))
+    return st.isFile() && st.size % 4 === 0 && Object.values(c.index!).every(e =>
+      !Array.isArray(e) || (e[1] <= 5 * 1024 * 1024 && e[0] + e[1] <= st.size / 4))
+  } catch { return false }
 }
 
 export function loadCapture(jsonPath: string, day: string): Loaded {
@@ -83,21 +92,21 @@ export function loadCapture(jsonPath: string, day: string): Loaded {
     raw = JSON.parse(fs.readFileSync(jsonPath, "utf8"))
   } catch (e) {
     if ((e as NodeJS.ErrnoException).code === "ENOENT") return { kind: "none" }
-    removeAll(jsonPath); try { fs.unlinkSync(jsonPath) } catch { /* gone */ }
+    try { fs.unlinkSync(jsonPath) } catch { /* gone */ }
     return { kind: "stale", paths: [] }
   }
   // Validate that raw is a non-null, non-array object
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
-    removeAll(jsonPath); try { fs.unlinkSync(jsonPath) } catch { /* gone */ }
+    try { fs.unlinkSync(jsonPath) } catch { /* gone */ }
     return { kind: "stale", paths: [] }
   }
   const c = raw as Partial<Capture>
   const indexOk = typeof c.index === "object" && c.index !== null && !Array.isArray(c.index)
-  const usable = c.version === 1 && c.day === day && typeof c.bin === "string" && Array.isArray(c.folders) && indexOk &&
-    fs.existsSync(path.join(path.dirname(jsonPath), c.bin)) && Object.values(c.index!).every(isEntry)
+  const usable = c.version === 1 && c.day === day && Array.isArray(c.folders) && c.folders.every(isFolder) && indexOk &&
+    Object.values(c.index!).every(isEntry) && validBin(jsonPath, c)
   if (usable) return { kind: "today", capture: c as Capture }
   const paths = c.version === 1 && indexOk ? Object.keys(c.index!) : []
-  removeAll(jsonPath); try { fs.unlinkSync(jsonPath) } catch { /* gone */ }
+  try { fs.unlinkSync(jsonPath) } catch { /* gone */ }
   return { kind: "stale", paths }
 }
 
@@ -124,7 +133,7 @@ export function pruneCaptures(dir: string, olderThanMs: number): void {
   let names: string[]
   try { names = fs.readdirSync(dir) } catch { return }
   for (const name of names) {
-    if (!/^morning-[0-9a-f]+(\.json|\.json\.tmp|-.+\.bin)$/.test(name)) continue
+    if (!/^morning-[0-9a-f]+(\.json|\.json\..*tmp|-.+\.bin)$/.test(name)) continue
     const p = path.join(dir, name)
     try { if (fs.statSync(p).mtimeMs < olderThanMs) fs.unlinkSync(p) } catch { /* best-effort */ }
   }

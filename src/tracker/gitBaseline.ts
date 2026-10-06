@@ -1,4 +1,5 @@
 import { spawn } from "child_process"
+import { createHash } from "crypto"
 
 // The morning store's git half: which commit stands for "this repo at local
 // midnight" (the baseline B) and how to read files out of it. The parsers and
@@ -25,6 +26,16 @@ export function parseReflog(out: string): ReflogEntry[] {
 export function isAuthorship(action: string): boolean {
   const head = action.split(": ")[0]
   return head === "commit" || head === "commit (amend)" || head === "commit (initial)"
+}
+
+// Ordinary commits must not invalidate a saved baseline. Include the sequence,
+// not just its newest timestamp: several checkouts can share the same second.
+export function operationMark(entries: ReflogEntry[]): string | undefined {
+  // With no reflog, even a hard reset to the same HEAD is unobservable. Do not
+  // claim continuity based on HEAD alone; restart recovery stays conservative.
+  if (!entries.length) return undefined
+  const operations = entries.filter(e => !isAuthorship(e.action))
+  return createHash("sha256").update(JSON.stringify(operations)).digest("hex")
 }
 
 export function chooseBaseline(newestFirst: ReflogEntry[], midnightMs: number): string | null {
@@ -92,6 +103,7 @@ export function parseBatch(out: Buffer, count: number, maxBytes = MAX_BLOB_BYTES
 }
 
 export const GIT_TIMEOUT_MS = 10_000
+const MAX_GIT_OUTPUT_BYTES = 32 * 1024 * 1024
 const BATCH_PATHS = 200
 const COALESCE_MS = 20
 
@@ -107,13 +119,28 @@ export class Git {
         env: { ...process.env, GIT_OPTIONAL_LOCKS: "0", LC_ALL: "C" },
       })
       const chunks: Buffer[] = []
+      let bytes = 0
+      let failed = false
       let stderr = ""
-      const timer = setTimeout(() => { child.kill(); reject(new Error(`git ${args[0]} timed out`)) }, this.timeoutMs)
-      child.stdout.on("data", (c: Buffer) => chunks.push(c))
-      child.stderr.on("data", (c: Buffer) => { stderr += c.toString() })
+      const fail = (reason: string) => {
+        failed = true
+        chunks.length = 0
+        clearTimeout(timer)
+        child.kill()
+        reject(new Error(reason))
+      }
+      const timer = setTimeout(() => fail(`git ${args[0]} timed out`), this.timeoutMs)
+      child.stdout.on("data", (c: Buffer) => {
+        if (failed) return
+        bytes += c.length
+        if (bytes > MAX_GIT_OUTPUT_BYTES) { fail(`git ${args[0]} exceeded output limit (32 MiB)`); return }
+        chunks.push(c)
+      })
+      child.stderr.on("data", (c: Buffer) => { if (stderr.length < 16_384) stderr += c.toString().slice(0, 16_384 - stderr.length) })
       child.on("error", e => { clearTimeout(timer); reject(e) })
       child.on("close", code => {
         clearTimeout(timer)
+        if (failed) return
         if (code === 0) resolve(Buffer.concat(chunks))
         else reject(new Error(`git ${args[0]} exited ${code}: ${stderr.trim()}`))
       })

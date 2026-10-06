@@ -8,6 +8,7 @@
 import * as fs from "fs"
 import * as path from "path"
 import { hashLine, type LineHashes } from "./lineLedger"
+import { normalizePath } from "./pathRules"
 
 export function ledgerFile(storageDir: string, workspaceFolders: string[]): string {
   const key = hashLine([...workspaceFolders].sort().join("|")).toString(16)
@@ -78,12 +79,16 @@ export function keepYesterday(file: string, yesterdayKey: string): void {
 export interface Yesterday { savedAt: number; files: Map<string, LineHashes> }
 
 export function loadYesterday(file: string, yesterdayKey: string): Yesterday | null {
-  const raw = loadLedger(file) as { version?: unknown; day?: unknown; files?: unknown } | undefined
+  const raw = loadLedger(file) as { version?: unknown; day?: unknown; files?: unknown; recoveryPending?: unknown } | undefined
   if (!raw || raw.version !== 1 || raw.day !== yesterdayKey || typeof raw.files !== "object" || raw.files === null) return null
   let savedAt: number
   try { savedAt = fs.statSync(file).mtimeMs } catch { return null }
+  // A path whose restart recovery never ran still holds pre-Git-operation
+  // content: folding it into today's capture would credit that operation.
+  const pending = new Set(Array.isArray(raw.recoveryPending) ? raw.recoveryPending.filter(p => typeof p === "string").map(p => normalizePath(p)) : [])
   const files = new Map<string, LineHashes>()
   for (const [p, v] of Object.entries(raw.files as Record<string, unknown>)) {
+    if (pending.has(normalizePath(p))) continue
     const last = (v as { last?: unknown } | null)?.last
     if (Array.isArray(last) && last.every(x => Number.isInteger(x))) files.set(p, last as LineHashes)
   }

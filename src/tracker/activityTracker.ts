@@ -7,11 +7,11 @@ import { detectProject, clearDetectionCache } from "./projectDetector"
 import { LineDelta, LineHashes, LineLedger, LedgerSnapshot, hashLines } from "./lineLedger"
 import { dropYesterday, keepYesterday, ledgerFile, loadLedger, loadYesterday, pruneLedgers, saveLedger, yesterdayFile } from "./ledgerStore"
 import { captureFile, pruneCaptures } from "./captureStore"
-import { Day, startDay } from "./dayCapture"
+import { Day, DayOutcome, startDay } from "./dayCapture"
 import { Git } from "./gitBaseline"
 import { lineNotes } from "./lineNotes"
 import {
-  EXCLUDED_LANGUAGE_IDS, WorktreeInfo, isExcludedPath, isGitOpSignal, isGitPath, isUnder, languageForFile, worktreeInfo,
+  EXCLUDED_LANGUAGE_IDS, WorktreeInfo, isExcludedPath, isGitOpSignal, isGitPath, isUnder, languageForFile, normalizePath, worktreeInfo,
 } from "./pathRules"
 
 // Language for a document open in an editor, or undefined if it should not be
@@ -81,6 +81,11 @@ export class ActivityTracker {
   private dayKey = ""
   private dayDone: Promise<void> = Promise.resolve() // capture + catch-up; tests await it
   private restoredPaths: string[] = []     // files in today's snapshot, re-measured by catch-up
+  private gitMarks: Record<string, string> = {}
+  private recoveryPending = new Set<string>()
+  private recoveryPrepared: Day | null = null
+  private ledgerMetadataSaved = ""
+  private checkedWorktrees = new Set<string>()
   private inflight = new Map<string, Promise<void>>() // one measure() per file at a time
   private gitInstance: Git | null = null
 
@@ -253,9 +258,14 @@ export class ActivityTracker {
   private async primeDocument(doc: vscode.TextDocument): Promise<void> {
     const language = trackableLanguage(doc)
     if (!language || this.stopped) return
+    this.checkDay()
     const path = doc.uri.fsPath
     if (this.pendingCreates.has(path)) return // a just-created file: let the create be counted
     const capture = this.day
+    if (capture?.restarting && this.dayRoots.some(r => isUnder(path, r))) {
+      this.prepareRecovery(capture, await capture.done)
+      if (this.stopped) return
+    }
     // Outside every capture folder the store can only say "unknown": prime at once.
     const inCapture = !!capture && this.dayRoots.some(r => isUnder(path, r))
     let morning = this.ledger.has(path) || !inCapture ? undefined : await this.morningFor(path)
@@ -268,6 +278,8 @@ export class ActivityTracker {
       if (this.day === capture && !this.ledger.has(path)) morning = await this.morningFor(path)
     }
     if (this.stopped) return
+    this.checkDay()
+    if (this.day !== capture) return this.primeDocument(doc)
     if (this.pendingCreates.has(path)) return // became a create while the store answered
     if (morning && !this.ledger.has(path)) {
       // Content equal to morning observes as a zero delta and tracks the file,
@@ -555,7 +567,16 @@ export class ActivityTracker {
 
   private async measure(uri: vscode.Uri, language: string, catchUp = false): Promise<void> {
     if (this.stopped) return
+    this.checkDay()
+    const day = this.day
+    const dayKey = dateKey(new Date())
     const path = uri.fsPath
+    if (day && (day.restarting || this.restoredPaths.length > 0) && this.dayRoots.some(r => isUnder(path, r))) {
+      this.prepareRecovery(day, await day.done)
+      if (this.stopped) return
+      this.checkDay()
+      if (this.day !== day) return this.measure(uri, language, catchUp)
+    }
     const isCreate = this.pendingCreates.delete(path)
     const uriStr = uri.toString()
     const doc = vscode.workspace.textDocuments.find(d => d.uri.toString() === uriStr && !d.isClosed)
@@ -583,15 +604,31 @@ export class ActivityTracker {
 
     const wt = worktreeInfo(path)
     if (wt) this.rememberWorktreeCopy(wt.mainPath, path)
+    if (wt && day && !this.checkedWorktrees.has(normalizePath(wt.root))) {
+      const repo = await day.store.repoFor(path).catch(() => null)
+      if (this.stopped) return
+      if (this.day !== day) return this.measure(uri, language, catchUp)
+      this.prepareRepoRecovery(wt.root, repo?.operation)
+      this.checkedWorktrees.add(normalizePath(wt.root))
+    }
     // A file appearing in a worktree starts as the main checkout's copy, so
     // `git worktree add` itself is not authorship.
     const seed = isCreate && wt ? await this.readHashes(wt.mainPath) : undefined
-    const suppress = fromDisk && await this.isNonAuthored(path, hashes, wt)
+    const recovering = this.recoveryPending.has(normalizePath(path))
+    const suppress = recovering || (fromDisk && await this.isNonAuthored(path, hashes, wt))
 
     if (this.stopped) return // stop() ran while this measure was reading
+    this.checkDay()
+    if (this.day !== day || dateKey(new Date()) !== dayKey) {
+      // The awaits may cross midnight. Re-read both content and morning from
+      // the new day without leaving this path's serialised measure chain.
+      if (isCreate) this.pendingCreates.add(path)
+      return this.measure(uri, language, catchUp)
+    }
     if (!doc && !suppress && !catchUp) this.onActivity()
 
-    const delta = this.ledger.observe(path, hashes, { day: dateKey(new Date()), isCreate, seed, suppress, morning })
+    const delta = this.ledger.observe(path, hashes, { day: dayKey, isCreate, seed, suppress, morning })
+    this.recoveryPending.delete(normalizePath(path))
     if (!delta) return
     this.credit(uri, language, delta)
   }
@@ -636,7 +673,14 @@ export class ActivityTracker {
     keepYesterday(this.ledgerPath, dateKey(new Date(midnight.getTime() - 1)))
     pruneLedgers(this.ledgerPath, midnight.getTime())
     const snapshot = loadLedger(this.ledgerPath)
-    if (this.ledger.restore(snapshot, dateKey(new Date()))) this.restoredPaths = Object.keys((snapshot as LedgerSnapshot).files)
+    if (this.ledger.restore(snapshot, dateKey(new Date()))) {
+      const s = snapshot as LedgerSnapshot
+      this.restoredPaths = Object.keys(s.files)
+      if (s.gitMarks && typeof s.gitMarks === "object") {
+        this.gitMarks = Object.fromEntries(Object.entries(s.gitMarks).filter(([, v]) => typeof v === "string").map(([k, v]) => [normalizePath(k), v]))
+      }
+      if (Array.isArray(s.recoveryPending)) this.recoveryPending = new Set(s.recoveryPending.filter(p => typeof p === "string").map(p => normalizePath(p)))
+    }
     this.ledgerSaved = this.ledger.changes()
   }
 
@@ -646,6 +690,14 @@ export class ActivityTracker {
   // and the capture reads unseen files as they were at midnight).
   private beginDay(now: Date, startUp: boolean): void {
     this.dayKey = dateKey(now)
+    this.checkedWorktrees.clear()
+    if (!startUp) {
+      this.gitMarks = {}
+      // recoveryPending survives: the rollover makes base = bag(last), and a
+      // pending entry's last is still the pre-operation content, so its first
+      // new-day observe must still be suppressed.
+      this.restoredPaths = []
+    }
     const dir = this.context.globalStorageUri?.fsPath
     const folders = (vscode.workspace.workspaceFolders ?? []).filter(f => f.uri.scheme === "file")
     if (!dir || folders.length === 0) { this.day = null; return }
@@ -666,9 +718,36 @@ export class ActivityTracker {
     })
     this.day = day
     this.dayDone = day.done.then(async outcome => {
+      this.prepareRecovery(day, outcome)
       if (outcome.saved && yFile) dropYesterday(yFile)
       if (startUp && this.day === day && !this.stopped) await this.catchUp(outcome.changed, day)
     }).catch(() => {})
+  }
+
+  private prepareRecovery(day: Day, outcome: DayOutcome): void {
+    if (this.day !== day || this.stopped || this.recoveryPrepared === day) return
+    this.recoveryPrepared = day
+    const marks = outcome.gitMarks ?? {}
+    const tops = Object.keys(marks).sort((a, b) => b.length - a.length)
+    for (const raw of this.restoredPaths) {
+      if (worktreeInfo(raw)) continue // checked against its own reflog when measured
+      const top = tops.find(t => isUnder(raw, t))
+      if ((top && marks[top] !== this.gitMarks[top]) || outcome.uncertainRoots?.some(r => isUnder(raw, r))) {
+        this.recoveryPending.add(normalizePath(raw))
+      }
+    }
+    // Keep lazy worktree markers until their own repo is checked, not the main
+    // repo's marker. Otherwise an ordinary worktree edit is suppressed on every restart.
+    this.gitMarks = { ...this.gitMarks, ...marks }
+    for (const top of outcome.uncertainRoots ?? []) delete this.gitMarks[normalizePath(top)]
+  }
+
+  private prepareRepoRecovery(topRaw: string, mark: string | undefined): void {
+    const top = normalizePath(topRaw)
+    if (!mark || this.gitMarks[top] !== mark) {
+      for (const p of this.restoredPaths) if (isUnder(p, top)) this.recoveryPending.add(normalizePath(p))
+    }
+    if (mark) this.gitMarks[top] = mark
   }
 
   private checkDay(now = new Date()): void {
@@ -715,7 +794,8 @@ export class ActivityTracker {
   // Files that may have changed since midnight while VS Code was closed. Lines
   // count; time does not (measure skips onActivity for catch-up).
   private async catchUp(changed: string[], day: Day): Promise<void> {
-    const paths = new Set([...changed, ...this.restoredPaths])
+    // Restored paths first: pending recoveries must run before the cap.
+    const paths = new Set([...this.restoredPaths, ...changed])
     let n = 0
     for (const p of paths) {
       if (this.stopped || this.day !== day) return // stopped, or a new day began
@@ -743,9 +823,11 @@ export class ActivityTracker {
   }
 
   private persistLedger(): void {
-    if (!this.ledgerPath || this.ledger.changes() === this.ledgerSaved) return
-    saveLedger(this.ledgerPath, this.ledger.export(dateKey(new Date())))
+    const metadata = JSON.stringify([this.gitMarks, [...this.recoveryPending]])
+    if (!this.ledgerPath || (this.ledger.changes() === this.ledgerSaved && metadata === this.ledgerMetadataSaved)) return
+    saveLedger(this.ledgerPath, { ...this.ledger.export(dateKey(new Date())), gitMarks: this.gitMarks, recoveryPending: [...this.recoveryPending] })
     this.ledgerSaved = this.ledger.changes()
+    this.ledgerMetadataSaved = metadata
   }
 
   // undefined = the file does not exist; null = exists but too large/unreadable.

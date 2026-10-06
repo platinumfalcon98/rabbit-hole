@@ -50,6 +50,9 @@ export interface LedgerSnapshot {
   version: 1
   day: string
   files: Record<string, SnapshotEntry>
+  // Internal recovery metadata only; never part of DailyLog or the JSON mirror.
+  gitMarks?: Record<string, string>
+  recoveryPending?: string[]
 }
 
 interface SnapshotEntry {

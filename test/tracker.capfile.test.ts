@@ -52,14 +52,14 @@ describe("capture file round trip", () => {
 })
 
 describe("rejected captures are deleted", () => {
-  it("another day's capture is stale; its keys are returned and its files removed", () => {
+  it("another day's capture is stale; its keys are returned and its index removed", () => {
     const json = freshJson()
     const { w } = write(json, "2026-10-05")
     const loaded = loadCapture(json, DAY) as any
     assert.strictEqual(loaded.kind, "stale")
     assert.deepStrictEqual(loaded.paths.sort(), ["C:\\w\\a.ts", "C:\\w\\b.ts", "C:\\w\\n.ts", "C:\\w\\t.ts"])
     assert.ok(!fs.existsSync(json))
-    assert.ok(!fs.existsSync(path.join(path.dirname(json), w.name)))
+    assert.ok(fs.existsSync(path.join(path.dirname(json), w.name))) // another window may still read it
   })
   it("an unknown version or corrupt JSON is stale with no keys", () => {
     const json = freshJson()
@@ -111,11 +111,11 @@ describe("rejected captures are deleted", () => {
 })
 
 describe("the json and bin stay consistent", () => {
-  it("a newer save removes the older bin; an unsaved writer leaves the saved pair intact", () => {
+  it("a newer save preserves older readers; an unsaved writer leaves the saved pair intact", () => {
     const json = freshJson()
     const first = write(json).w
     const second = write(json).w
-    assert.ok(!fs.existsSync(path.join(path.dirname(json), first.name)))
+    assert.ok(fs.existsSync(path.join(path.dirname(json), first.name)))
     // a capture interrupted after writing its bin but before saving the json
     const orphan = new CaptureWriter(json, DAY); orphan.add(h("z\n")); orphan.close()
     const c = (loadCapture(json, DAY) as any).capture

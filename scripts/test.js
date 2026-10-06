@@ -246,6 +246,12 @@ const SUITES = [
   },
   { name: "firstsight", entry: "test/tracker.firstsight.test.ts", alias: { vscode: "test/stubs/vscodeWindow.ts", tracker: "src/tracker/activityTracker.ts", lineNotes: "src/tracker/lineNotes.ts" } },
   { name: "verifytool", entry: "test/tools.verify.test.ts", alias: { verifyCore: "scripts/verify-lines/core.ts" } },
+  { name: "restart", entry: "test/tracker.restart.test.ts", alias: { vscode: "test/stubs/vscodeWindow.ts", tracker: "src/tracker/activityTracker.ts", dayCapture: "src/tracker/dayCapture.ts" } },
+  { name: "morningreview", entry: "test/tracker.morningreview.test.ts", alias: {
+    vscode: "test/stubs/vscodeWindow.ts", tracker: "src/tracker/activityTracker.ts",
+    dayCapture: "src/tracker/dayCapture.ts", captureStore: "src/tracker/captureStore.ts",
+    gitBaseline: "src/tracker/gitBaseline.ts",
+  } },
 ]
 
 function parseArgs(argv) {

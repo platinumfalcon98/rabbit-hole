@@ -268,7 +268,6 @@ describe("reloading today's capture", () => {
     const first = run([r.dir]); await first.day.done
     const bin = (loadCapture(first.jsonPath, DAY) as any).capture.bin
     r.write("b.ts", "b\n"); r.commitAll("t", Date.now())
-    r.git(["checkout", "-q", "-b", "later"], Date.now())
     const second = run([r.dir], { jsonPath: first.jsonPath }); const out = await second.day.done
     assert.strictEqual((loadCapture(first.jsonPath, DAY) as any).capture.bin, bin)
     assert.deepStrictEqual(await second.day.store.lookup(r.path("a.ts")), h("1\n2\n"))

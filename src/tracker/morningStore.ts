@@ -35,6 +35,7 @@ export interface Repo {
   listed: Set<string>
   listedDirs: string[]
   reflog: ReflogEntry[]
+  operation?: string
 }
 
 export function isListed(repo: Repo, key: string): boolean {
@@ -52,8 +53,22 @@ interface Folder { root: string; kind: "git" | "plain"; ready: Promise<void>; ma
 export class MorningStore {
   private folders: Folder[] = []
   private entries = new Map<string, { raw: string; entry: CaptureEntry }>()
+  private pendingSnapshot: { paths: Set<string>; ready: Promise<unknown> } | undefined
 
   constructor(readonly day: string, private deps: StoreDeps) {}
+
+  useBin(dir: string, name: string): void { this.deps.bin = { dir, name } }
+
+  // Linked worktrees are discovered lazily rather than included in the capture.
+  repoFor(fsPath: string): Promise<Repo | null> { return this.deps.findRepo(fsPath) }
+
+  // A clean path may still have an overnight baseline in yesterday's snapshot.
+  // Do not answer from B while that higher-priority source is being folded in.
+  waitForSnapshot(paths: Iterable<string>, done: Promise<unknown>): void {
+    const pending = { paths: new Set([...paths].map(p => normalizePath(p))), ready: done.catch(() => {}) }
+    this.pendingSnapshot = pending
+    void pending.ready.then(() => { if (this.pendingSnapshot === pending) this.pendingSnapshot = undefined })
+  }
 
   addFolder(rootRaw: string): void {
     let markReady = () => {}
@@ -90,6 +105,8 @@ export class MorningStore {
     const folder = this.folders.find(f => isUnder(key, f.root))
     if (!folder) return "unknown"
     await folder.ready
+    const pending = this.pendingSnapshot
+    if (pending?.paths.has(key)) await pending.ready
     const hit = this.entries.get(key)?.entry
     if (hit === "empty") return []
     if (hit === "unknown") return "unknown"

@@ -9,6 +9,21 @@ resets are an accepted limit. Amended during planning, 2026-10-06: D1–D6 (see 
 Amended after the build, 2026-10-06: review rulings R9, R10 and R12–R14 and the accepted
 limits 10–13 below.
 
+Final review corrections (2026-10-06): see
+[the review report](../../reviews/2026-10-06-morning-baseline.md).
+Measurements refresh their day before reading and retry if an await crosses a day
+boundary. Paths present in yesterday's snapshot wait for that capture to finish
+before resolving through git. Catch-up includes nested repositories and rediscovers
+files created after a saved capture, preserving its existing baselines.
+Capture save failures retain yesterday's recovery snapshot. Immutable capture bins
+are kept for age-based pruning (30 days), so another window cannot delete a live
+reader/writer's bin; JSON temporary names are per capture. Loaded captures validate
+folder records, bin paths and hash bounds. Git stdout is bounded to 32 MiB per
+command before parsing; overflow follows the existing unavailable/unknown fallback.
+The user approved conservative restart recovery after intervening Git operations:
+preserve credited totals and suppress uncertain differences, accepting missed edits
+in that interval (Restart and accepted limit 14 below).
+
 ## Problem
 
 Line counts are net per file per day: a file's row should equal a diff of its current
@@ -76,7 +91,7 @@ nothing is credited.
 
 ### Baseline commit B (per repo)
 
-Computed once per day per repo from `git reflog show --date=unix HEAD` (pure function over
+Computed per day per repo, with a conservative restart-recovery exception, from `git reflog show --date=unix HEAD` (pure function over
 parsed entries, `chooseBaseline(entries, midnightMs)`):
 
 - start at the entry in effect at midnight (`HEAD` at midnight);
@@ -216,7 +231,7 @@ file's first edit: more than 20,000 files to capture".
 `globalStorage/ledger/morning-<workspace hash>.json` and the per-capture `.bin`, the hash
 computed like `ledgerFile()`.
 
-- `.json` (D4): `{ version: 1, day, bin, folders: [{ root, repo?: { top, baseline },
+- `.json` (D4): `{ version: 1, day, bin, folders: [{ root, repo?: { top, baseline, operation? },
   partial }], index: { [rawPath]: [offset, count] | "empty" | "useB" | "unknown" } }`. The
   index is keyed by the **raw** path and normalised in memory (catch-up needs real-case
   paths, and ledger keys are VS Code `fsPath`s). `bin` names the capture's `.bin`, which
@@ -269,7 +284,27 @@ rest are left to the watcher, with a note.
 
 Order in `start()`: keep yesterday's snapshot aside (renamed, section 2) → restore today's
 ledger snapshot (as now) → load or take today's capture → catch-up. A file in today's snapshot keeps its morning
-baseline and the store is never consulted for it.
+baseline unless conservative recovery applies.
+
+**Conservative recovery (approved 2026-10-06).** Persist a fingerprint of the complete
+non-authorship reflog sequence per repository in the capture and ledger checkpoint.
+Ordinary commits/amends do not change this marker. On restart, a changed or missing
+marker rebuilds the affected repository's capture using current HEAD for clean files
+and current disk content for dirty/untracked/ignored files. Restored ledger entries
+absorb the uncertain difference through the existing suppression shift, preserving
+already credited totals. Pending paths are persisted until measured, including across
+an interrupted recovery. Other repositories keep their exact captured baseline.
+Linked worktrees compare their own markers when first measured. Legacy captures and
+unavailable reflogs recover conservatively. Priming and measurement wait for restart
+recovery; yesterday's snapshot cannot restore content across a later Git operation.
+A pending path stays pending across midnight while running (its first new-day observe
+is suppressed), and is left out of yesterday's snapshot when the next day's capture folds
+it in, so its pre-operation content never becomes a baseline. A fresh capture (the saved
+capture missing or invalid) also reports repositories without a reflog as uncertain, and a
+fresh capture that fails reports every workspace root as uncertain.
+A recovery recapture records a missing file as `unknown`, never empty. Catch-up only
+re-measures captured files whose mtime is today, and measures restored paths first.
+These optional fields remain internal; DailyLog and mirror schemas do not change.
 
 **Open documents (D3, R12, R13).** VS Code restores tabs at start-up, so opening a document
 consults the store before priming; priming from current content would drop every
@@ -328,7 +363,8 @@ for the files it affects and adds a note.
 6. 32-bit line-hash collisions, as before, can mask a changed line.
 7. `git reset --soft` / `--mixed` while VS Code was closed moves B, but leaves the working
    tree alone; the reflog message does not say which mode was used. Undoing yesterday's
-   commit that way makes its changes count today.
+   commit that way can make its changes count today on a fresh daily capture;
+   same-day conservative restart recovery instead absorbs the uncertain difference.
 8. On macOS and Linux, an untracked or ignored file can be rewritten by temp-and-rename
    while VS Code was closed. If it is in neither yesterday's snapshot nor the previous
    capture, it counts as created, with every line added. That happens on the first day
@@ -349,6 +385,12 @@ for the files it affects and adds a note.
     follow-up.
 13. If the capture's `.bin` cannot be created, git folders fall back to plain for the day,
     so clean files no longer resolve through B.
+14. Conservative restart recovery can omit edits made while closed or during recovery
+    in an affected repository. Missing legacy metadata or an unavailable reflog also
+    triggers recovery. Operations since the saved capture can trigger it even if
+    observed live earlier. Previously credited totals are preserved. In particular,
+    reflog expiry (for example by `git gc --auto`) or a repository with no reflog
+    triggers conservative recovery and may skip closed-period edits.
 
 ## 5. Testing
 
