@@ -256,3 +256,65 @@ describe("measures of one file never overlap", () => {
     assert.deepStrictEqual(order, ["in", "out", "in", "out"])
   })
 })
+
+describe("opening a file inside a git-op window", () => {
+  const r = newRepo()
+  let h: ReturnType<typeof harness>
+  before(async () => {
+    r.write("a.ts", "1\n"); r.commitAll("y", yesterdayNoon()); fs.utimesSync(r.path("a.ts"), yesterdayNoon() / 1000, yesterdayNoon() / 1000)
+    h = harness(r.dir)
+    const t: any = h.make(); await t.dayDone
+    v.__fireChange(path.join(r.dir, ".git", "HEAD"))   // a checkout, with VS Code open
+    fs.writeFileSync(r.path("a.ts"), "1\n2\n")          // the branch's content
+    v.__openDoc(r.path("a.ts"), "1\n2\n")              // opened before the watcher's measure runs
+    await sleep(300)
+    t.stop()
+    v.workspace.textDocuments.length = 0
+  })
+  it("the branch diff is not credited as authorship", () => assert.deepStrictEqual(h.calls, []))
+})
+
+describe("stop() before the catch-up runs", () => {
+  const r = newRepo()
+  let h: ReturnType<typeof harness>
+  let atStop = -1
+  before(async () => {
+    r.write("a.ts", "1\n"); r.commitAll("y", yesterdayNoon())
+    r.write("a.ts", "1\n2\n")                 // edited while closed: catch-up would credit it
+    h = harness(r.dir)
+    const t: any = h.make()
+    t.stop()                                   // before dayDone resolves
+    atStop = h.calls.length
+    await t.dayDone
+    await sleep(100)
+  })
+  it("nothing is credited after stop", () => assert.strictEqual(h.calls.length, atStop))
+})
+
+describe("a document outside the workspace, opened during the capture", () => {
+  const r = newRepo()
+  let h: ReturnType<typeof harness>
+  let outside = ""
+  before(async () => {
+    r.write("a.ts", "1\n"); r.commitAll("y", yesterdayNoon())
+    const d = fs.mkdtempSync(path.join(os.tmpdir(), "rabbithole-outside-")); cleanups.push(() => fs.rmSync(d, { recursive: true, force: true }))
+    outside = path.join(d, "b.ts")
+    fs.writeFileSync(outside, "x\n")
+    h = harness(r.dir)
+    const t: any = h.make()
+    // Hold the capture open until the edit has been measured.
+    let release = () => {}
+    const gate = new Promise<void>(res => { release = res })
+    const day = t.day
+    t.day = { store: day.store, done: gate.then(() => day.done) }
+    const doc = v.__openDoc(outside, "x\n")
+    v.__editDoc(doc, "x\ny\n", true)           // typed
+    await sleep(DEBOUNCE_WAIT)
+    release()
+    await t.dayDone
+    t.stop()
+    v.workspace.textDocuments.length = 0
+  })
+  it("is primed at once, so its first typed edit counts", () =>
+    assert.deepStrictEqual(h.total(outside), { added: 1, deleted: 0 }))
+})

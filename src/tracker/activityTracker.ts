@@ -11,7 +11,7 @@ import { Day, startDay } from "./dayCapture"
 import { Git } from "./gitBaseline"
 import { lineNotes } from "./lineNotes"
 import {
-  EXCLUDED_LANGUAGE_IDS, WorktreeInfo, isExcludedPath, isGitOpSignal, isGitPath, languageForFile, worktreeInfo,
+  EXCLUDED_LANGUAGE_IDS, WorktreeInfo, isExcludedPath, isGitOpSignal, isGitPath, isUnder, languageForFile, worktreeInfo,
 } from "./pathRules"
 
 // Language for a document open in an editor, or undefined if it should not be
@@ -76,6 +76,8 @@ export class ActivityTracker {
   private ledgerPath: string | undefined   // today's snapshots on disk (see restoreLedger)
   private ledgerSaved = -1                 // ledger.changes() at the last save
   private day: Day | null = null           // today's morning store (see beginDay)
+  private dayRoots: string[] = []          // the workspace folders today's capture covers
+  private stopped = false                  // after stop(), nothing credits or touches the ledger
   private dayKey = ""
   private dayDone: Promise<void> = Promise.resolve() // capture + catch-up; tests await it
   private restoredPaths: string[] = []     // files in today's snapshot, re-measured by catch-up
@@ -139,6 +141,9 @@ export class ActivityTracker {
   }
 
   stop(): void {
+    // Catch-up, waiting primes and in-flight measures must not credit after the
+    // final persist below: after a reload they would be counted again.
+    this.stopped = true
     if (this.checkpointInterval !== null) {
       clearInterval(this.checkpointInterval)
       this.checkpointInterval = null
@@ -239,34 +244,38 @@ export class ActivityTracker {
   }
 
   // A document opening (or a tab restored at start-up). A file the ledger has
-  // not seen is asked of the morning store first: if it changed today while
-  // unseen, that change is credited (catch-up rules, no time) instead of being
-  // primed away. Otherwise its content is its baseline, so its first edit is
-  // measurable.
+  // not seen is asked of the morning store first: if its midnight content is
+  // known, the file is measured (catch-up rules: no time) so a change made
+  // today while it was unseen is credited instead of primed away, through
+  // measure()'s own guards (git-op suppression, worktree merges, deletion,
+  // per-file serialisation). Otherwise its content is its baseline, so its
+  // first edit is measurable.
   private async primeDocument(doc: vscode.TextDocument): Promise<void> {
     const language = trackableLanguage(doc)
-    if (!language) return
+    if (!language || this.stopped) return
     const path = doc.uri.fsPath
     if (this.pendingCreates.has(path)) return // a just-created file: let the create be counted
-    let morning = this.ledger.has(path) ? undefined : await this.morningFor(path)
+    const capture = this.day
+    // Outside every capture folder the store can only say "unknown": prime at once.
+    const inCapture = !!capture && this.dayRoots.some(r => isUnder(path, r))
+    let morning = this.ledger.has(path) || !inCapture ? undefined : await this.morningFor(path)
     // A tab restored at start-up opens while the capture is still hashing; its
     // file, if dirty, is pending and answers "unknown". Priming it now would
     // make its closed-period edit the baseline, so ask again once the capture
     // has reached it. Edits in the meantime go through measure() as usual.
-    const capture = this.day
-    if (!morning && capture && !this.ledger.has(path)) {
+    if (!morning && inCapture && capture && !this.ledger.has(path)) {
       await capture.done.catch(() => undefined)
       if (this.day === capture && !this.ledger.has(path)) morning = await this.morningFor(path)
     }
+    if (this.stopped) return
     if (this.pendingCreates.has(path)) return // became a create while the store answered
-    const day = dateKey(new Date())
-    const hashes = hashLines(doc.getText())
-    if (!morning || this.ledger.has(path)) {
-      this.ledger.prime(path, hashes, day)
+    if (morning && !this.ledger.has(path)) {
+      // Content equal to morning observes as a zero delta and tracks the file,
+      // so no separate prime is needed.
+      void this.runMeasure(doc.uri, language, true)
       return
     }
-    const delta = this.ledger.observe(path, hashes, { day, morning })
-    if (delta) this.credit(doc.uri, language, delta)
+    this.ledger.prime(path, hashLines(doc.getText()), dateKey(new Date()))
   }
 
   private onWindowState(state: vscode.WindowState): void {
@@ -545,6 +554,7 @@ export class ActivityTracker {
   }
 
   private async measure(uri: vscode.Uri, language: string, catchUp = false): Promise<void> {
+    if (this.stopped) return
     const path = uri.fsPath
     const isCreate = this.pendingCreates.delete(path)
     const uriStr = uri.toString()
@@ -578,6 +588,7 @@ export class ActivityTracker {
     const seed = isCreate && wt ? await this.readHashes(wt.mainPath) : undefined
     const suppress = fromDisk && await this.isNonAuthored(path, hashes, wt)
 
+    if (this.stopped) return // stop() ran while this measure was reading
     if (!doc && !suppress && !catchUp) this.onActivity()
 
     const delta = this.ledger.observe(path, hashes, { day: dateKey(new Date()), isCreate, seed, suppress, morning })
@@ -646,7 +657,8 @@ export class ActivityTracker {
     // miss it in a multi-root window with a virtual folder.
     const yFile = this.ledgerPath ? yesterdayFile(this.ledgerPath) : null
     pruneCaptures(nodePath.join(dir, "ledger"), Date.now() - CAPTURE_PRUNE_MS)
-    const day = startDay(folders.map(f => f.uri.fsPath), this.dayKey, midnight.getTime(), {
+    this.dayRoots = folders.map(f => f.uri.fsPath)
+    const day = startDay(this.dayRoots, this.dayKey, midnight.getTime(), {
       git: this.gitClient(),
       jsonPath: captureFile(dir, keys),
       yesterday: startUp && yFile ? loadYesterday(yFile, dateKey(new Date(midnight.getTime() - 1))) : null,
@@ -655,8 +667,8 @@ export class ActivityTracker {
     this.day = day
     this.dayDone = day.done.then(async outcome => {
       if (outcome.saved && yFile) dropYesterday(yFile)
-      if (startUp && this.day === day) await this.catchUp(outcome.changed)
-    }, () => {})
+      if (startUp && this.day === day && !this.stopped) await this.catchUp(outcome.changed, day)
+    }).catch(() => {})
   }
 
   private checkDay(now = new Date()): void {
@@ -678,8 +690,12 @@ export class ActivityTracker {
   }
 
   private async morningFor(fsPath: string): Promise<LineHashes | undefined> {
-    const m = await this.day?.store.lookup(fsPath)
-    return m && m !== "unknown" ? m : undefined
+    try {
+      const m = await this.day?.store.lookup(fsPath)
+      return m && m !== "unknown" ? m : undefined
+    } catch {
+      return undefined // a failed lookup is "unknown": today's behaviour
+    }
   }
 
   private credit(uri: vscode.Uri, language: string, delta: LineDelta): void {
@@ -698,10 +714,11 @@ export class ActivityTracker {
 
   // Files that may have changed since midnight while VS Code was closed. Lines
   // count; time does not (measure skips onActivity for catch-up).
-  private async catchUp(changed: string[]): Promise<void> {
+  private async catchUp(changed: string[], day: Day): Promise<void> {
     const paths = new Set([...changed, ...this.restoredPaths])
     let n = 0
     for (const p of paths) {
+      if (this.stopped || this.day !== day) return // stopped, or a new day began
       if (isExcludedPath(p)) continue
       const language = languageForFile(nodePath.basename(p))
       if (!language) continue
