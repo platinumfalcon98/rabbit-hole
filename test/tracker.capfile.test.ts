@@ -76,6 +76,38 @@ describe("rejected captures are deleted", () => {
     assert.strictEqual(loadCapture(json, DAY).kind, "stale")
   })
   it("no capture file is none", () => assert.deepStrictEqual(loadCapture(freshJson(), DAY), { kind: "none" }))
+  it("a json containing null is stale without throwing", () => {
+    const json = freshJson()
+    fs.mkdirSync(path.dirname(json), { recursive: true })
+    fs.writeFileSync(json, "null")
+    assert.deepStrictEqual(loadCapture(json, DAY), { kind: "stale", paths: [] })
+    assert.ok(!fs.existsSync(json))
+  })
+  it("a json whose index is an array is stale without throwing", () => {
+    const json = freshJson()
+    fs.mkdirSync(path.dirname(json), { recursive: true })
+    fs.writeFileSync(json, JSON.stringify({ version: 1, day: DAY, bin: "x.bin", folders: [], index: [] }))
+    assert.deepStrictEqual(loadCapture(json, DAY), { kind: "stale", paths: [] })
+    assert.ok(!fs.existsSync(json))
+  })
+  it("a json with a malformed index entry (negative offset) is stale", () => {
+    const json = freshJson()
+    const w = new CaptureWriter(json, DAY)
+    w.add([1])
+    w.close()
+    saveCapture(json, { version: 1, day: DAY, bin: w.name, folders: [{ root: "C:\\w", partial: false }], index: { "C:\\w\\bad.ts": [-1, 2] as any } })
+    const loaded = loadCapture(json, DAY)
+    assert.strictEqual(loaded.kind, "stale")
+  })
+  it("a json with a bogus index entry is stale", () => {
+    const json = freshJson()
+    const w = new CaptureWriter(json, DAY)
+    w.add([1])
+    w.close()
+    saveCapture(json, { version: 1, day: DAY, bin: w.name, folders: [{ root: "C:\\w", partial: false }], index: { "C:\\w\\bad.ts": "bogus" as any } })
+    const loaded = loadCapture(json, DAY)
+    assert.strictEqual(loaded.kind, "stale")
+  })
 })
 
 describe("the json and bin stay consistent", () => {

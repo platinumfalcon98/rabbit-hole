@@ -25,6 +25,7 @@ export class CaptureWriter {
   readonly name: string
   private fd: number
   private lines = 0
+  private closed = false
 
   constructor(jsonPath: string, day: string) {
     fs.mkdirSync(path.dirname(jsonPath), { recursive: true })
@@ -42,6 +43,8 @@ export class CaptureWriter {
   }
 
   close(): void {
+    if (this.closed) return
+    this.closed = true
     try { fs.closeSync(this.fd) } catch { /* already closed */ }
   }
 }
@@ -83,8 +86,13 @@ export function loadCapture(jsonPath: string, day: string): Loaded {
     removeAll(jsonPath); try { fs.unlinkSync(jsonPath) } catch { /* gone */ }
     return { kind: "stale", paths: [] }
   }
+  // Validate that raw is a non-null, non-array object
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
+    removeAll(jsonPath); try { fs.unlinkSync(jsonPath) } catch { /* gone */ }
+    return { kind: "stale", paths: [] }
+  }
   const c = raw as Partial<Capture>
-  const indexOk = typeof c.index === "object" && c.index !== null
+  const indexOk = typeof c.index === "object" && c.index !== null && !Array.isArray(c.index)
   const usable = c.version === 1 && c.day === day && typeof c.bin === "string" && Array.isArray(c.folders) && indexOk &&
     fs.existsSync(path.join(path.dirname(jsonPath), c.bin)) && Object.values(c.index!).every(isEntry)
   if (usable) return { kind: "today", capture: c as Capture }
