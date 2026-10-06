@@ -3,10 +3,11 @@
 import { Span, exportData } from "../../src/webview/exportModel"
 import { reportPdf } from "../../src/webview/reportPdf"
 import { cardFontsReady, drawCard } from "../../src/webview/shareCard"
-import { sampleWorld, world } from "../helpers/exportFixtures"
+import { crowdedWorld, sampleWorld, world } from "../helpers/exportFixtures"
 
 const sample = sampleWorld()
 const empty = world({}, { ids: ["alpha"] })
+const crowded = crowdedWorld()   // more languages than six colours: textured marks
 export const CASES: [string, { year: any; range: any }, string, Span][] = [
   ["today, all projects", sample, "all", "today"],
   ["today, rabbit-hole", sample, "rabbit-hole", "today"],
@@ -14,6 +15,8 @@ export const CASES: [string, { year: any; range: any }, string, Span][] = [
   ["30d, rabbithole-cli", sample, "rabbithole-cli", "30d"],
   ["today, empty install", empty, "all", "today"],
   ["30d, empty install", empty, "all", "30d"],
+  ["today, many languages", crowded, "all", "today"],
+  ["7d, many languages", crowded, "all", "7d"],
 ]
 
 async function main(): Promise<void> {

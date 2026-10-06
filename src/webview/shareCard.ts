@@ -5,7 +5,8 @@
 // every machine whatever its fallback fonts.
 import { CARROT_W, carrotPixels } from "./carrot"
 import { CARD, ExportData, OTHER_COLOR, SHADE, generatedText, mix, rangeText } from "./exportModel"
-import { CARD_H, CARD_SCALE, CARD_W, CARD_X, CardBlock, cardLayout } from "./exportLayout"
+import type { Texture } from "./colors"
+import { CARD_H, CARD_SCALE, CARD_W, CARD_X, CardBlock, cardLayout, texturePolys } from "./exportLayout"
 import { clock, dstr, fmt, hhmm, hours, pct, shortDate } from "./format"
 import { tapeTicks } from "./layout"
 import { ellipsize } from "./textFit"
@@ -190,6 +191,17 @@ function columns(ctx: Ctx, d: ExportData, b: CardBlock): void {
   text(ctx, shortDate(list[list.length - 1].date), x0 + w, base + 12, CARD.mute, "right")
 }
 
+// A language's mark: its colour, textured like the dashboard's past six.
+function mark(ctx: Ctx, color: string, texture: Texture, x: number, y: number, w: number, h: number): void {
+  ctx.fillStyle = color
+  for (const p of texturePolys({ x, y, w, h }, texture, 1)) {
+    ctx.beginPath()
+    p.forEach(([px, py], i) => (i ? ctx.lineTo(px, py) : ctx.moveTo(px, py)))
+    ctx.closePath()
+    ctx.fill()
+  }
+}
+
 function languages(ctx: Ctx, d: ExportData, b: CardBlock): void {
   panel(ctx, CARD_X, b.y, INNER, b.h, "languages")
   const x0 = CARD_X + 12
@@ -205,15 +217,13 @@ function languages(ctx: Ctx, d: ExportData, b: CardBlock): void {
   let x = x0
   for (const l of shown) {
     const lw = l.ms / total * w
-    ctx.fillStyle = l.color
-    ctx.fillRect(x, y, Math.max(0, lw - 2), 10)
+    mark(ctx, l.color, l.texture, x, y, Math.max(0, lw - 2), 10)
     x += lw
   }
   const kw = w / 3
   shown.slice(0, 3).forEach((l, i) => {
     const kx = x0 + i * kw
-    ctx.fillStyle = l.color
-    ctx.fillRect(kx, y + 19, 7, 7)
+    mark(ctx, l.color, l.texture, kx, y + 19, 7, 7)
     const share = ` ${pct(l.ms, total)}%`
     const name = fit(ctx, l.name, kw - 16 - ctx.measureText(share).width)
     text(ctx, name + share, kx + 12, y + 26, CARD.dim)

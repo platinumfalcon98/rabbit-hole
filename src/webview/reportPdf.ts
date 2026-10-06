@@ -9,7 +9,7 @@ import { carrotPixels } from "./carrot"
 import { ExportData, OTHER_COLOR, PAGE, SHADE, generatedText, mix, rangeText } from "./exportModel"
 import {
   CONTENT_TOP, FOOTER_H, FRAME_INSET, FRAME_RADIUS, GAP, HEADER_H, PAGE_BOTTOM, PAGE_H, PAGE_TOP, PAGE_W, PAGE_X,
-  ROW, Section, TITLE_H, reportPages,
+  ROW, Section, TITLE_H, reportPages, texturePolys,
 } from "./exportLayout"
 import { clock, dstr, fmt, hhmm, hours, pct, shortDate } from "./format"
 import { colGap, runs, tapeTicks } from "./layout"
@@ -260,7 +260,10 @@ function langs(doc: Doc, d: ExportData, y: number, s: Section): void {
   rows.forEach((l, i) => {
     if (!lines(l)) return
     fill(doc, l.color)
-    doc.rect(bar.x, first + i * ROW - 6, Math.max(1, lines(l) / max * bar.w), 6, "F")
+    // textured like the dashboard's past six; each polygon as relative segments
+    for (const p of texturePolys({ x: bar.x, y: first + i * ROW - 6, w: Math.max(1, lines(l) / max * bar.w), h: 6 }, l.texture, 0.8)) {
+      doc.lines(p.slice(1).map(([x, y], j) => [x - p[j][0], y - p[j][1]]), p[0][0], p[0][1], [1, 1], "F", true)
+    }
   })
 }
 

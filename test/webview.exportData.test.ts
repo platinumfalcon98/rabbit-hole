@@ -1,7 +1,7 @@
 import { describe, it } from "node:test"
 import * as assert from "node:assert"
 // @ts-ignore — esbuild alias to src/webview/exportModel.ts
-import { LANG_COLORS, SPANS, exportData, fitSpan, generatedText, mix, rangeText, spanDates } from "exportModel"
+import { LANG_COLORS, OTHER_COLOR, SPANS, exportData, fitSpan, generatedText, mix, rangeText, spanDates } from "exportModel"
 import { MIN, TODAY, addDays, at, world } from "./helpers/exportFixtures"
 
 const D1 = addDays(TODAY, -1)
@@ -63,6 +63,18 @@ describe("one day, all projects", () => {
 
   it("ranks languages by time and colours them by that rank", () => {
     assert.deepStrictEqual(d.langs.map((l: any) => [l.name, l.color]), [["typescript", LANG_COLORS[0]], ["go", LANG_COLORS[1]], ["markdown", LANG_COLORS[2]]])
+    assert.ok(d.langs.every((l: any) => l.texture === "solid"))
+  })
+
+  it("past six languages, a language keeps a palette colour and takes the dashboard's texture", () => {
+    const langs = Object.fromEntries(Array.from({ length: 26 }, (_, i) => [`l${i}`, [(30 - i) * MIN, 1, 0] as [number, number, number]]))
+    const many = data(world({ a: { [TODAY]: { ms: 600 * MIN, langs } } }), "all", "today").langs
+    const at = (i: number) => [many[i].name, many[i].color, many[i].texture]
+    assert.deepStrictEqual(at(5), ["l5", LANG_COLORS[5], "solid"])
+    assert.deepStrictEqual(at(6), ["l6", LANG_COLORS[0], "stripes"])
+    assert.deepStrictEqual(at(12), ["l12", LANG_COLORS[0], "bars"])
+    assert.deepStrictEqual(at(23), ["l23", LANG_COLORS[5], "checks"])
+    assert.deepStrictEqual(at(24), ["l24", OTHER_COLOR, "solid"])
   })
 
   it("takes the streak from storage and marks the last 14 days against each day's target", () => {

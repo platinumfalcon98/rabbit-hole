@@ -1,6 +1,7 @@
 // Where everything goes on the share card and the report, as plain numbers, so
 // the "it fits" rules are tested without a canvas or a PDF. The renderers place
 // every block at the position given here and nowhere else.
+import type { Texture } from "./colors"
 import type { ExportData } from "./exportModel"
 
 // ── share card (logical px; drawn at CARD_SCALE) ────────────────────────────
@@ -117,4 +118,61 @@ function detail(d: ExportData, s: Section): string {
 
 export function reportOutline(d: ExportData): { page: number; items: string[] }[] {
   return reportPages(d).map((secs, i) => ({ page: i + 1, items: secs.map(s => `${LABEL[s.kind]} · ${detail(d, s)}`) }))
+}
+
+// ── textures ────────────────────────────────────────────────────────────────
+
+// A textured mark as solid polygons, so the card and the report fill exact
+// colours over their background: no patterns, no transparency. The same
+// proportions as the dashboard's CSS fills, in `unit`s (one CSS px there).
+export type Poly = [number, number][]
+export interface Rect { x: number; y: number; w: number; h: number }
+
+// Sutherland–Hodgman against one half-plane: keeps the points where f >= 0.
+function clipHalf(poly: Poly, f: (p: [number, number]) => number): Poly {
+  const out: Poly = []
+  poly.forEach((a, i) => {
+    const b = poly[(i + 1) % poly.length]
+    const fa = f(a), fb = f(b)
+    if (fa >= 0) out.push(a)
+    if ((fa >= 0) !== (fb >= 0)) {
+      const t = fa / (fa - fb)
+      out.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t])
+    }
+  })
+  return out
+}
+
+const area = (p: Poly) => Math.abs(p.reduce((t, [x, y], i) => { const [x2, y2] = p[(i + 1) % p.length]; return t + x * y2 - x2 * y }, 0)) / 2
+
+export function texturePolys(r: Rect, texture: Texture, unit: number): Poly[] {
+  if (r.w <= 0 || r.h <= 0) return []
+  const box: Poly = [[r.x, r.y], [r.x + r.w, r.y], [r.x + r.w, r.y + r.h], [r.x, r.y + r.h]]
+  if (texture === "solid") return [box]
+  const out: Poly[] = []
+  // a band where lo <= g(p) < hi, cut to the rectangle
+  const band = (g: (p: [number, number]) => number, lo: number, hi: number) => {
+    const p = clipHalf(clipHalf(box, q => g(q) - lo), q => hi - g(q))
+    if (p.length >= 3 && area(p) > 1e-9) out.push(p)
+  }
+  if (texture === "stripes" || texture === "bars") {
+    // 2 units of ink in every 3.5, measured across the stripe
+    const period = 3.5 * unit, ink = 2 * unit
+    const k = texture === "stripes" ? Math.SQRT1_2 : 1
+    const g = texture === "stripes" ? (p: [number, number]) => (p[0] - p[1]) * k : (p: [number, number]) => p[0]
+    const vals = box.map(g)
+    for (let s = Math.floor(Math.min(...vals) / period) * period; s < Math.max(...vals); s += period) band(g, s, s + ink)
+    return out
+  }
+  // checks: a 4-unit tile, ink in its top-right and bottom-left quarters
+  const half = 2 * unit
+  for (let x = r.x; x < r.x + r.w; x += half) {
+    for (let y = r.y; y < r.y + r.h; y += half) {
+      const col = Math.round((x - r.x) / half), row = Math.round((y - r.y) / half)
+      if ((col + row) % 2 === 0) continue
+      const w = Math.min(half, r.x + r.w - x), h = Math.min(half, r.y + r.h - y)
+      out.push([[x, y], [x + w, y], [x + w, y + h], [x, y + h]])
+    }
+  }
+  return out
 }

@@ -2,6 +2,7 @@
 // dashboard, so a share card or report never disagrees with the screen. Pure:
 // the renderers and the dialog only draw what this returns.
 import type { ActivitySession, RangePayload, YearPayload } from "../shared/types"
+import { MARKS, Texture, markOf } from "./colors"
 import { addDaysKey, clock, dstr, shortDate, splitPath } from "./format"
 import { heatCells, heatLevel, tapeCellCount } from "./layout"
 import { Mark, Selection, TapeCell, TapeWindow, buildView, dayKey, recentMarks, seriesFor, storedStreak, tapeCells, tapeWindow } from "./model"
@@ -40,6 +41,14 @@ export const OTHER_COLOR = "#4f6459"
 // toward the background, never transparency, which JPEG and PDF both keep exactly.
 export const SHADE = [0, 0.3, 0.55, 0.8, 1]
 
+// The dashboard's marks with literal colours: past six a language takes a
+// texture, past 24 it is "other".
+function langMark(i: number): { color: string; texture: Texture } {
+  if (i >= MARKS) return { color: OTHER_COLOR, texture: "solid" }
+  const m = markOf(i)
+  return { color: LANG_COLORS[m.slot], texture: m.texture }
+}
+
 export function mix(color: string, bg: string, t: number): string {
   const ch = (hex: string, i: number) => parseInt(hex.slice(1 + 2 * i, 3 + 2 * i), 16)
   const k = Math.max(0, Math.min(1, t))
@@ -47,7 +56,7 @@ export function mix(color: string, bg: string, t: number): string {
 }
 
 export interface ExportDay { date: string; ms: number; met: boolean; today: boolean; added: number; deleted: number }
-export interface ExportLang { name: string; ms: number; added: number; deleted: number; color: string }
+export interface ExportLang { name: string; ms: number; added: number; deleted: number; color: string; texture: Texture }
 export interface ExportSession { start: number; end: number; activeMs: number; languages: string[]; project: string }
 export interface ExportFile { dir: string; name: string; added: number; deleted: number }
 export type { Mark }
@@ -150,7 +159,7 @@ export function exportData(range: RangePayload, year: YearPayload, sel: Selectio
     marks,
     firstStart: sessions.length ? Math.min(...sessions.map(s => s.start)) : null,
     lastEnd: sessions.length ? Math.max(...sessions.map(s => s.end)) : null,
-    langs: view.languages.map((l, i) => ({ ...l, color: LANG_COLORS[i] ?? OTHER_COLOR })),
+    langs: view.languages.map((l, i) => ({ ...l, ...langMark(i) })),
     daysList,
     sessions,
     tapes: single ? { card: dayTape(raw, 24, now), report: dayTape(raw, 48, now) } : null,

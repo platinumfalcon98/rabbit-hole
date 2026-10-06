@@ -1,7 +1,7 @@
 import { describe, it } from "node:test"
 import * as assert from "node:assert"
 // @ts-ignore — esbuild alias to src/webview/exportLayout.ts
-import { CARD_BOTTOM, CARD_H, CARD_TOP, CONTENT_H, cardLayout, dayRowCap, reportOutline, reportPages, stackHeight } from "exportLayout"
+import { CARD_BOTTOM, CARD_H, CARD_TOP, CONTENT_H, cardLayout, dayRowCap, reportOutline, reportPages, stackHeight, texturePolys } from "exportLayout"
 // @ts-ignore — esbuild alias to src/webview/exportModel.ts
 import { exportData } from "exportModel"
 import { MIN, TODAY, at, world } from "./helpers/exportFixtures"
@@ -109,5 +109,40 @@ describe("report outline", () => {
     assert.strictEqual(out[0].items[2], "languages · 8 of 30")
     assert.strictEqual(out[1].items[0], "days · 14 of 30 active, newest first")
     assert.strictEqual(out[1].items[2], "activity · 5 weeks")
+  })
+})
+
+// Textures are drawn as solid polygons, so the card and the report keep exact
+// colours (no patterns, no transparency) and the geometry is testable here.
+describe("texture shapes", () => {
+  const area = (p: number[][]) => Math.abs(p.reduce((t, [x, y], i) => { const [x2, y2] = p[(i + 1) % p.length]; return t + x * y2 - x2 * y }, 0)) / 2
+  const covered = (ps: number[][][]) => ps.reduce((t, p) => t + area(p), 0)
+  const rect = { x: 10, y: 20, w: 70, h: 14 }
+  const inside = (ps: number[][][]) => ps.every(p => p.every(([x, y]) =>
+    x >= rect.x - 1e-9 && x <= rect.x + rect.w + 1e-9 && y >= rect.y - 1e-9 && y <= rect.y + rect.h + 1e-9))
+
+  it("solid is the rectangle itself", () => {
+    assert.deepStrictEqual(texturePolys(rect, "solid", 1), [[[10, 20], [80, 20], [80, 34], [10, 34]]])
+  })
+
+  for (const [t, share] of [["stripes", 2 / 3.5], ["bars", 2 / 3.5], ["checks", 0.5]] as const) {
+    it(`${t} stay inside the rectangle and cover about ${Math.round(share * 100)}% of it`, () => {
+      const ps = texturePolys(rect, t, 1)
+      assert.ok(ps.length > 4)
+      assert.ok(inside(ps))
+      assert.ok(Math.abs(covered(ps) / (rect.w * rect.h) - share) < 0.08, `${covered(ps) / (rect.w * rect.h)}`)
+    })
+  }
+
+  it("the unit scales the pattern, not the rectangle", () => {
+    const fine = texturePolys(rect, "bars", 1)
+    const coarse = texturePolys(rect, "bars", 2)
+    assert.ok(coarse.length < fine.length)
+    assert.ok(inside(coarse))
+  })
+
+  it("a tiny or empty rectangle never breaks", () => {
+    assert.ok(inside(texturePolys({ x: 10, y: 20, w: 1, h: 1 }, "stripes", 1)))
+    assert.deepStrictEqual(texturePolys({ x: 0, y: 0, w: 0, h: 10 }, "checks", 1), [])
   })
 })

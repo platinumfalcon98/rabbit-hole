@@ -33,10 +33,16 @@ function fill(c: string, t: Texture): string {
   }
 }
 
-function slot(i: number): Paint {
+// The i-th mark: which palette colour and which texture. Shared with the
+// exports, which have their own literal colours.
+export function markOf(i: number): { slot: number; texture: Texture } {
   const n = i % MARKS
-  const color = `var(--c${(n % PALETTE_SIZE) + 1})`
-  const texture = TEXTURES[Math.floor(n / PALETTE_SIZE)]
+  return { slot: n % PALETTE_SIZE, texture: TEXTURES[Math.floor(n / PALETTE_SIZE)] }
+}
+
+function slot(i: number): Paint {
+  const { slot, texture } = markOf(i)
+  const color = `var(--c${slot + 1})`
   return { color, fill: fill(color, texture), texture }
 }
 
