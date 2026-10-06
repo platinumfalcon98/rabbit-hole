@@ -21,6 +21,10 @@ export interface ObserveOptions {
   // A git operation (or worktree removal/merge) produced this change: absorb it
   // into the baseline instead of crediting it.
   suppress?: boolean
+  // Start-of-day content of a pre-existing file the ledger has not seen yet,
+  // from the morning store. The first sighting then credits the difference
+  // instead of nothing — the first agent edit to an unopened file counts.
+  morning?: LineHashes
 }
 
 // `base` is the signed multiset of start-of-day content, shifted by suppressed
@@ -210,11 +214,11 @@ export class LineLedger {
     let e = this.entries.get(path)
     if (e) e.seen = opts.day
     if (!e) {
-      const start = opts.isCreate ? (opts.seed ?? []) : hashes
+      const start = opts.isCreate ? (opts.seed ?? []) : (opts.morning ?? hashes)
       e = { base: null, last: start, present: start, credited: ZERO, edited: false, seen: opts.day }
       this.entries.set(path, e)
-      // Pre-existing file with no baseline: the edit that brought us here is unmeasurable.
-      if (!opts.isCreate) return null
+      // Pre-existing file with no known morning content: the edit that brought us here is unmeasurable.
+      if (!opts.isCreate && !opts.morning) return null
     }
 
     if (opts.suppress) {

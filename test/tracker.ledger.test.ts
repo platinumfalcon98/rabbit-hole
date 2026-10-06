@@ -242,3 +242,44 @@ describe("restart", () => {
     assert.strictEqual(l.observe("/f", h("lots\nof\nlines\n"), { day: D1 }), null)
   })
 })
+
+describe("morning baseline on first sighting", () => {
+  it("the first edit to an unseen file credits its diff against the morning content", () => {
+    const l = new LineLedger()
+    assert.deepStrictEqual(
+      l.observe("/f", h("a\nb\nc\n"), { day: D1, morning: h("a\nb\n") }),
+      { added: 1, deleted: 0 })
+  })
+  it("a file deleted before it was ever seen is credited as deleted", () => {
+    const l = new LineLedger()
+    assert.deepStrictEqual(l.observe("/f", [], { day: D1, morning: h("a\nb\n") }), { added: 0, deleted: 2 })
+  })
+  it("measuring the same content again credits nothing more", () => {
+    const l = new LineLedger()
+    l.observe("/f", h("a\nb\nc\n"), { day: D1, morning: h("a\nb\n") })
+    assert.strictEqual(l.observe("/f", h("a\nb\nc\n"), { day: D1 }), null)
+    assert.deepStrictEqual(l.observe("/f", h("a\nb\nc\nd\n"), { day: D1 }), { added: 1, deleted: 0 })
+  })
+  it("morning equal to the current content credits nothing but tracks the file", () => {
+    const l = new LineLedger()
+    assert.strictEqual(l.observe("/f", h("a\n"), { day: D1, morning: h("a\n") }), null)
+    assert.ok(l.has("/f"))
+  })
+  it("a suppressed first sighting with morning credits nothing, and later edits count from there", () => {
+    const l = new LineLedger()
+    assert.strictEqual(l.observe("/f", h("x\ny\n"), { day: D1, morning: h("a\n"), suppress: true }), null)
+    assert.deepStrictEqual(l.observe("/f", h("x\ny\nz\n"), { day: D1 }), { added: 1, deleted: 0 })
+  })
+  it("morning is ignored once the file is tracked", () => {
+    const l = new LineLedger()
+    l.prime("/f", h("a\n"), D1)
+    assert.deepStrictEqual(l.observe("/f", h("a\nb\n"), { day: D1, morning: h("q\nr\ns\n") }), { added: 1, deleted: 0 })
+  })
+  it("a morning-started entry survives export/restore without double counting", () => {
+    const l = new LineLedger()
+    l.observe("/f", h("a\nb\nc\n"), { day: D1, morning: h("a\n") })
+    const r = new LineLedger()
+    assert.ok(r.restore(JSON.parse(JSON.stringify(l.export(D1))), D1))
+    assert.strictEqual(r.observe("/f", h("a\nb\nc\n"), { day: D1 }), null)
+  })
+})
