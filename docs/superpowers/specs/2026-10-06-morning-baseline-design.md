@@ -1,8 +1,11 @@
 # Morning baseline — design spec
 
-Date: 2026-10-06 · Branch: `morning-baseline`, cut from `tty-redesign` at `f2f96d2`
-(the tracker on `main` lacks phase 1's session languages and intervals, which `measure()`
-sits beside), merged after `tty-redesign`.
+Date: 2026-10-06 · Branch: `tty-redesign` (decided at review: the work lands on the
+redesign branch itself, not a separate branch). Amended after review, 2026-10-06: the
+capture's dirty list is known before hashing (section 2, "Before the capture finishes"),
+yesterday's ledger snapshot is folded into the capture (section 2, "Yesterday's
+snapshot"), creation time is trusted only for files git does not track, and soft/mixed
+resets are an accepted limit.
 
 ## Problem
 
@@ -39,7 +42,8 @@ snapshot, the mirror format, the focus gate and all active-time accounting.
 | 1 | Approach A: a morning store consulted on first sighting. Rejected: counting lines from `git diff` (a branch switch would count the whole branch diff; unsaved typing and worktrees break) and loading every file into the ledger at day start (tens of MB in the shared extension host). |
 | 2 | Edits made today while VS Code was closed count, as CLAUDE.md already records. Catch-up adds lines, never active time. |
 | 3 | Non-git folders are captured by a background scan with a cap of 20,000 captured files per workspace window; above it the folder falls back to today's behaviour, with a note. |
-| 4 | A file dirty at midnight and edited again before VS Code opened is compared against the baseline commit: nothing recorded its midnight content. Documented, not hidden. |
+| 4 | A file dirty at midnight and edited again before VS Code opened is compared against yesterday's ledger snapshot when it is usable, else the baseline commit. Documented, not hidden. (Amended at review: originally the baseline commit only.) |
+| 5 | Review, 2026-10-06: the work is done on `tty-redesign`. Yesterday's snapshot is the fallback for files changed overnight, chosen over treating them as `unknown`. |
 
 ## 1. Morning store
 
@@ -52,11 +56,18 @@ one question for a path: its lines at local midnight today, as
 
 Resolution order for a path the ledger has not seen today:
 
-1. **Day-start capture** (section 2) has an entry → its hashes, `[]` for "empty", or B's
-   content for "use B", or `unknown`.
-2. **git:** the path is in a repo, has no capture entry (so it was clean at day start), and
-   exists in the baseline commit B → its content in B. Absent from B → `[]`.
-3. Otherwise `unknown`.
+1. **Day-start capture** (section 2) has an entry → its hashes (taken from disk, or from
+   yesterday's snapshot), `[]` for "empty", or B's content for "use B", or `unknown`.
+2. **git:** the path is in a repo whose `git status` has been read, is **not** in that
+   status's dirty / untracked / ignored list (so it was clean at day start), and exists in
+   the baseline commit B → its content in B. Absent from B → `[]`.
+3. Otherwise `unknown`. In particular a path git listed as dirty, untracked or ignored that
+   the capture has not reached yet is `unknown`, never B (see section 2, "Before the
+   capture finishes").
+
+"No capture entry" alone never means clean: the capture fills in over seconds or minutes,
+and treating an unreached edited file as clean would compare it against B and credit
+yesterday's uncommitted work to today.
 
 `unknown` keeps today's behaviour exactly: the current content becomes the baseline and
 nothing is credited.
@@ -120,14 +131,58 @@ Every candidate passes the tracker's own filters first: `isExcludedPath`, a lang
 `languageForFile`, and at most 5 MB. `EXCLUDED_SEGMENTS` gains `.vscode-test` (VS Code's
 test-runner download of VS Code itself).
 
-### Classification (pure: `classify(stat, midnightMs, tracked)`)
+### Before the capture finishes
+
+The first step of a git folder's capture is `git status`, which takes about 0.1 s; hashing
+takes longer. As soon as status returns, the store holds the folder's **pending set**: every
+dirty, untracked and ignored candidate path. Until the capture reaches a pending path, a
+lookup for it returns `unknown`; clean tracked paths resolve through git right away. Before
+status returns, every lookup in that folder is `unknown`. A non-git folder is wholly pending
+until its walk reaches each file. Pending sets live in memory only; a capture interrupted by
+shutdown is retaken at the next start-up, since no file for today was written.
+
+### Yesterday's snapshot
+
+The ledger snapshot (`today-<workspace hash>.json`, `ledgerStore.ts`) holds the last content
+the tracker saw for every file it measured yesterday. At start-up, before pruning, a
+snapshot whose `day` is yesterday's date key is renamed to `yesterday-<workspace hash>.json`
+instead of being deleted. A snapshot from any older day is deleted as now.
+
+It is **usable** if, for a git folder, no reflog entry falls between the snapshot file's
+mtime (its last save) and local midnight. A reflog entry in that gap means git moved after
+VS Code closed, so the snapshot may be stale. For a non-git folder, the day check alone
+decides.
+
+When the capture runs, each path in a usable snapshot gets an entry carrying the snapshot's
+`last` content (`[]` if it had been deleted), unless the capture already holds an exact
+entry for it (modified before midnight: its current content is its midnight content). This
+applies to clean tracked files too. Consider a file that had uncommitted edits at midnight
+and was committed this morning before VS Code opened. It is clean at capture time, so B
+would get it wrong, while the snapshot has it right. When the file was clean at midnight,
+the snapshot equals B anyway. Snapshot entries count toward the cap. Once the capture is
+written, the `yesterday-` file is deleted: the capture now holds everything it contributed.
+
+Running through midnight never needs it. Seen files roll over in the ledger, and the
+midnight capture reads unseen files' content as it was at midnight.
+
+### Classification (pure: `classify(stat, midnightMs, tracked, existedBefore)`)
 
 | File | Entry |
 |---|---|
 | modified before midnight | its current hashes (exact) |
-| created after midnight (`birthtimeMs`, when non-zero) | `empty` (exact) |
+| in a usable yesterday's snapshot | the snapshot's content |
 | modified after midnight, tracked | `useB` (decision 4) |
+| untracked / ignored / non-git, created after midnight (`birthtimeMs`, when non-zero), not `existedBefore` | `empty` |
+| untracked / ignored / non-git, created after midnight, `existedBefore` | `unknown` |
 | modified after midnight, untracked / ignored / non-git | `unknown` |
+
+**Creation time is trusted only for files git does not track.** Tools that save by writing a
+temp file and renaming it over the original give the file a new creation time on macOS and
+Linux. Windows usually keeps the old one, through file-system tunnelling. A rewrite would
+therefore look like a create, and score every line as added. For a tracked file, git decides
+instead: absent from B means created. For anything else, `existedBefore` is true when the
+path appears in yesterday's snapshot or in the index of the previous capture. The previous
+capture is the wrong-day `morning-*.json`; its index keys are read before it is deleted.
 
 Every dirty tracked file gets an entry, so the store never treats it as clean.
 
@@ -187,8 +242,8 @@ rest are left to the watcher, with a note.
 
 ### Restart
 
-Order in `start()`: restore the ledger snapshot (as now) → load or take today's capture →
-catch-up. A file in today's snapshot keeps its morning baseline and the store is never
+Order in `start()`: keep yesterday's snapshot aside (renamed, section 2) → restore today's
+ledger snapshot (as now) → load or take today's capture → catch-up. A file in today's snapshot keeps its morning baseline and the store is never
 consulted for it. Catch-up also measures snapshot files changed while VS Code was closed
 and not touched since; today those wait for their next edit.
 
@@ -196,8 +251,9 @@ and not touched since; today those wait for their next edit.
 
 Seen files roll over as now (yesterday's last content is today's baseline; the tracker
 watched them to midnight). A new capture starts; the store is keyed by day, so yesterday's
-capture is never consulted after midnight. First sightings before the new capture is ready
-resolve through git where possible, else `unknown`. No catch-up runs at midnight.
+capture is never consulted after midnight. Before the new capture is ready, a first sighting
+of a clean tracked file resolves through git once status has returned. Anything pending,
+or anything before status returns, is `unknown` (section 2, "Before the capture finishes"). No catch-up runs at midnight.
 
 ### Worktrees
 
@@ -219,18 +275,29 @@ for the files it affects and adds a note.
 
 ## Accepted limits (documented in CLAUDE.md)
 
-1. A file dirty at midnight and edited before VS Code opened that day is compared against B
-   (decision 4).
+1. A file with uncommitted edits at midnight, changed again before VS Code opened that day,
+   is compared against yesterday's snapshot. That snapshot misses any edits made yesterday
+   after VS Code closed, and those then count today. When the snapshot is missing (VS Code
+   not run yesterday) or unusable, the file is compared against B, and yesterday's
+   uncommitted work counts today (decision 4).
 2. A pre-existing worktree file first seen today is compared against its worktree's B.
-3. An edit made after the day's capture started but before it reached that file resolves
-   as `unknown` (about 0.1 s for a git repo; up to the scan time for a large non-git
-   folder).
+3. An edit to a dirty, untracked or ignored file made after the day's capture started, but
+   before the capture reached that file, resolves as `unknown`. That window is the hashing
+   time: seconds for a git repo, up to the full scan for a large non-git folder. Clean
+   tracked files resolve through git once `git status` returns, about 0.1 s.
 4. Folders over the cap fall back to today's behaviour for uncaptured, non-git-clean files.
 5. Work committed while VS Code was closed and then followed by a checkout, reset, pull,
    rebase or merge before it opened is not credited: B follows the operation, and its
    content already contains (or no longer shows) that work. Work done while VS Code is open
    is credited live and unaffected.
 6. 32-bit line-hash collisions, as before, can mask a changed line.
+7. `git reset --soft` / `--mixed` while VS Code was closed moves B, but leaves the working
+   tree alone; the reflog message does not say which mode was used. Undoing yesterday's
+   commit that way makes its changes count today.
+8. On macOS and Linux, an untracked or ignored file can be rewritten by temp-and-rename
+   while VS Code was closed. If it is in neither yesterday's snapshot nor the previous
+   capture, it counts as created, with every line added. That happens on the first day
+   after install, or for a file untouched since before the previous capture.
 
 ## 5. Testing
 
@@ -242,7 +309,15 @@ registered in `scripts/test.js`.
 - `chooseBaseline`: commit keeps B; checkout / merge / pull / reset / rebase / cherry-pick /
   revert move it; clone today; no reflog; entries either side of midnight.
 - `classify`: before midnight; created after midnight; modified after midnight, tracked and
-  untracked; `birthtimeMs` zero.
+  untracked; `birthtimeMs` zero; a tracked file with a new creation time is `useB`, never
+  `empty`; untracked created-after-midnight with `existedBefore` is `unknown`; a path in a
+  usable yesterday's snapshot takes its content.
+- Yesterday's snapshot: renamed (not pruned) only when its day is yesterday; unusable when a
+  reflog entry falls between its save and midnight; folded into the capture, then deleted;
+  never consulted after a midnight while running.
+- Pending set: a dirty file first sighted before the capture reaches it is `unknown`, and a
+  clean tracked file resolves through git, before the capture finishes. **Negative control:**
+  a store that treats "no entry" as clean credits the dirty file against B.
 - `normalizePath`: drive-letter case, separators, case folding, repo-relative join.
 - Capture file round trip; corrupt / wrong version / wrong day rejected.
 - Ledger `morning`: first sighting credits immediately; deleted-and-never-seen credited as
@@ -259,6 +334,9 @@ give the reflog a yesterday and a today; `now` injected)
   gitignored doc → recorded totals equal an independent multiset diff against B.
 - Catch-up: closed-period edits and commits counted with no active time; a closed-period
   branch switch not counted; a clone today counts 0; a closed-period delete credited.
+- Overnight: a file with uncommitted edits yesterday, committed this morning while VS Code
+  was closed → only this morning's change against yesterday's snapshot (**negative
+  control:** without the snapshot it is compared against B and over-counts).
 - Restart mid-day: snapshot baselines kept; closed-period edits to snapshot files measured.
 - Midnight while running: new capture; yesterday's never consulted; seen files roll over.
 - Fallbacks: non-git folder scanned and exact; over-cap folder partial with a note; git
