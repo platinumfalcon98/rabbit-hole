@@ -149,6 +149,11 @@ const SUITES = [
     },
   },
   {
+    name: "yesterday",
+    entry: "test/tracker.yesterday.test.ts",
+    alias: { ledgerStore: "src/tracker/ledgerStore.ts" },
+  },
+  {
     name: "ledger",
     entry: "test/tracker.ledger.test.ts",
     alias: { vscode: "test/stubs/vscode.ts", ledger: "src/tracker/lineLedger.ts" },
