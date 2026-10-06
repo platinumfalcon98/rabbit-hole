@@ -1,7 +1,7 @@
 import { describe, it } from "node:test"
 import * as assert from "node:assert"
 // @ts-ignore — esbuild alias to src/tracker/pathRules.ts
-import { isExcludedPath, isGitOpSignal, isGitPath, languageForFile, worktreeInfo } from "paths"
+import { isExcludedPath, isGitOpSignal, isGitPath, languageForFile, worktreeInfo, normalizePath, isUnder } from "paths"
 
 describe("worktreeInfo", () => {
   it("maps a Claude Code worktree file to the main checkout path (posix)", () =>
@@ -70,4 +70,30 @@ describe("languageForFile", () => {
     assert.strictEqual(languageForFile("Dockerfile"), "dockerfile")
     assert.strictEqual(languageForFile("noext"), undefined)
   })
+})
+
+describe("normalizePath", () => {
+  it("flips separators and lower-cases the drive letter", () =>
+    assert.strictEqual(normalizePath("C:\\Repo\\src\\A.ts", "linux"), "c:/Repo/src/A.ts"))
+  it("case-folds on Windows and macOS", () => {
+    assert.strictEqual(normalizePath("C:\\Repo\\A.ts", "win32"), "c:/repo/a.ts")
+    assert.strictEqual(normalizePath("/Users/X/A.ts", "darwin"), "/users/x/a.ts")
+  })
+  it("keeps case on Linux", () => assert.strictEqual(normalizePath("/home/X/A.ts", "linux"), "/home/X/A.ts"))
+  it("drops a trailing slash but keeps a drive root", () => {
+    assert.strictEqual(normalizePath("c:/repo/", "linux"), "c:/repo")
+    assert.strictEqual(normalizePath("c:/", "linux"), "c:/")
+  })
+  it("git's spelling and VS Code's spelling of one file agree on Windows", () =>
+    assert.strictEqual(normalizePath("C:/Users/shb/r/a.ts", "win32"), normalizePath("c:\\Users\\shb\\r\\a.ts", "win32")))
+  it("isUnder is strict and segment-aware", () => {
+    assert.ok(isUnder("c:\\repo\\src\\a.ts", "C:/Repo", "win32"))
+    assert.ok(!isUnder("c:/repo2/a.ts", "c:/repo", "win32"))
+    assert.ok(!isUnder("c:/repo", "c:/repo", "win32"))
+  })
+})
+
+describe(".vscode-test is excluded", () => {
+  it("VS Code's downloaded test copy never counts", () =>
+    assert.strictEqual(isExcludedPath("/repo/.vscode-test/vscode-win32/resources/app/out/main.js"), true))
 })

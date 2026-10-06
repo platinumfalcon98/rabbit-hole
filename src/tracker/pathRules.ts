@@ -46,6 +46,7 @@ const EXCLUDED_SEGMENTS = new Set([
   ".next", ".nuxt", ".idea", ".vscode", ".claude", "tmp",
   // Dot-prefixed build and cache output — `out` alone missed test/.out.
   ".out", ".output", ".turbo", ".cache", ".parcel-cache", ".svelte-kit", ".vercel",
+  ".vscode-test", // VS Code's test-runner download of VS Code itself
 ])
 
 // Generated files that churn in bulk without representing hand/agent-written code.
@@ -109,5 +110,20 @@ export function isGitOpSignal(posixPath: string): boolean {
   if (i < 0 || !GIT_OP_FILES.has(s[s.length - 1])) return false
   if (i === s.length - 2) return true
   return i === s.length - 4 && s[i + 1] === "worktrees"
+}
+
+// One spelling per file for the morning store: git reports "/" paths
+// ("C:/Users/…"), VS Code reports fsPath ("c:\Users\…"). Case-folded where the
+// file system is usually case-insensitive.
+export function normalizePath(p: string, platform: string = process.platform): string {
+  let s = p.replace(/\\/g, "/")
+  if (/^[A-Za-z]:/.test(s)) s = s[0].toLowerCase() + s.slice(1)
+  if (s.length > 1 && s.endsWith("/") && !/^[a-z]:\/$/.test(s)) s = s.replace(/\/+$/, "")
+  return platform === "win32" || platform === "darwin" ? s.toLowerCase() : s
+}
+
+export function isUnder(p: string, root: string, platform: string = process.platform): boolean {
+  const r = normalizePath(root, platform)
+  return normalizePath(p, platform).startsWith(r.endsWith("/") ? r : r + "/")
 }
 
