@@ -119,7 +119,4 @@ describe("sidebar payload", () => {
     assert.strictEqual(m.logs.beta.activeTime, 0)
   })
 
-  it("names the project this window works in", () => {
-    assert.strictEqual(buildMini(store(), new Date(), TARGET).here, "alpha")
-  })
 })

@@ -47,7 +47,7 @@ export class MiniPanel implements vscode.WebviewViewProvider {
 </head>
 <body>
 <div class="screen mini" id="mini">
-  <div class="brand"><span id="brand"></span><div><div class="word">rabbit hole</div><div class="proj" id="here"></div></div></div>
+  <div class="brand"><span id="brand"></span><div class="word">rabbit hole</div></div>
 
   <fieldset class="streak">
     <legend><b>streak</b></legend>

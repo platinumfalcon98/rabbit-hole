@@ -102,6 +102,5 @@ export function buildMini(storage: StorageService, now: Date, globalTargetMs: nu
   const today = dateKey(now)
   const logs: Record<string, DailyLog> = {}
   for (const p of storage.getProjects()) logs[p.id] = storage.getRangeByDates(today, today, p.id)[0]
-  const here = storage.getProjects().find(p => p.id === storage.getCurrentProjectId())?.name ?? null
-  return { year: buildYear(storage, now, globalTargetMs), logs, here }
+  return { year: buildYear(storage, now, globalTargetMs), logs }
 }

@@ -105,7 +105,6 @@ export interface LivePayload {
 export interface MiniPayload {
   year: YearPayload
   logs: Record<string, DailyLog>   // today's log for every registered project
-  here: string | null              // the name of the project this window works in
 }
 export type MiniMessage = { type: "ready" } | { type: "openDashboard" }
 

@@ -10,9 +10,7 @@ body { padding: 12px 12px 18px; }
 
 .brand { display: flex; align-items: center; gap: 10px; padding-bottom: 2px; }
 .brand svg { display: block; flex: none; filter: var(--carrot-glow); }
-.brand > div { min-width: 0; }
 .brand .word { font-weight: 700; font-size: 14px; line-height: 1.1; color: var(--ink); }
-.brand .proj { color: var(--ink-dim); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* One line, never wrapping: a focus changes the numbers, and a row that wraps
    or unwraps moves everything below it out from under the pointer. What
@@ -71,7 +69,6 @@ body { padding: 12px 12px 18px; }
 /* narrow sidebars drop what stops being readable */
 @media (max-width: 230px) {
   body { padding-inline: 8px; }
-  .brand .proj { display: none; }
   .days { grid-template-columns: repeat(7, 1fr); }
   .days span:nth-child(-n+7) { display: none; }
   .mini .ticks span:nth-child(even) { visibility: hidden; }

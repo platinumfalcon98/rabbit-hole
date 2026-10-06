@@ -120,7 +120,6 @@ window.addEventListener("message", (e: MessageEvent<ExtensionMessage>) => {
   else if (m.type === "mini") {
     year = m.year
     logs = m.logs
-    $("here").textContent = m.here ?? ""
     render()
   }
 })
