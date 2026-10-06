@@ -1,6 +1,6 @@
 // The project name in the status line opens every project with today's time.
 // One choice, shared by the overview, the activity tab and the streak.
-import { projectColor } from "./colors"
+import { projectPaint } from "./colors"
 import { closePicker } from "./datePicker"
 import { $, el, keyBox } from "./dom"
 import { fmt, plural } from "./format"
@@ -11,7 +11,7 @@ export function renderProjectButton(store: Store): void {
   const p = year?.projects.find(q => q.id === store.view.sel)
   $("proj-name").textContent = p ? p.name : "all projects"
   const k = $("proj-key")
-  k.style.background = p && year ? projectColor(year, p.id) : ""
+  k.style.background = p && year ? projectPaint(year, p.id).fill : ""
   k.classList.toggle("hollow", !p)
 }
 
@@ -24,7 +24,7 @@ function renderMenu(store: Store): void {
     ...year.projects.map(p => ({
       id: p.id,
       name: p.name,
-      color: projectColor(year, p.id) as string | null,
+      color: projectPaint(year, p.id).fill as string | null,
       sub: p.path + (p.id === store.here ? "  · open here" : ""),
       ms: p.active[last] ?? 0,
     })),

@@ -1,7 +1,7 @@
 // The overview tab: one day or a range, every panel narrowed by the hover focus.
 // It reads the store and hands each panel numbers from model.ts.
 import type { ActivitySession } from "../shared/types"
-import { langColor, languageColors, namesFor } from "./colors"
+import { langPaint, languagePaints, namesFor } from "./colors"
 import { $, el, keyBox, kv } from "./dom"
 import { renderFiles } from "./files"
 import { hlOf, lockHeights } from "./focus"
@@ -16,11 +16,11 @@ import type { Store } from "./state"
 import { renderStreak } from "./streak"
 import { setTape } from "./tape"
 
-function hlKey(hl: string, color: string, label: string): HTMLElement {
+function hlKey(hl: string, fill: string, label: string): HTMLElement {
   const s = el("span")
   s.dataset.hl = hl
   s.tabIndex = 0
-  s.append(keyBox(color), label)
+  s.append(keyBox(fill), label)
   return s
 }
 
@@ -48,9 +48,9 @@ export function renderOverview(store: Store, openDay: (date: string) => void, ba
     const i = series.days.indexOf(date)
     return i >= 0 ? series.targetMs[i] : series.targetMs[series.targetMs.length - 1] ?? year.globalTargetMs
   }
-  const colors = languageColors(view.wholeLanguages)
+  const colors = languagePaints(view.wholeLanguages)
   const focusName = !focus ? "" : focus.kind === "project" ? names.project(focus.id) : focus.id
-  const focusColor = !focus ? null : focus.kind === "project" ? names.color(focus.id) : langColor(colors, focus.id)
+  const focusColor = !focus ? null : (focus.kind === "project" ? names.paint(focus.id) : langPaint(colors, focus.id)).color
   const yearIndex = new Map(year.days.map((d, i) => [d, i] as [string, number]))
   // per-project active ms on a date, from the year: what the columns and the streak count
   const byProject = (date: string): [string, number][] => {
@@ -149,10 +149,10 @@ export function renderOverview(store: Store, openDay: (date: string) => void, ba
   // legend: projects (all projects only), the three biggest languages, the tape's key
   if (multi) {
     for (const p of year.projects) {
-      if (view.days.some(d => byProject(d.date).some(([id]) => id === p.id))) leg.append(hlKey("p:" + p.id, names.color(p.id), p.name))
+      if (view.days.some(d => byProject(d.date).some(([id]) => id === p.id))) leg.append(hlKey("p:" + p.id, names.paint(p.id).fill, p.name))
     }
   }
-  for (const l of view.wholeLanguages.slice(0, 3)) leg.append(hlKey("l:" + l.name, langColor(colors, l.name), l.name))
+  for (const l of view.wholeLanguages.slice(0, 3)) leg.append(hlKey("l:" + l.name, langPaint(colors, l.name).fill, l.name))
   if (focus) {
     leg.querySelectorAll<HTMLElement>("[data-hl]").forEach(s => {
       const on = s.dataset.hl === hlOf(focus)
@@ -164,9 +164,9 @@ export function renderOverview(store: Store, openDay: (date: string) => void, ba
   keyNode.id = "tape-key"
   leg.append(keyNode)
   const cellColor = (c: TapeCell): string | null => {
-    if (focus?.kind === "project") return names.color(focus.id)
-    if (c.language) return langColor(colors, c.language)
-    return c.projectId ? names.color(c.projectId) : null   // sessions recorded before per-session languages
+    if (focus?.kind === "project") return names.paint(focus.id).color
+    if (c.language) return langPaint(colors, c.language).color
+    return c.projectId ? names.paint(c.projectId).color : null   // sessions recorded before per-session languages
   }
   setTape({
     sessions: tapeSessions,

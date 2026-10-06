@@ -1,7 +1,7 @@
 // The projects tab: one card per project with today, the streak, a 14-day
 // sparkline and the project's own daily target.
 import type { WebviewMessage } from "../shared/types"
-import { projectColor } from "./colors"
+import { projectPaint } from "./colors"
 import { $, el, press } from "./dom"
 import { MIN, ago, dstr, fmt } from "./format"
 import { sparkGlyphs } from "./layout"
@@ -43,7 +43,7 @@ export function renderCards(store: Store, openInOverview: (id: string) => void):
 
   host.replaceChildren(...list.map(({ p, rank, today, s }) => {
     const info = streakInfo(s, p.streak)
-    const color = projectColor(year, p.id)
+    const color = projectPaint(year, p.id).color   // the sparkline is glyphs
     const card = el("fieldset", "pcard span-6")
     const legend = el("legend")
     legend.append(el("b", null, p.name), el("span", "ago", ` · ${ago(p.lastActive, now)}`))

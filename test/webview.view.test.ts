@@ -5,7 +5,7 @@ import { addDaysKey, ago, dayDiff, dstr, fmt, hhmm, hours, signed, splitPath } f
 // @ts-ignore — esbuild alias to src/webview/layout.ts
 import { colAxis, colSegments, heatCells, heatLevel, heatMonths, heatWeeksFor, meter, runs, sparkGlyphs, tapeCellCount, tapeMaxCells, tapeTicks } from "layout"
 // @ts-ignore — esbuild alias to src/webview/colors.ts
-import { OTHER, languageColors, namesFor, projectColor } from "colors"
+import { OTHER, langPaint, languagePaints, namesFor, projectPaint } from "colors"
 // @ts-ignore — esbuild alias to src/webview/calendar.ts
 import { dayDisabled, monthDays, pickDay, pickLabel, presetOf, presetRange } from "calendar"
 
@@ -159,29 +159,55 @@ describe("layout", () => {
 })
 
 describe("colours", () => {
-  const year: any = { projects: ["a", "b", "c", "d", "e", "f", "g"].map(id => ({ id, name: id.toUpperCase(), path: "/" + id })) }
+  const ids = Array.from({ length: 26 }, (_, i) => "p" + i)
+  const year: any = { projects: ids.map(id => ({ id, name: id.toUpperCase(), path: "/" + id })) }
 
-  it("projects keep their registry colour and wrap after six", () => {
-    assert.strictEqual(projectColor(year, "a"), "var(--c1)")
-    assert.strictEqual(projectColor(year, "f"), "var(--c6)")
-    assert.strictEqual(projectColor(year, "g"), "var(--c1)")
-    assert.strictEqual(projectColor(year, "zzz"), OTHER)
-    assert.strictEqual(projectColor(null, "a"), OTHER)
+  it("the first six projects are solid, in registry order", () => {
+    assert.deepStrictEqual(projectPaint(year, "p0"), { color: "var(--c1)", fill: "var(--c1)", texture: "solid" })
+    assert.deepStrictEqual(projectPaint(year, "p5"), { color: "var(--c6)", fill: "var(--c6)", texture: "solid" })
   })
 
-  it("languages are coloured by rank; the seventh is other", () => {
-    const rows = ["ts", "md", "go", "css", "json", "sh", "lua"].map(name => ({ name, ms: 1, added: 0, deleted: 0 }))
-    const m = languageColors(rows)
-    assert.strictEqual(m.get("ts"), "var(--c1)")
-    assert.strictEqual(m.get("sh"), "var(--c6)")
-    assert.strictEqual(m.has("lua"), false)
+  it("past six, a project keeps a palette colour and takes the next texture", () => {
+    const seventh = projectPaint(year, "p6")
+    assert.strictEqual(seventh.color, "var(--c1)")
+    assert.strictEqual(seventh.texture, "stripes")
+    assert.ok(seventh.fill.includes("var(--c1)") && seventh.fill.includes("gradient"))
+    assert.strictEqual(projectPaint(year, "p12").texture, "bars")
+    assert.strictEqual(projectPaint(year, "p18").texture, "checks")
+    assert.strictEqual(projectPaint(year, "p23").color, "var(--c6)")
+  })
+
+  it("the first 24 projects all look different", () => {
+    const fills = new Set(ids.slice(0, 24).map(id => projectPaint(year, id).fill))
+    assert.strictEqual(fills.size, 24)
+  })
+
+  it("after 24 projects the marks wrap", () => {
+    assert.deepStrictEqual(projectPaint(year, "p24"), projectPaint(year, "p0"))
+  })
+
+  it("an unknown project, or no year, is other", () => {
+    assert.deepStrictEqual(projectPaint(year, "zzz"), OTHER)
+    assert.deepStrictEqual(projectPaint(null, "p0"), OTHER)
+    assert.strictEqual(OTHER.texture, "solid")
+  })
+
+  it("languages are painted by rank the same way; past 24 they are other", () => {
+    const rows = Array.from({ length: 25 }, (_, i) => ({ name: "l" + i, ms: 1, added: 0, deleted: 0 }))
+    const m = languagePaints(rows)
+    assert.deepStrictEqual(m.get("l0"), projectPaint(year, "p0"))
+    assert.deepStrictEqual(m.get("l6"), projectPaint(year, "p6"))
+    assert.deepStrictEqual(m.get("l23"), projectPaint(year, "p23"))
+    assert.deepStrictEqual(langPaint(m, "l24"), OTHER)
+    assert.deepStrictEqual(langPaint(m, "nope"), OTHER)
   })
 
   it("names fall back for a project the year doesn't know", () => {
     const n = namesFor(year)
-    assert.strictEqual(n.project("a"), "A")
+    assert.strictEqual(n.project("p0"), "P0")
     assert.strictEqual(n.project("gone"), "unknown project")
-    assert.strictEqual(n.root("b"), "/b")
+    assert.strictEqual(n.root("p1"), "/p1")
+    assert.deepStrictEqual(n.paint("p6"), projectPaint(year, "p6"))
   })
 })
 

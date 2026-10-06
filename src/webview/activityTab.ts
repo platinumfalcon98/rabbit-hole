@@ -1,7 +1,7 @@
 // The activity tab: the year's stats, the heatmap and each project's share.
 // Hovering (or tabbing to) a project row narrows the stats and the heatmap to it.
 import type { YearPayload } from "../shared/types"
-import { namesFor, projectColor } from "./colors"
+import { namesFor, projectPaint } from "./colors"
 import { $, el, keyBox, press } from "./dom"
 import { MIN, dstr, fmt, hours, pct, shortDate } from "./format"
 import { renderHeat } from "./heatmap"
@@ -73,21 +73,21 @@ export function renderActivity(store: Store): void {
     const s = el("span")
     s.dataset.ap = r.p.id
     s.style.flex = String(r.t)
-    s.style.background = projectColor(year, r.p.id)
+    s.style.background = projectPaint(year, r.p.id).fill
     return s
   }))
   const hdr = el("div", "prow hdr")
   hdr.append(el("span", null, "project"), el("span"), el("span", "t", "time"), el("span", "pct", "share"), el("span", "dd", "active days"))
   $("prows").replaceChildren(hdr, ...totals.map(r => {
-    const color = projectColor(year, r.p.id)
+    const paint = projectPaint(year, r.p.id)
     const row = el("div", sel === r.p.id ? "prow sel" : "prow")
     row.dataset.ap = r.p.id
     const name = el("span", "name")
-    name.append(keyBox(color), r.p.name)
+    name.append(keyBox(paint.fill), r.p.name)
     const track = el("span", "track")
     const fill = el("span", "fill")
     fill.style.width = `${r.t / max * 100}%`
-    fill.style.background = color
+    fill.style.background = paint.fill
     track.append(fill)
     row.append(name, track, el("span", "t", hours(r.t)), el("span", "pct", `${pct(r.t, all)}%`), el("span", "dd", r.d))
     bindTip(row, () => [tipLine(hours(r.t), r.p.name), tipSub(`${pct(r.t, all)}% of all time · active on ${r.d} days`)])

@@ -2,7 +2,7 @@
 // number comes from miniModel.ts.
 import type { DailyLog, ExtensionMessage, MiniMessage, YearPayload } from "../shared/types"
 import { carrotSvg } from "./carrot"
-import { projectColor } from "./colors"
+import { projectPaint } from "./colors"
 import { applyCrt, initCrt } from "./crt"
 import { $, el, keyBox } from "./dom"
 import { keepFocus, wireFocus } from "./focus"
@@ -18,7 +18,8 @@ let year: YearPayload | null = null
 let logs: Record<string, DailyLog> = {}
 let focus: string | null = null
 
-const colorOf = (id: string): string => projectColor(year, id)
+const colorOf = (id: string): string => projectPaint(year, id).color   // glyphs
+const fillOf = (id: string): string => projectPaint(year, id).fill     // boxes
 const nameOf = (id: string): string => year?.projects.find(p => p.id === id)?.name ?? "unknown project"
 const dimmed = (id: string): string => (focus && focus !== id ? "dim" : "")
 
@@ -73,7 +74,7 @@ function week(v: MiniView): void {
     const s = el("span", dimmed(k.id))
     s.dataset.hl = `p:${k.id}`
     s.tabIndex = 0
-    s.append(keyBox(colorOf(k.id)), el("span", "n", k.name))
+    s.append(keyBox(fillOf(k.id)), el("span", "n", k.name))
     return s
   }))
 }
@@ -83,7 +84,7 @@ function projects(v: MiniView): void {
     const s = el("span", dimmed(p.id))
     s.dataset.hl = `p:${p.id}`
     s.style.flex = String(p.ms)
-    s.style.background = colorOf(p.id)
+    s.style.background = fillOf(p.id)
     return s
   }))
   $("pj-list").replaceChildren(...(v.projects.length
@@ -93,7 +94,7 @@ function projects(v: MiniView): void {
       row.tabIndex = 0
       const t = el("span", "t", fmt(p.ms))
       t.append(el("span", "pct", ` ${Math.round(p.share * 100)}%`))
-      row.append(keyBox(colorOf(p.id)), el("span", "n", p.name), t)
+      row.append(keyBox(fillOf(p.id)), el("span", "n", p.name), t)
       return row
     })
     : [el("div", "hint", "no activity yet today")]))

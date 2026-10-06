@@ -119,6 +119,31 @@ export function sampleWorld(): { year: any; range: any } {
   return world({ "rabbit-hole": rh, "rabbithole-cli": cli }, { globalStreak: 12, streaks: { "rabbit-hole": 9, "rabbithole-cli": 2 } })
 }
 
+// More projects and languages than the palette has colours, for checking the
+// textured marks in the harnesses (?many). Every project works today and on
+// most recent days, each in its own language plus a shared one.
+export const CROWD_LANGS = ["typescript", "go", "rust", "python", "css", "json", "markdown", "html", "lua", "ruby", "java", "kotlin", "swift", "c", "cpp", "zig"]
+export function crowdedWorld(n = 16): { year: any; range: any } {
+  const spec: Record<string, Record<string, DaySpec>> = {}
+  for (let p = 0; p < n; p++) {
+    const id = `project-${String(p + 1).padStart(2, "0")}`
+    const lang = CROWD_LANGS[p % CROWD_LANGS.length]
+    spec[id] = {}
+    for (let i = 0; i < 30; i++) {
+      if ((i + p) % 3 === 2) continue
+      const ms = (10 + ((p * 7 + i * 5) % 40)) * MIN
+      const d = addDays(TODAY, -i)
+      spec[id][d] = {
+        ms,
+        langs: { [lang]: [ms * 0.8, 20 + p, 5], shell: [ms * 0.2, 2, 1] },
+        files: [[`/work/${id}/src/main.${lang}`, 20 + p, 5]],
+        sessions: i === 0 ? [[7 * 60 + p * 40, Math.round(ms / MIN), Math.round(ms / MIN), { [lang]: ms * 0.8, shell: ms * 0.2 }]] : undefined,
+      }
+    }
+  }
+  return world(spec, { globalStreak: 5 })
+}
+
 // Today's log per project, as the host's sidebar payload carries them.
 export function todayLogs(w: { range: any }): Record<string, any> {
   return Object.fromEntries(Object.entries(w.range.logs).map(([id, list]: [string, any]) => [id, list[list.length - 1]]))

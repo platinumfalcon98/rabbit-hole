@@ -2,7 +2,7 @@
 // same order, so a hover never moves anything. Colours still rank by time (the
 // model's order), so sorting here recolours nothing. Under a language focus the
 // other rows dim; under a project focus each row shows that project's share.
-import { langColor } from "./colors"
+import { Paint, langPaint } from "./colors"
 import { $, el, keyBox } from "./dom"
 import { HOUR, fmt, hours, pct } from "./format"
 import type { LangRow } from "./model"
@@ -13,7 +13,7 @@ const LANG_ROWS = 10
 const lines = (l: LangRow) => l.added + l.deleted
 const byLinesDesc = (a: LangRow, b: LangRow) => lines(b) - lines(a) || b.ms - a.ms || a.name.localeCompare(b.name)
 
-export function renderLangs(values: LangRow[], base: LangRow[], totalMs: number, scope: string, focusLang: string | null, colors: Map<string, string>): void {
+export function renderLangs(values: LangRow[], base: LangRow[], totalMs: number, scope: string, focusLang: string | null, colors: Map<string, Paint>): void {
   const host = $("lang")
   const shown = [...base].sort(byLinesDesc).slice(0, LANG_ROWS)
   const maxLines = Math.max(1, ...shown.map(lines))
@@ -25,13 +25,13 @@ export function renderLangs(values: LangRow[], base: LangRow[], totalMs: number,
   host.replaceChildren(hdr, ...rows.map(l => {
     const row = el("div", focusLang && focusLang !== l.name ? "row dim" : "row")
     row.dataset.hl = "l:" + l.name
-    const color = langColor(colors, l.name)
+    const paint = langPaint(colors, l.name)
     const name = el("span", "name")
-    name.append(keyBox(color), l.name)
+    name.append(keyBox(paint.fill), l.name)
     const track = el("span", "track")
     const fill = el("span", "fill")
     fill.style.width = `${lines(l) / maxLines * 100}%`
-    fill.style.background = color
+    fill.style.background = paint.fill
     track.append(fill)
     row.append(name, track, el("span", "l", lines(l) ? `+${l.added} −${l.deleted}` : "·"), el("span", "t", l.ms ? (many ? hours(l.ms) : fmt(l.ms)) : "·"))
     bindTip(row, () => [tipLine(fmt(l.ms), l.name), tipSub(`${pct(l.ms, totalMs)}% of ${scope} · +${l.added} −${l.deleted} lines`)])

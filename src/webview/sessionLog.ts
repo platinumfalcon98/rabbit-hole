@@ -1,7 +1,7 @@
 // Sessions for a single day; one line per day for a range (the "days" card,
 // which scrolls on its own).
 import type { ActivitySession } from "../shared/types"
-import { Names, langColor } from "./colors"
+import { Names, Paint, langPaint } from "./colors"
 import { $, el, keyBox } from "./dom"
 import { clock, dstr, fmt, plural, shortDate, weekday } from "./format"
 import type { DayView, Focus } from "./model"
@@ -12,7 +12,7 @@ export interface LogOpts {
   multi: boolean
   focus: Focus
   focusName: string
-  colors: Map<string, string>
+  colors: Map<string, Paint>
   names: Names
   now: number
 }
@@ -25,7 +25,7 @@ function sessionBar(s: ActivitySession, o: LogOpts): HTMLElement {
     // recorded before per-session languages: the project's colour stands in
     const b = el("span")
     b.style.flex = "1"
-    b.style.background = o.names.color(s.projectId ?? "")
+    b.style.background = o.names.paint(s.projectId ?? "").fill
     bar.append(b)
     return bar
   }
@@ -33,7 +33,7 @@ function sessionBar(s: ActivitySession, o: LogOpts): HTMLElement {
     const b = el("span")
     b.dataset.hl = "l:" + name
     b.style.flex = String(ms)
-    b.style.background = langColor(o.colors, name)
+    b.style.background = langPaint(o.colors, name).fill
     if (o.focus?.kind === "language" && o.focus.id !== name) b.style.opacity = ".15"
     bar.append(b)
   }
@@ -53,7 +53,7 @@ export function renderSessions(sessions: ActivitySession[], o: LogOpts): void {
     if (o.multi && s.projectId) {
       const pj = el("span", "pj")
       pj.dataset.hl = "p:" + s.projectId
-      pj.append(keyBox(o.names.color(s.projectId)), o.names.project(s.projectId))
+      pj.append(keyBox(o.names.paint(s.projectId).fill), o.names.project(s.projectId))
       li.append(pj)
     }
     const langs = Object.entries(s.languages ?? {}).sort((a, b) => b[1] - a[1])
@@ -80,8 +80,8 @@ export function renderDays(days: DayView[], o: DaysOpts): void {
     // bar: a segment that shrank or moved out from under the pointer cleared the
     // focus, which redrew it under the pointer again — a hover vibrated.
     const segs: [string, number, string][] = o.multi
-      ? o.byProject(d.date).map(([id, v]) => ["p:" + id, v, o.names.color(id)] as [string, number, string])
-      : d.whole.languages.map(l => ["l:" + l.name, l.ms, langColor(o.colors, l.name)] as [string, number, string])
+      ? o.byProject(d.date).map(([id, v]) => ["p:" + id, v, o.names.paint(id).fill] as [string, number, string])
+      : d.whole.languages.map(l => ["l:" + l.name, l.ms, langPaint(o.colors, l.name).fill] as [string, number, string])
     const track = el("span", "dtrack")
     const bar = el("span", "dbar")
     bar.style.width = `${segs.reduce((n, s) => n + s[1], 0) / maxDay * 100}%`
