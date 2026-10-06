@@ -227,6 +227,11 @@ const SUITES = [
       miniHandler: "src/dashboard/miniHandler.ts",
     },
   },
+  {
+    name: "morningstore",
+    entry: "test/tracker.morning.test.ts",
+    alias: { morningStore: "src/tracker/morningStore.ts", captureStore: "src/tracker/captureStore.ts", ledger: "src/tracker/lineLedger.ts", paths: "src/tracker/pathRules.ts" },
+  },
 ]
 
 function parseArgs(argv) {
