@@ -256,7 +256,7 @@ describe("morning baseline on first sighting", () => {
   })
   it("measuring the same content again credits nothing more", () => {
     const l = new LineLedger()
-    l.observe("/f", h("a\nb\nc\n"), { day: D1, morning: h("a\nb\n") })
+    assert.deepStrictEqual(l.observe("/f", h("a\nb\nc\n"), { day: D1, morning: h("a\nb\n") }), { added: 1, deleted: 0 })
     assert.strictEqual(l.observe("/f", h("a\nb\nc\n"), { day: D1 }), null)
     assert.deepStrictEqual(l.observe("/f", h("a\nb\nc\nd\n"), { day: D1 }), { added: 1, deleted: 0 })
   })
@@ -266,6 +266,8 @@ describe("morning baseline on first sighting", () => {
     assert.ok(l.has("/f"))
   })
   it("a suppressed first sighting with morning credits nothing, and later edits count from there", () => {
+    // Regression guard: suppression absorbs the morning content, so this passes
+    // both with and without the morning feature. It is not a RED test.
     const l = new LineLedger()
     assert.strictEqual(l.observe("/f", h("x\ny\n"), { day: D1, morning: h("a\n"), suppress: true }), null)
     assert.deepStrictEqual(l.observe("/f", h("x\ny\nz\n"), { day: D1 }), { added: 1, deleted: 0 })
@@ -277,9 +279,12 @@ describe("morning baseline on first sighting", () => {
   })
   it("a morning-started entry survives export/restore without double counting", () => {
     const l = new LineLedger()
-    l.observe("/f", h("a\nb\nc\n"), { day: D1, morning: h("a\n") })
+    assert.deepStrictEqual(l.observe("/f", h("a\nb\nc\n"), { day: D1, morning: h("a\n") }), { added: 2, deleted: 0 })
+    const snapshot = l.export(D1)
+    assert.deepStrictEqual(snapshot.files["/f"].credited, { added: 2, deleted: 0 })
     const r = new LineLedger()
-    assert.ok(r.restore(JSON.parse(JSON.stringify(l.export(D1))), D1))
+    assert.ok(r.restore(JSON.parse(JSON.stringify(snapshot)), D1))
     assert.strictEqual(r.observe("/f", h("a\nb\nc\n"), { day: D1 }), null)
+    assert.deepStrictEqual(r.observe("/f", h("a\nb\nc\nd\n"), { day: D1 }), { added: 1, deleted: 0 })
   })
 })
