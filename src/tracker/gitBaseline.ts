@@ -166,7 +166,7 @@ export class Git {
   }
 
   async diffNames(top: string, rev: string): Promise<string[]> {
-    return (await this.run(top, ["diff", "--name-only", "-z", rev, "--"])).toString("utf8").split("\0").filter(Boolean)
+    return (await this.run(top, ["diff", "--no-renames", "--name-only", "-z", rev, "--"])).toString("utf8").split("\0").filter(Boolean)
   }
 
   async readBlobs(top: string, rev: string, rels: string[]): Promise<BlobResult[]> {
@@ -209,7 +209,10 @@ export class BlobQueue {
     clearTimeout(batch.timer)
     this.git.readBlobs(batch.top, batch.rev, batch.items.map(i => i.rel)).then(
       results => batch.items.forEach((it, i) => it.resolve(results[i])),
-      e => { this.onError(batch.top, e); for (const it of batch.items) it.resolve("unknown") },
+      e => {
+        for (const it of batch.items) it.resolve("unknown")
+        try { this.onError(batch.top, e) } catch { /* a reporter must not break tracking */ }
+      },
     )
   }
 }

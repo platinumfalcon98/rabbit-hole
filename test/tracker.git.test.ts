@@ -100,6 +100,14 @@ describe("status, submodules and diffNames", () => {
   })
 })
 
+describe("diffNames renames", () => {
+  it("a rename lists both the old and the new path", async () => {
+    const r = repo(); r.write("old.ts", "1\nsome content\n"); r.commitAll("y", yesterdayNoon()); const y = r.head()
+    r.git(["mv", "old.ts", "new.ts"])
+    assert.deepStrictEqual((await git.diffNames(r.dir, y)).sort(), ["new.ts", "old.ts"])
+  })
+})
+
 describe("readBlobs", () => {
   it("reads content in request order; absent paths are missing", async () => {
     const r = repo(); r.write("a.ts", "x\ny\n"); r.write("b.ts", "z\n"); r.commitAll("y", yesterdayNoon())
@@ -149,5 +157,11 @@ describe("BlobQueue", () => {
     const q = new BlobQueue(new Git(path.join(os.tmpdir(), "no-such-git.exe")), (top: string) => errors.push(top))
     assert.strictEqual(await q.read(os.tmpdir(), "HEAD", "a.ts"), "unknown")
     assert.deepStrictEqual(errors, [os.tmpdir()])
+  })
+  it("a throwing onError still resolves every waiter unknown", async () => {
+    const q = new BlobQueue(new Git(path.join(os.tmpdir(), "no-such-git.exe")), () => { throw new Error("boom") })
+    const guard = new Promise<string>(res => setTimeout(() => res("HUNG"), 2000))
+    const out = await Promise.race([Promise.all([q.read(os.tmpdir(), "HEAD", "a.ts"), q.read(os.tmpdir(), "HEAD", "b.ts")]), guard])
+    assert.deepStrictEqual(out, ["unknown", "unknown"])
   })
 })
