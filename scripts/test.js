@@ -140,6 +140,7 @@ const SUITES = [
     entry: "test/tracker.languages.test.ts",
     alias: { vscode: "test/stubs/vscodeWindow.ts", tracker: "src/tracker/activityTracker.ts" },
   },
+  { name: "agentspan", entry: "test/tracker.agentspan.test.ts", alias: { agentSpan: "src/tracker/agentSpan.ts" } },
   {
     name: "persist",
     entry: "test/tracker.persist.test.ts",
