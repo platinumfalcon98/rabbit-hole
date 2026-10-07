@@ -10,6 +10,7 @@ import { captureFile, pruneCaptures } from "./captureStore"
 import { Day, DayOutcome, startDay } from "./dayCapture"
 import { Git } from "./gitBaseline"
 import { lineNotes } from "./lineNotes"
+import { AgentSpan, changedLines } from "./agentSpan"
 import {
   EXCLUDED_LANGUAGE_IDS, WorktreeInfo, isExcludedPath, isGitOpSignal, isGitPath, isUnder, languageForFile, normalizePath, worktreeInfo,
 } from "./pathRules"
@@ -64,6 +65,7 @@ export class ActivityTracker {
   // Language time tracking
   private languageCurrent = ""
   private languageIntervalStart = 0
+  private span = new AgentSpan()     // language time held while an agent works — see agentSpan.ts
 
   private lastLanguage = ""
 
@@ -120,7 +122,13 @@ export class ActivityTracker {
       vscode.window.onDidChangeWindowState(s => this.onWindowState(s)),
       vscode.window.onDidChangeActiveTextEditor(e => this.onEditorChange(e)),
       vscode.window.onDidChangeActiveTerminal(() => this.onActivity()),
-      vscode.window.onDidChangeTextEditorVisibleRanges(() => this.onActivity()),
+      vscode.window.onDidChangeTextEditorVisibleRanges(() => this.onEngagement()),
+      vscode.window.onDidChangeTextEditorSelection(e => {
+        // Only the user's own cursor moves. Extensions (agent tools revealing a
+        // diff) move it with kind Command or none.
+        if (e.kind === vscode.TextEditorSelectionChangeKind.Keyboard ||
+            e.kind === vscode.TextEditorSelectionChangeKind.Mouse) this.onEngagement()
+      }),
       vscode.workspace.onDidChangeWorkspaceFolders(e => this.onWorkspaceFoldersChange(e)),
     )
     this.initExternalWatcher()
@@ -229,9 +237,26 @@ export class ActivityTracker {
       const now = Date.now()
       this.activeIntervalStart = now
       this.languageIntervalStart = now
+      this.span.engage(now)
       this.isPaused = false
     }
     this.resetIdleTimer()
+  }
+
+  // The user is in an editor: end any held span, crediting it by what the
+  // agent edited, then start a new grace. Cheap per keystroke: nothing is
+  // flushed unless a span is actually holding.
+  private onEngagement(): void {
+    if (this.currentSession && !this.isPaused && this.isWindowFocused) {
+      const now = Date.now()
+      if (this.span.holding(now)) {
+        this.splitAtMidnight()
+        this.flushLanguageTime(now)
+        this.resolveSpan()
+      }
+      this.span.engage(now)
+    }
+    this.onActivity()
   }
 
   private onTextChange(e: vscode.TextDocumentChangeEvent): void {
@@ -334,6 +359,7 @@ export class ActivityTracker {
     this.languageCurrent = activeLang
     this.lastLanguage = activeLang
     this.languageIntervalStart = now
+    this.span.engage(now)
     this.currentSession = {
       id: uuidSimple(),
       startTime: now,
@@ -352,6 +378,7 @@ export class ActivityTracker {
     this.splitAtMidnight()
     const now = Date.now()
     this.flushLanguageTime(now)
+    this.resolveSpan()
     this.activeTimeAccumulated += now - this.activeIntervalStart
     this.closeInterval(now)
     this.isPaused = true
@@ -389,6 +416,7 @@ export class ActivityTracker {
     session.duration = now - session.startTime
     if (!this.isPaused) {
       this.flushLanguageTime(now)
+      this.resolveSpan()
       this.activeTimeAccumulated += now - this.activeIntervalStart
       this.closeInterval(now)
     }
@@ -414,6 +442,7 @@ export class ActivityTracker {
     this.activeIntervalStart = 0
     this.languageCurrent = ""
     this.languageIntervalStart = 0
+    this.span.reset()
   }
 
   // Write live activeTime + language time to storage so status bar / dashboard stays fresh.
@@ -463,13 +492,15 @@ export class ActivityTracker {
     const sessionDateStr = `${sd.getFullYear()}-${String(sd.getMonth() + 1).padStart(2, "0")}-${String(sd.getDate()).padStart(2, "0")}`
 
     if (!this.isPaused && this.languageCurrent && this.languageIntervalStart < midnight) {
-      const langMs = midnight - this.languageIntervalStart
-      if (langMs > 0) {
-        this.storage.updateLanguageTimeForDate(this.languageCurrent, langMs, sessionDateStr)
-        this.creditSessionLanguage(this.languageCurrent, langMs)
+      const live = this.span.take(this.languageCurrent, this.languageIntervalStart, midnight)
+      if (live > 0) {
+        this.storage.updateLanguageTimeForDate(this.languageCurrent, live, sessionDateStr)
+        this.creditSessionLanguage(this.languageCurrent, live)
       }
       this.languageIntervalStart = midnight
     }
+    // Held time belongs to the day it was held on, and to the session closing here.
+    this.resolveSpan(sessionDateStr)
 
     const activeBeforeMidnight = this.isPaused
       ? this.activeTimeAccumulated
@@ -511,12 +542,22 @@ export class ActivityTracker {
   // day's language totals.
   private flushLanguageTime(now: number): void {
     if (!this.languageCurrent || this.languageIntervalStart === 0) return
-    const elapsed = now - this.languageIntervalStart
-    if (elapsed > 0) {
-      this.storage.updateLanguageTime(this.languageCurrent, elapsed)
-      this.creditSessionLanguage(this.languageCurrent, elapsed)
+    const live = this.span.take(this.languageCurrent, this.languageIntervalStart, now)
+    if (live > 0) {
+      this.storage.updateLanguageTime(this.languageCurrent, live)
+      this.creditSessionLanguage(this.languageCurrent, live)
     }
     this.languageIntervalStart = now
+  }
+
+  // Credit a held span, to today or to `date`. Same ms to the day and the
+  // open session, so a session's languages still sum to what it added.
+  private resolveSpan(date?: string): void {
+    for (const [language, ms] of this.span.resolve()) {
+      if (date) this.storage.updateLanguageTimeForDate(language, ms, date)
+      else this.storage.updateLanguageTime(language, ms)
+      this.creditSessionLanguage(language, ms)
+    }
   }
 
   private creditSessionLanguage(language: string, ms: number): void {
@@ -627,7 +668,14 @@ export class ActivityTracker {
     }
     if (!doc && !suppress && !catchUp) this.onActivity()
 
+    const prev = this.ledger.lastOf(path)
     const delta = this.ledger.observe(path, hashes, { day: dayKey, isCreate, seed, suppress, morning })
+    // An agent's edit for the language-time split: changed on disk, authored,
+    // live. A save of content already measured as typing changes nothing.
+    if (fromDisk && !suppress && !catchUp) {
+      const lines = prev ? changedLines(prev, hashes) : delta ? delta.added + delta.deleted : 0
+      if (!prev || lines > 0) this.span.edit(language, lines, Date.now())
+    }
     this.recoveryPending.delete(normalizePath(path))
     if (!delta) return
     this.credit(uri, language, delta)

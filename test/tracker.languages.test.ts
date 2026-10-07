@@ -34,8 +34,11 @@ function trackerAt(startedAt: number, language: string): any {
   t.activeTimeAccumulated = 0
   t.languageCurrent = language
   t.languageIntervalStart = startedAt
+  t.span.engage(startedAt)
   return t
 }
+// The user is working in the editor right now (keyboard/mouse): nothing is held.
+const engaged = (t: any) => t.span.engage(now)
 const at = (y: number, mo: number, d: number, h: number, mi: number) => new Date(y, mo, d, h, mi).getTime()
 
 beforeEach(() => {
@@ -49,6 +52,7 @@ describe("session languages", () => {
     now = at(2026, 9, 3, 10, 0)
     const t = trackerAt(now, "typescript")
     now += 7 * MIN
+    engaged(t)
     t.flushLanguageTime(now)
     assert.deepStrictEqual(calls.day, [["typescript", 7 * MIN]])
     assert.deepStrictEqual(t.currentSession.languages, { typescript: 7 * MIN })
@@ -58,9 +62,11 @@ describe("session languages", () => {
     now = at(2026, 9, 3, 10, 0)
     const t = trackerAt(now, "typescript")
     now += 5 * MIN
+    engaged(t)
     t.flushLanguageTime(now)
     t.languageCurrent = "markdown"
     now += 3 * MIN
+    engaged(t)
     t.saveCheckpoint()
     const last = calls.appended[calls.appended.length - 1]
     assert.deepStrictEqual(last.languages, { typescript: 5 * MIN, markdown: 3 * MIN })
@@ -83,11 +89,24 @@ describe("session languages", () => {
     now = start
     const t = trackerAt(start, "typescript")
     now = at(2026, 9, 3, 0, 6)
+    engaged(t)
     t.saveCheckpoint()
     const [closed, date] = calls.appendedTo[0]
     assert.strictEqual(date, "2026-10-02")
     assert.deepStrictEqual(closed.languages, { typescript: 10 * MIN })
     assert.deepStrictEqual(calls.appended[calls.appended.length - 1].languages, { typescript: 6 * MIN })
+  })
+
+  it("a held span is credited to the day it was held on", () => {
+    const start = at(2026, 9, 2, 23, 0)
+    now = start
+    const t = trackerAt(start, "markdown") // engaged at 23:00, then watching the terminal
+    now = at(2026, 9, 3, 0, 10)
+    t.saveCheckpoint()
+    const yesterday = calls.dayFor.filter(([, , d]) => d === "2026-10-02").reduce((s, [, ms]) => s + ms, 0)
+    assert.strictEqual(yesterday, 60 * MIN)            // grace + held, all to 2026-10-02
+    assert.deepStrictEqual(calls.appendedTo[0][0].languages, { markdown: 60 * MIN })
+    assert.deepStrictEqual(calls.day, [])              // nothing after midnight credited yet: still held
   })
 })
 

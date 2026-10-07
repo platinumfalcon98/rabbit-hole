@@ -142,6 +142,11 @@ const SUITES = [
   },
   { name: "agentspan", entry: "test/tracker.agentspan.test.ts", alias: { agentSpan: "src/tracker/agentSpan.ts" } },
   {
+    name: "agenttime",
+    entry: "test/tracker.agenttime.test.ts",
+    alias: { vscode: "test/stubs/vscodeWindow.ts", tracker: "src/tracker/activityTracker.ts" },
+  },
+  {
     name: "persist",
     entry: "test/tracker.persist.test.ts",
     alias: {

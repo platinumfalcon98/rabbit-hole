@@ -183,6 +183,11 @@ export class LineLedger {
     return this.entries.get(path)?.present
   }
 
+  // The file's content at its last observation (empty after a deletion).
+  lastOf(path: string): LineHashes | undefined {
+    return this.entries.get(path)?.last
+  }
+
   // Whether an authored change to this file has been credited this session.
   wasEdited(path: string): boolean {
     return this.entries.get(path)?.edited ?? false

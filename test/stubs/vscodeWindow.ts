@@ -15,7 +15,7 @@ type Listener = (arg: any) => void
 
 const listeners: Record<string, Listener[]> = {
   textChange: [], windowState: [], activeEditor: [], activeTerminal: [],
-  visibleRanges: [], workspaceFolders: [], openDoc: [],
+  visibleRanges: [], selection: [], workspaceFolders: [], openDoc: [],
 }
 
 // Disposing unregisters, so a stopped tracker stops hearing events — the persist
@@ -71,6 +71,9 @@ const config: Record<string, unknown> = {
 
 export const Uri = { file: makeUri }
 
+// Same values as VS Code's enum.
+export const TextEditorSelectionChangeKind = { Keyboard: 1, Mouse: 2, Command: 3 }
+
 export const window = {
   state: { focused: true },
   activeTextEditor: undefined as unknown,
@@ -78,6 +81,7 @@ export const window = {
   onDidChangeActiveTextEditor: register(listeners.activeEditor),
   onDidChangeActiveTerminal: register(listeners.activeTerminal),
   onDidChangeTextEditorVisibleRanges: register(listeners.visibleRanges),
+  onDidChangeTextEditorSelection: register(listeners.selection),
 }
 
 export const workspace = {
@@ -115,6 +119,22 @@ export const workspace = {
 export function __setFocused(focused: boolean): void {
   window.state.focused = focused
   for (const fn of listeners.windowState) fn({ focused })
+}
+
+export function __setActiveEditor(doc: any): void {
+  const editor = doc ? { document: doc } : undefined
+  window.activeTextEditor = editor
+  for (const fn of listeners.activeEditor) fn(editor)
+}
+
+// A selection change in the active editor. Keyboard/Mouse is the user;
+// Command (or undefined) is an extension moving the cursor.
+export function __select(kind: number | undefined): void {
+  for (const fn of listeners.selection) fn({ textEditor: window.activeTextEditor, selections: [], kind })
+}
+
+export function __scroll(): void {
+  for (const fn of listeners.visibleRanges) fn({ textEditor: window.activeTextEditor, visibleRanges: [] })
 }
 
 export function __writeFile(fsPath: string, content: string): void {
