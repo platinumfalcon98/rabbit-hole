@@ -116,8 +116,10 @@ describe("engage / holding / reset", () => {
     assert.strictEqual(s.holding(ENGAGE_GRACE_MS - 1), false)
     assert.strictEqual(s.holding(ENGAGE_GRACE_MS + 1), true)
     s.take("go", 0, MIN)
-    s.engage(MIN)
-    assert.strictEqual(s.holding(MIN), true) // held from before; caller must resolve
+    assert.strictEqual(s.holding(MIN), true)
+    s.engage(MIN)                            // closes the held span…
+    assert.strictEqual(s.holding(MIN), false)
+    assert.strictEqual(s.closedUntil(), MIN) // …which waits to be settled
   })
 
   it("reset drops everything", () => {
@@ -136,5 +138,62 @@ describe("changedLines", () => {
     assert.strictEqual(changedLines([1, 1, 2], [1, 2]), 1)
     assert.strictEqual(changedLines([], [5, 6]), 2)
     assert.strictEqual(changedLines([3, 2, 1], [1, 2, 3]), 0) // reorder is not a change in a bag
+  })
+})
+
+// An engagement or pause CLOSES a holding span rather than resolving it: the
+// agent's last writes are measured 2 s+ later (the debounce, git status), and
+// a late edit stamped inside the span must still weight it.
+describe("closed spans", () => {
+  it("engage closes a holding span; a late edit stamped inside it still counts", () => {
+    const s = new AgentSpan()
+    s.engage(0)
+    s.take("markdown", 0, 5 * MIN)
+    s.engage(5 * MIN)
+    assert.strictEqual(s.closedUntil(), 5 * MIN)
+    s.edit("go", 3, 5 * MIN) // seen at the moment of the click, measured later
+    assert.deepStrictEqual(s.settle(), [["go", 5 * MIN - ENGAGE_GRACE_MS]])
+    assert.strictEqual(s.closedUntil(), null)
+  })
+
+  it("a late edit stamped after the close does not reach the closed span", () => {
+    const s = new AgentSpan()
+    s.engage(0)
+    s.take("markdown", 0, 5 * MIN)
+    s.engage(5 * MIN)
+    s.edit("go", 3, 5 * MIN + 1)
+    assert.deepStrictEqual(s.settle(), [["markdown", 5 * MIN - ENGAGE_GRACE_MS]])
+  })
+
+  it("close with nothing held leaves nothing to settle", () => {
+    const s = new AgentSpan()
+    s.engage(0)
+    s.take("markdown", 0, ENGAGE_GRACE_MS)
+    s.close(ENGAGE_GRACE_MS)
+    assert.strictEqual(s.closedUntil(), null)
+    assert.deepStrictEqual(s.settle(), [])
+  })
+
+  it("resolve includes a closed span still waiting to settle", () => {
+    const s = new AgentSpan()
+    s.engage(0)
+    s.take("markdown", 0, 2 * MIN)
+    s.engage(2 * MIN)
+    s.take("markdown", 2 * MIN, 3 * MIN) // grace, then held again
+    assert.deepStrictEqual(s.resolve(), [["markdown", 3 * MIN - 2 * ENGAGE_GRACE_MS]])
+    assert.strictEqual(s.closedUntil(), null)
+  })
+
+  it("two closes before a settle merge into one span", () => {
+    const s = new AgentSpan()
+    s.engage(0)
+    s.take("markdown", 0, MIN)
+    s.engage(MIN)
+    s.take("markdown", MIN, 2 * MIN)
+    s.close(2 * MIN)
+    s.edit("go", 1, 30_000)
+    s.edit("go", 1, 90_000)
+    assert.strictEqual(s.closedUntil(), 2 * MIN)
+    assert.deepStrictEqual(s.settle(), [["go", 2 * MIN - 2 * ENGAGE_GRACE_MS]])
   })
 })

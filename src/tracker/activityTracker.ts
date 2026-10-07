@@ -38,6 +38,7 @@ function trackableLanguage(doc: vscode.TextDocument): string | undefined {
 
 const MEASURE_DEBOUNCE_MS = 2_000      // let agents finish streaming writes; let typing pause
 const GIT_OP_SUPPRESS_MS = 5_000       // ignore file churn around checkout/pull/merge
+const PROGRAMMATIC_SCROLL_MS = 500     // a scroll this soon after an editor switch, an extension's cursor move or a document change is theirs, not the user's
 const EXTERNAL_MAX_FILE_BYTES = 5 * 1024 * 1024
 const CATCH_UP_MAX = 20_000
 const CAPTURE_PRUNE_MS = 30 * 86_400_000 // other workspaces' captures
@@ -66,12 +67,16 @@ export class ActivityTracker {
   private languageCurrent = ""
   private languageIntervalStart = 0
   private span = new AgentSpan()     // language time held while an agent works — see agentSpan.ts
+  private lastProgrammatic = 0       // last editor switch / extension cursor move / document change
 
   private lastLanguage = ""
 
   // Line accounting (typing, agent edits, worktrees) — see lineLedger.ts
   private ledger = new LineLedger()
   private measureTimers = new Map<string, ReturnType<typeof setTimeout>>()
+  private seenAt = new Map<string, number>()   // path → when its pending change was first seen
+  private measuring = new Map<number, number>() // in-flight measures → when their change was seen
+  private measureIds = 0
   private pendingCreates = new Set<string>()
   private worktreeCopies = new Map<string, Set<string>>() // main-checkout path → worktree paths seen
   private lastGitOpTime = 0
@@ -122,12 +127,20 @@ export class ActivityTracker {
       vscode.window.onDidChangeWindowState(s => this.onWindowState(s)),
       vscode.window.onDidChangeActiveTextEditor(e => this.onEditorChange(e)),
       vscode.window.onDidChangeActiveTerminal(() => this.onActivity()),
-      vscode.window.onDidChangeTextEditorVisibleRanges(() => this.onEngagement()),
+      vscode.window.onDidChangeTextEditorVisibleRanges(e => {
+        // A reveal (an agent tool opening a diff), an editor switch or a
+        // document reload scrolls too; only a scroll on its own is the user.
+        if (e.textEditor === vscode.window.activeTextEditor &&
+            Date.now() - this.lastProgrammatic > PROGRAMMATIC_SCROLL_MS) this.onEngagement()
+        this.onActivity()
+      }),
       vscode.window.onDidChangeTextEditorSelection(e => {
         // Only the user's own cursor moves. Extensions (agent tools revealing a
-        // diff) move it with kind Command or none.
+        // diff) move it with kind Command or none. Engagement only — a cursor
+        // move is not activity, so active time is unchanged by this listener.
         if (e.kind === vscode.TextEditorSelectionChangeKind.Keyboard ||
             e.kind === vscode.TextEditorSelectionChangeKind.Mouse) this.onEngagement()
+        else this.lastProgrammatic = Date.now()
       }),
       vscode.workspace.onDidChangeWorkspaceFolders(e => this.onWorkspaceFoldersChange(e)),
     )
@@ -163,6 +176,7 @@ export class ActivityTracker {
     }
     for (const timer of this.measureTimers.values()) clearTimeout(timer)
     this.measureTimers.clear()
+    this.seenAt.clear()
     this.persistLedger()
     this.endSession()
     for (const d of this.subscriptions) d.dispose()
@@ -243,24 +257,24 @@ export class ActivityTracker {
     this.resetIdleTimer()
   }
 
-  // The user is in an editor: end any held span, crediting it by what the
-  // agent edited, then start a new grace. Cheap per keystroke: nothing is
-  // flushed unless a span is actually holding.
+  // The user is in an editor: close any held span — it is credited by what the
+  // agent edited once the measures of changes seen before now have run — then
+  // start a new grace. Cheap per keystroke: nothing is flushed unless a span is
+  // actually holding. Not activity: callers that are activity call onActivity.
   private onEngagement(): void {
-    if (this.currentSession && !this.isPaused && this.isWindowFocused) {
-      const now = Date.now()
-      if (this.span.holding(now)) {
-        this.splitAtMidnight()
-        this.flushLanguageTime(now)
-        this.resolveSpan()
-      }
-      this.span.engage(now)
+    if (!this.currentSession || this.isPaused || !this.isWindowFocused) return
+    const now = Date.now()
+    if (this.span.holding(now)) {
+      this.splitAtMidnight()
+      this.flushLanguageTime(now)
     }
-    this.onActivity()
+    this.span.engage(now)
+    this.settleSpan()
   }
 
   private onTextChange(e: vscode.TextDocumentChangeEvent): void {
     if (e.contentChanges.length === 0) return
+    this.lastProgrammatic = Date.now()
     this.onActivity()
     const language = trackableLanguage(e.document)
     // Typing still counts as activity (above), but generated and excluded files
@@ -326,6 +340,7 @@ export class ActivityTracker {
   }
 
   private onEditorChange(editor: vscode.TextEditor | undefined): void {
+    this.lastProgrammatic = Date.now()
     if (editor) {
       // Empty when the document is excluded — flushLanguageTime treats that as
       // "credit nothing", so time on a generated file stays unattributed.
@@ -378,7 +393,8 @@ export class ActivityTracker {
     this.splitAtMidnight()
     const now = Date.now()
     this.flushLanguageTime(now)
-    this.resolveSpan()
+    this.span.close(now)
+    this.settleSpan()
     this.activeTimeAccumulated += now - this.activeIntervalStart
     this.closeInterval(now)
     this.isPaused = true
@@ -553,7 +569,22 @@ export class ActivityTracker {
   // Credit a held span, to today or to `date`. Same ms to the day and the
   // open session, so a session's languages still sum to what it added.
   private resolveSpan(date?: string): void {
-    for (const [language, ms] of this.span.resolve()) {
+    this.creditSpan(this.span.resolve(), date)
+  }
+
+  // A closed span is credited once no change seen before its end is still
+  // waiting to be measured (debounce, git status), so the agent's last writes
+  // weight it. Called when a span closes and after every measure.
+  private settleSpan(): void {
+    const until = this.span.closedUntil()
+    if (until === null) return
+    for (const at of this.seenAt.values()) if (at <= until) return
+    for (const at of this.measuring.values()) if (at <= until) return
+    this.creditSpan(this.span.settle())
+  }
+
+  private creditSpan(allocation: [string, number][], date?: string): void {
+    for (const [language, ms] of allocation) {
       if (date) this.storage.updateLanguageTimeForDate(language, ms, date)
       else this.storage.updateLanguageTime(language, ms)
       this.creditSessionLanguage(language, ms)
@@ -600,13 +631,18 @@ export class ActivityTracker {
     const key = uri.fsPath
     const existing = this.measureTimers.get(key)
     if (existing) clearTimeout(existing)
+    if (!this.seenAt.has(key)) this.seenAt.set(key, Date.now())
     this.measureTimers.set(key, setTimeout(() => {
       this.measureTimers.delete(key)
-      void this.runMeasure(uri, language)
+      const seen = this.seenAt.get(key)
+      this.seenAt.delete(key)
+      void this.runMeasure(uri, language, false, seen)
     }, MEASURE_DEBOUNCE_MS))
   }
 
-  private async measure(uri: vscode.Uri, language: string, catchUp = false): Promise<void> {
+  // `seen`: when the change being measured was first seen — an agent edit
+  // weights the span it happened in, not the one it was measured in.
+  private async measure(uri: vscode.Uri, language: string, catchUp = false, seen?: number): Promise<void> {
     if (this.stopped) return
     this.checkDay()
     const day = this.day
@@ -616,7 +652,7 @@ export class ActivityTracker {
       this.prepareRecovery(day, await day.done)
       if (this.stopped) return
       this.checkDay()
-      if (this.day !== day) return this.measure(uri, language, catchUp)
+      if (this.day !== day) return this.measure(uri, language, catchUp, seen)
     }
     const isCreate = this.pendingCreates.delete(path)
     const uriStr = uri.toString()
@@ -648,7 +684,7 @@ export class ActivityTracker {
     if (wt && day && !this.checkedWorktrees.has(normalizePath(wt.root))) {
       const repo = await day.store.repoFor(path).catch(() => null)
       if (this.stopped) return
-      if (this.day !== day) return this.measure(uri, language, catchUp)
+      if (this.day !== day) return this.measure(uri, language, catchUp, seen)
       this.prepareRepoRecovery(wt.root, repo?.operation)
       this.checkedWorktrees.add(normalizePath(wt.root))
     }
@@ -664,7 +700,7 @@ export class ActivityTracker {
       // The awaits may cross midnight. Re-read both content and morning from
       // the new day without leaving this path's serialised measure chain.
       if (isCreate) this.pendingCreates.add(path)
-      return this.measure(uri, language, catchUp)
+      return this.measure(uri, language, catchUp, seen)
     }
     if (!doc && !suppress && !catchUp) this.onActivity()
 
@@ -674,7 +710,7 @@ export class ActivityTracker {
     // live. A save of content already measured as typing changes nothing.
     if (fromDisk && !suppress && !catchUp) {
       const lines = prev ? changedLines(prev, hashes) : delta ? delta.added + delta.deleted : 0
-      if (!prev || lines > 0) this.span.edit(language, lines, Date.now())
+      if (!prev || lines > 0) this.span.edit(language, lines, seen ?? Date.now())
     }
     this.recoveryPending.delete(normalizePath(path))
     if (!delta) return
@@ -860,13 +896,19 @@ export class ActivityTracker {
 
   // Measures of one file run one after another: two overlapping measures would
   // both see the file as unseen and both credit its first sighting.
-  private runMeasure(uri: vscode.Uri, language: string, catchUp = false): Promise<void> {
+  private runMeasure(uri: vscode.Uri, language: string, catchUp = false, seen?: number): Promise<void> {
     const key = uri.fsPath
+    const id = ++this.measureIds
+    if (seen !== undefined) this.measuring.set(id, seen)
     const run = (this.inflight.get(key) ?? Promise.resolve())
-      .then(() => this.measure(uri, language, catchUp))
+      .then(() => this.measure(uri, language, catchUp, seen))
       .catch(() => {})
     this.inflight.set(key, run)
-    void run.then(() => { if (this.inflight.get(key) === run) this.inflight.delete(key) })
+    void run.then(() => {
+      if (this.inflight.get(key) === run) this.inflight.delete(key)
+      this.measuring.delete(id)
+      if (!this.stopped) this.settleSpan()
+    })
     return run
   }
 

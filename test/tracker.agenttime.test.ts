@@ -149,6 +149,49 @@ describe("terminal agent spans", () => {
     assert.deepStrictEqual([...credits], [["markdown", now - t0]])
   })
 
+  it("a cursor move does not resume a paused session", () => {
+    tracker.pauseSession()                  // the idle timer fired
+    v.__select(MOUSE)
+    assert.strictEqual(tracker.isActivelyTracking, false) // active time is unchanged by cursor moves
+    v.__scroll()                            // scrolling was always activity
+    assert.strictEqual(tracker.isActivelyTracking, true)
+  })
+
+  it("an agent edit measured after the user clicks back in still counts", async () => {
+    const t0 = now
+    now += 3 * MIN
+    v.__writeFile("/repo/late.go", `late ${++rev}
+`)
+    v.__fireChange("/repo/late.go")
+    v.__select(MOUSE)                       // before the 2 s debounce runs the measure
+    await sleep(DEBOUNCE_WAIT)
+    assert.strictEqual(credits.get("markdown"), GRACE)
+    assert.strictEqual(credits.get("go"), now - t0 - GRACE)
+  })
+
+  it("an agent edit measured after a blur still counts", async () => {
+    const t0 = now
+    now += 3 * MIN
+    v.__writeFile("/repo/late.go", `late ${++rev}
+`)
+    v.__fireChange("/repo/late.go")
+    v.__setFocused(false)                   // alt-tab right after the agent's last write
+    await sleep(DEBOUNCE_WAIT)
+    v.__setFocused(true)
+    assert.strictEqual(credits.get("go"), now - t0 - GRACE)
+  })
+
+  it("the scroll of a programmatic reveal does not end the span", async () => {
+    const t0 = now
+    now += 3 * MIN
+    v.__select(COMMAND)                     // an agent tool reveals a diff…
+    v.__scroll()                            // …which scrolls the editor
+    await agentWrites("/repo/main.go")
+    now += MIN
+    v.__select(KEYBOARD)
+    assert.strictEqual(credits.get("go"), now - t0 - GRACE)
+  })
+
   it("blur resolves the span; blurred edits are dropped", async () => {
     const t0 = now
     now += 4 * MIN
