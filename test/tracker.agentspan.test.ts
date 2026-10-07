@@ -197,3 +197,26 @@ describe("closed spans", () => {
     assert.deepStrictEqual(s.settle(), [["go", 2 * MIN - 2 * ENGAGE_GRACE_MS]])
   })
 })
+
+describe("midnight", () => {
+  it("resolve(true) keeps the open span's edits for the time after the split", () => {
+    const s = new AgentSpan()
+    s.engage(0)
+    s.take("markdown", 0, 10 * MIN)
+    s.edit("go", 1, 5 * MIN)
+    assert.deepStrictEqual(s.resolve(true), [["go", 10 * MIN - ENGAGE_GRACE_MS]])
+    s.take("markdown", 10 * MIN, 20 * MIN)  // the same agent turn, after midnight
+    assert.deepStrictEqual(s.resolve(), [["go", 10 * MIN]])
+  })
+
+  it("resolve(true) does not carry a closed span's edits", () => {
+    const s = new AgentSpan()
+    s.engage(0)
+    s.take("markdown", 0, 2 * MIN)
+    s.engage(2 * MIN)
+    s.edit("go", 1, MIN)                    // late edit into the closed span
+    s.resolve(true)
+    s.take("markdown", 2 * MIN, 4 * MIN)
+    assert.deepStrictEqual(s.resolve(), [["markdown", 2 * MIN - ENGAGE_GRACE_MS]])
+  })
+})

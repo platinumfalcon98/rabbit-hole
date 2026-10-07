@@ -10,7 +10,7 @@ import { captureFile, pruneCaptures } from "./captureStore"
 import { Day, DayOutcome, startDay } from "./dayCapture"
 import { Git } from "./gitBaseline"
 import { lineNotes } from "./lineNotes"
-import { AgentSpan, changedLines } from "./agentSpan"
+import { AgentSpan, ENGAGE_GRACE_MS, changedLines } from "./agentSpan"
 import {
   EXCLUDED_LANGUAGE_IDS, WorktreeInfo, isExcludedPath, isGitOpSignal, isGitPath, isUnder, languageForFile, normalizePath, worktreeInfo,
 } from "./pathRules"
@@ -235,14 +235,16 @@ export class ActivityTracker {
     }
   }
 
-  private onActivity(): void {
+  // `byAgent`: the activity is an agent's write, not the user — a session it
+  // starts or resumes gets no grace, so its time is held for the agent at once.
+  private onActivity(byAgent = false): void {
     // Background agents writing files (and disk rewrites of open documents) fire
     // activity events while the window is blurred; counting them would accrue
     // active time for a minimised editor. File/line stats are recorded separately.
     if (!this.isWindowFocused) return
     this.clearIdleTimer()
     if (!this.currentSession) {
-      this.startSession()
+      this.startSession(byAgent)
       return
     }
     if (this.isPaused) {
@@ -251,7 +253,7 @@ export class ActivityTracker {
       const now = Date.now()
       this.activeIntervalStart = now
       this.languageIntervalStart = now
-      this.span.engage(now)
+      this.span.engage(byAgent ? now - ENGAGE_GRACE_MS : now)
       this.isPaused = false
     }
     this.resetIdleTimer()
@@ -353,6 +355,7 @@ export class ActivityTracker {
         this.currentProjectId = newProjectId
         this.storage.setCurrentProject(newProjectId)
       } else if (newLanguage !== this.languageCurrent && this.currentSession && !this.isPaused) {
+        this.splitAtMidnight() // pre-midnight time to yesterday, before the flush
         this.flushLanguageTime(Date.now())
         this.languageCurrent = newLanguage
       }
@@ -362,7 +365,7 @@ export class ActivityTracker {
     }
   }
 
-  private startSession(): void {
+  private startSession(byAgent = false): void {
     if (this.currentSession) return
     if (!this.currentProjectId) return
     const now = Date.now()
@@ -374,7 +377,7 @@ export class ActivityTracker {
     this.languageCurrent = activeLang
     this.lastLanguage = activeLang
     this.languageIntervalStart = now
-    this.span.engage(now)
+    this.span.engage(byAgent ? now - ENGAGE_GRACE_MS : now)
     this.currentSession = {
       id: uuidSimple(),
       startTime: now,
@@ -515,8 +518,9 @@ export class ActivityTracker {
       }
       this.languageIntervalStart = midnight
     }
-    // Held time belongs to the day it was held on, and to the session closing here.
-    this.resolveSpan(sessionDateStr)
+    // Held time belongs to the day it was held on, and to the session closing
+    // here. The open span's edits carry on: post-midnight time is the same turn.
+    this.creditSpan(this.span.resolve(true), sessionDateStr)
 
     const activeBeforeMidnight = this.isPaused
       ? this.activeTimeAccumulated
@@ -566,10 +570,10 @@ export class ActivityTracker {
     this.languageIntervalStart = now
   }
 
-  // Credit a held span, to today or to `date`. Same ms to the day and the
-  // open session, so a session's languages still sum to what it added.
-  private resolveSpan(date?: string): void {
-    this.creditSpan(this.span.resolve(), date)
+  // Credit every held span to today: the session is ending. Same ms to the day
+  // and the open session, so a session's languages still sum to what it added.
+  private resolveSpan(): void {
+    this.creditSpan(this.span.resolve())
   }
 
   // A closed span is credited once no change seen before its end is still
@@ -702,15 +706,26 @@ export class ActivityTracker {
       if (isCreate) this.pendingCreates.add(path)
       return this.measure(uri, language, catchUp, seen)
     }
-    if (!doc && !suppress && !catchUp) this.onActivity()
+    // The write that starts or resumes the session is the agent's first edit of
+    // it: stamp it after the resume, or it would fall before the new span.
+    let editAt = seen ?? Date.now()
+    if (!doc && !suppress && !catchUp) {
+      const idle = !this.currentSession || this.isPaused
+      this.onActivity(true)
+      if (idle && this.currentSession && !this.isPaused) editAt = Date.now()
+    }
 
     const prev = this.ledger.lastOf(path)
     const delta = this.ledger.observe(path, hashes, { day: dayKey, isCreate, seed, suppress, morning })
     // An agent's edit for the language-time split: changed on disk, authored,
-    // live. A save of content already measured as typing changes nothing.
-    if (fromDisk && !suppress && !catchUp) {
+    // live, in the project whose time this is (another root's files would
+    // credit this project with languages it has no lines in). A save of
+    // content already measured as typing changes nothing; a first sighting
+    // counts only if its morning content is known and differs (or it is a
+    // create) — with morning unknown an edit and a touch look the same.
+    if (fromDisk && !suppress && !catchUp && this.resolveProjectForUri(uri) === this.currentProjectId) {
       const lines = prev ? changedLines(prev, hashes) : delta ? delta.added + delta.deleted : 0
-      if (!prev || lines > 0) this.span.edit(language, lines, seen ?? Date.now())
+      if (lines > 0) this.span.edit(language, lines, editAt)
     }
     this.recoveryPending.delete(normalizePath(path))
     if (!delta) return

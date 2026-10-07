@@ -42,12 +42,19 @@ async function agentWrites(path: string) {
 }
 const sum = () => [...credits.values()].reduce((s, ms) => s + ms, 0)
 
-before(() => {
+// Files the tests rewrite. Seen once up front: with no morning content (no
+// git here) a file's first sighting cannot tell an edit from a touch, so it
+// is not an edit.
+const SEEN = ["/repo/main.go", "/repo/a.go", "/repo/b.go", "/repo/notes.json", "/repo/late.go"]
+
+before(async () => {
   Date.now = () => now
   tracker = new ActivityTracker({ subscriptions: [] } as any, storage)
   tracker.start()
   readme = v.__openDoc("/repo/README.md", "# readme\n", "markdown")
   v.__setActiveEditor(readme)
+  for (const p of SEEN) { v.__writeFile(p, "seen\n"); v.__fireChange(p) }
+  await sleep(DEBOUNCE_WAIT)
 })
 after(() => { tracker.stop(); Date.now = realNow })
 
@@ -192,6 +199,33 @@ describe("terminal agent spans", () => {
     assert.strictEqual(credits.get("go"), now - t0 - GRACE)
   })
 
+  it("touching a file not seen today, with unknown morning content, is not an edit", async () => {
+    const t0 = now
+    now += 3 * MIN
+    await agentWrites("/repo/touched.go")   // first sighting: edit or touch, unknowable
+    v.__select(KEYBOARD)
+    assert.deepStrictEqual([...credits], [["markdown", now - t0]])
+  })
+
+  it("an agent creating a file is an edit", async () => {
+    const t0 = now
+    now += 3 * MIN
+    v.__writeFile("/repo/created.go", "package c\n")
+    v.__fireCreate("/repo/created.go")
+    await sleep(DEBOUNCE_WAIT)
+    v.__select(KEYBOARD)
+    assert.strictEqual(credits.get("go"), now - t0 - GRACE)
+  })
+
+  it("an agent edit that resumes an idle pause counts, and so does the time after it", async () => {
+    tracker.pauseSession()                  // the agent thought for over 5 minutes
+    credits = new Map()
+    await agentWrites("/repo/main.go")      // its write resumes the session
+    now += 3 * MIN
+    v.__select(KEYBOARD)
+    assert.deepStrictEqual([...credits], [["go", 3 * MIN]])
+  })
+
   it("blur resolves the span; blurred edits are dropped", async () => {
     const t0 = now
     now += 4 * MIN
@@ -206,5 +240,73 @@ describe("terminal agent spans", () => {
     now += 2 * MIN
     v.__select(KEYBOARD)
     assert.deepStrictEqual([...credits], [["markdown", 2 * MIN]])
+  })
+})
+
+// Every path that ends a session or replaces its data must settle a held span
+// (or, for a wipe, drop it). Last in the file: the final test stops the tracker.
+describe("held spans at session boundaries", () => {
+  let other: any
+  let ydoc: any
+
+  it("an agent editing another root's files does not move this project's time", async () => {
+    other = v.__addFolder("/other")
+    v.__writeFile("/other/x.go", "x\n"); v.__fireChange("/other/x.go")
+    await sleep(DEBOUNCE_WAIT)              // seen
+    v.__select(KEYBOARD)
+    credits = new Map()
+    const t0 = now
+    now += 3 * MIN
+    await agentWrites("/other/x.go")
+    v.__select(KEYBOARD)
+    assert.deepStrictEqual([...credits], [["markdown", now - t0]])
+  })
+
+  it("a project switch credits the held span before the session ends", async () => {
+    const t0 = now
+    now += 3 * MIN
+    await agentWrites("/repo/main.go")
+    ydoc = v.__openDoc("/other/y.ts", "y\n", "typescript")
+    v.__setActiveEditor(ydoc)               // ends the /repo session
+    assert.strictEqual(credits.get("go"), now - t0 - GRACE)
+  })
+
+  it("removing a workspace folder that ends the session credits the held span", async () => {
+    // In /other's project, hold, edit there, then remove /other: the active
+    // editor's project changes, which ends the session.
+    v.__setActiveEditor(ydoc)               // beforeEach went back to the README
+    v.__writeFile("/other/z.go", "z\n"); v.__fireChange("/other/z.go")
+    await sleep(DEBOUNCE_WAIT)              // seen
+    v.__select(KEYBOARD)
+    credits = new Map()
+    const t0 = now
+    now += 3 * MIN
+    await agentWrites("/other/z.go")
+    v.__removeFolder(other)
+    assert.strictEqual(credits.get("go"), now - t0 - GRACE)
+  })
+
+  it("clearing the data drops a held span instead of crediting it", async () => {
+    v.__setActiveEditor(readme)             // back in /repo
+    v.__select(KEYBOARD)
+    credits = new Map()
+    now += 3 * MIN
+    await agentWrites("/repo/main.go")
+    tracker.saveCheckpoint()                // the 10 s tick: the grace is credited, the rest held
+    credits = new Map()
+    tracker.discardCurrentSession()
+    v.__scroll()                            // next activity opens a fresh session
+    v.__select(KEYBOARD)                    // and an engagement would settle anything left
+    assert.deepStrictEqual([...credits], [])
+  })
+
+  it("stopping the extension credits the held span", async () => {
+    v.__select(KEYBOARD)
+    credits = new Map()
+    const t0 = now
+    now += 3 * MIN
+    await agentWrites("/repo/main.go")
+    tracker.stop()
+    assert.strictEqual(credits.get("go"), now - t0 - GRACE)
   })
 })

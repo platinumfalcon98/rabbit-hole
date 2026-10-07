@@ -97,6 +97,35 @@ describe("session languages", () => {
     assert.deepStrictEqual(calls.appended[calls.appended.length - 1].languages, { typescript: 6 * MIN })
   })
 
+  it("time held after midnight is weighted by the same agent turn's edits", () => {
+    now = at(2026, 9, 2, 23, 0)
+    const t = trackerAt(now, "markdown")
+    t.isWindowFocused = true
+    now = at(2026, 9, 2, 23, 30)
+    t.span.edit("go", 3, now)                // the agent edits Go before midnight
+    now = at(2026, 9, 3, 0, 10)
+    t.saveCheckpoint()                       // the split credits yesterday's share
+    now = at(2026, 9, 3, 0, 20)
+    t.onEngagement()                         // the user clicks back in
+    t.clearIdleTimer()
+    assert.deepStrictEqual(calls.day, [["go", 20 * MIN]])
+  })
+
+  it("an editor switch just after midnight splits the day first", () => {
+    now = at(2026, 9, 2, 23, 50)
+    const t = trackerAt(now, "typescript")
+    t.isWindowFocused = true
+    t.resolveProjectForUri = () => "alpha"
+    now = at(2026, 9, 3, 0, 5)
+    engaged(t)
+    const uri = { scheme: "file", fsPath: "/repo/README.md", path: "/repo/README.md", toString: () => "file:///repo/README.md" }
+    t.onEditorChange({ document: { uri, languageId: "markdown" } })
+    t.clearIdleTimer()
+    const yesterday = calls.dayFor.filter(([l, , d]) => l === "typescript" && d === "2026-10-02").reduce((s, [, ms]) => s + ms, 0)
+    assert.strictEqual(yesterday, 10 * MIN)
+    assert.deepStrictEqual(calls.day, [["typescript", 5 * MIN]])
+  })
+
   it("a held span is credited to the day it was held on", () => {
     const start = at(2026, 9, 2, 23, 0)
     now = start

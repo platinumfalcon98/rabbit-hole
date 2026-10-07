@@ -87,7 +87,10 @@ export const window = {
 export const workspace = {
   workspaceFolders: [folder],
   textDocuments: [] as unknown[],
-  getWorkspaceFolder: () => folder,
+  // The folder containing the path; anything outside every folder falls back
+  // to the first, as it always did in single-folder suites.
+  getWorkspaceFolder: (uri: { fsPath: string }) =>
+    (workspace.workspaceFolders as any[]).find(f => f !== folder && (uri.fsPath + "/").startsWith(f.uri.fsPath + "/")) ?? folder,
   getConfiguration: () => ({ get: (key: string) => config[key] }),
   onDidChangeTextDocument: register(listeners.textChange),
   onDidOpenTextDocument: register(listeners.openDoc),
@@ -135,6 +138,20 @@ export function __select(kind: number | undefined): void {
 
 export function __scroll(): void {
   for (const fn of listeners.visibleRanges) fn({ textEditor: window.activeTextEditor, visibleRanges: [] })
+}
+
+// A second root in a multi-root workspace.
+export function __addFolder(fsPath: string) {
+  const f = { uri: makeUri(fsPath), name: fsPath.slice(fsPath.lastIndexOf("/") + 1), index: workspace.workspaceFolders.length }
+  workspace.workspaceFolders.push(f)
+  for (const fn of listeners.workspaceFolders) fn({ added: [f], removed: [] })
+  return f
+}
+
+export function __removeFolder(f: any): void {
+  const i = workspace.workspaceFolders.indexOf(f)
+  if (i >= 0) workspace.workspaceFolders.splice(i, 1)
+  for (const fn of listeners.workspaceFolders) fn({ added: [], removed: [f] })
 }
 
 export function __writeFile(fsPath: string, content: string): void {

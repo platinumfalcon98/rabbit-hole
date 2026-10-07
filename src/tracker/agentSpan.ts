@@ -95,8 +95,9 @@ export class AgentSpan {
 
   // Where all held time goes, closed and open: a session or day is ending and
   // cannot wait. Keeps the span open: time after this is still held until an
-  // engagement.
-  resolve(): [string, number][] {
+  // engagement. `keepEdits` (midnight): the open span's edits stay to weight
+  // the time held after the split — it is the same agent turn.
+  resolve(keepEdits = false): [string, number][] {
     const held = new Map(this.held)
     const edits = new Map<string, Edits>()
     mergeEdits(edits, this.edits)
@@ -106,7 +107,7 @@ export class AgentSpan {
     }
     this.closed = null
     this.held.clear()
-    this.edits.clear()
+    if (!keepEdits) this.edits.clear()
     return allocate(held, edits)
   }
 
