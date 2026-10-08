@@ -96,3 +96,39 @@ export function hookCues(): Cue[] {
   for (let f = HOOK.countFrom; f < HOOK.countTo; f += 4) out.push({ frame: f, sound: "tick", variant: f, gain: 0.6, event: `hook count ${f}` })
   return [...out, ...cursorCues(HOOK_CURSOR, "hook")]
 }
+
+// ── today ──
+const todayT = (k: string, dx = 0) => { const c = centre(L.today[k]); return { x: c.x + dx, y: c.y } }
+export const TODAY_S = {
+  enter: 24, countFrom: 8, countTo: 68, tapeFrom: 52, tapeTo: 132, meterFrom: 134, meterTo: 176,
+  pan: 252, panTo: 292, focusGo: 325, focusTs: 433, leave: 515, exit: 545,
+}
+export const TODAY_CURSOR: CursorKey[] = [
+  { frame: 262, x: 1300, y: 1060 },
+  { frame: TODAY_S.focusGo, ...todayT("go", -300), ease: "overshoot", hover: true },
+  { frame: TODAY_S.focusGo + 70, ...todayT("go", -200) },
+  { frame: TODAY_S.focusTs, ...todayT("ts", -250), hover: true },
+  { frame: TODAY_S.leave - 20, ...todayT("ts", -160) },
+  { frame: TODAY_S.leave, x: 1340, y: 1040 },
+]
+export const TODAY_CAM: CamKey[] = [
+  { frame: 0, x: 720, y: 420, zoom: 1.0 },
+  { frame: TODAY_S.meterFrom, x: 700, y: 410, zoom: 1.05 },
+  { frame: TODAY_S.pan, x: 720, y: 420, zoom: 1.02 },
+  { frame: TODAY_S.panTo, x: 720, y: 770, zoom: 1.0 },
+  { frame: TODAY_S.focusTs, x: 700, y: 790, zoom: 1.05 },
+  { frame: TODAY_S.exit, x: 720, y: 770, zoom: 1.0 },
+  { frame: 578, x: 720, y: 700, zoom: 0.78 },
+]
+export function todayCues(): Cue[] {
+  const out: Cue[] = [
+    { frame: 0, sound: "open", event: "today dashboard opens" },
+    { frame: TODAY_S.meterFrom, sound: "riser", variant: 0, event: "today meter grows" },
+    { frame: TODAY_S.meterTo, sound: "blip", pitch: 10, gain: 1.1, event: "today target met at 14:32" },
+    { frame: TODAY_S.pan, sound: "sweep", variant: 0, event: "today camera to languages" },
+    { frame: TODAY_S.exit, sound: "whoosh", event: "today exit" },
+  ]
+  for (let f = TODAY_S.countFrom; f < TODAY_S.countTo; f += 4) out.push({ frame: f, sound: "tick", variant: f, gain: 0.55, event: `today count ${f}` })
+  for (let f = TODAY_S.tapeFrom; f < TODAY_S.tapeTo; f += 3) out.push({ frame: f, sound: "tick", variant: f + 1, gain: 0.45, event: `today tape ${f}` })
+  return [...out, ...cursorCues(TODAY_CURSOR, "today")]
+}

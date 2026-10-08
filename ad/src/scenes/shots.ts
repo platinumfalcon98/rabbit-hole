@@ -26,9 +26,9 @@ export const SHOTS: Shot[] = [
     targets: { cli: `#pj-list [data-hl=${q("p:" + HERO_PROJECT)}]`, open: "#open", today: "#td-t" },
   },
   {
-    id: "today", page: "host", width: 1440, height: 1080,
+    id: "today", page: "host", width: 1440, height: 1300,
     view: {
-      tab: "overview", range: "today", zoom: 1.9,
+      tab: "overview", range: "today", zoom: 2.25,
       css: `${hideBar} ${keepOverview(1, 4)} #ov .grid { grid-template-columns: 1fr !important; } #ov .grid > fieldset { grid-column: 1 / -1 !important; }`,
     },
     targets: { go: `#lang [data-hl="l:go"]`, ts: `#lang [data-hl="l:typescript"]`, big: "#hero-head .big", target: "#target", tape: "#tape", lang: "#lang" },

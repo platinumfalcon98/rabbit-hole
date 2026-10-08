@@ -6,4 +6,5 @@ export interface FilmCaption extends CaptionSpec { position: "top" | "bottom" | 
 
 export const CAPTIONS: FilmCaption[] = [
   { lines: ["WHERE DID", "TODAY [GO?]"], at: 383, until: 540, style: "slam", position: "top", seed: 1 },
+  { lines: ["EVERY [MINUTE].", "EVERY [LANGUAGE]."], at: 888 + 36, until: 888 + 250, style: "decode", position: "bottom", seed: 2 },
 ]
