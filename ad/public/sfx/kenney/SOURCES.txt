@@ -1,0 +1,8 @@
+Recorded UI sounds, CC0, by Kenney (www.kenney.nl). Copied unchanged, renamed:
+click.ogg    <- UI Audio / mouseclick1.ogg
+release.ogg  <- UI Audio / mouserelease1.ogg
+hover.ogg    <- UI Audio / rollover2.ogg
+swipe.ogg    <- UI Audio / rollover1.ogg
+whoosh.ogg   <- Interface Sounds / open_002.ogg  (rising sweep, page transitions)
+open.ogg     <- Interface Sounds / open_001.ogg
+close.ogg    <- Interface Sounds / close_002.ogg (falling sweep)
