@@ -4,12 +4,14 @@ import { Promo } from "./Promo"
 import { UiCheck } from "./checks/UiCheck"
 import { MiniCheck } from "./checks/MiniCheck"
 import { KitCheck } from "./checks/KitCheck"
+import { ShotCheck } from "./checks/ShotCheck"
 
 export const Root: React.FC = () => (
   <>
     <Composition id="UiCheck" component={UiCheck} width={W} height={H} fps={FPS} durationInFrames={900} />
     <Composition id="MiniCheck" component={MiniCheck} width={W} height={H} fps={FPS} durationInFrames={60} />
     <Composition id="KitCheck" component={KitCheck} width={W} height={H} fps={FPS} durationInFrames={300} />
+    <Composition id="ShotCheck" component={ShotCheck as any} width={W} height={1300} fps={FPS} durationInFrames={1} defaultProps={{ id: "month" }} />
     <Composition id="Promo" component={Promo} width={W} height={H} fps={FPS} durationInFrames={DURATION} />
   </>
 )

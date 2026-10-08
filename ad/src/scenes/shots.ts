@@ -39,7 +39,7 @@ export const SHOTS: Shot[] = [
       tab: "overview", range: "30d", zoom: 1.55,
       css: `${keepOverview(1)} .projpick, .tabs, #r-cal, #range button[data-range="yday"] { visibility: hidden; } #ov .grid > fieldset { grid-column: 1 / -1 !important; } .cols { height: 330px !important; }`,
     },
-    targets: { d30: `#range button[data-range="30d"]`, col: `#cols .c[data-i="25"]`, col2: `#cols .c[data-i="18"]`, cols: "#cols" },
+    targets: { d30: `#range button[data-range="30d"]`, col: `#cols .c[data-i="19"]`, col2: `#cols .c[data-i="9"]`, cols: "#cols" },
   },
   {
     id: "agent", page: "host", width: 760, height: 520,

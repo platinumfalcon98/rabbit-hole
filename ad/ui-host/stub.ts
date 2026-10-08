@@ -59,7 +59,11 @@ export function pointer(type: string, target: Element, x?: number, y?: number): 
   const r = target.getBoundingClientRect()
   target.dispatchEvent(new PointerEvent(type, {
     bubbles: type !== "pointerleave" && type !== "pointerenter",
-    clientX: x ?? r.left + r.width / 2, clientY: y ?? r.top + r.height / 2, pointerType: "mouse",
+    // The film zooms the page with CSS zoom, under which element boxes are in
+    // zoomed px but positions the page writes (the tooltip's left/top) are
+    // zoomed again; VS Code's window zoom has no such split. Hand the page
+    // unzoomed coordinates, as it would get them at zoom 1.
+    clientX: (x ?? r.left + r.width / 2) / zoomOf(), clientY: (y ?? r.top + r.height / 2) / zoomOf(), pointerType: "mouse",
   }))
 }
 
@@ -120,4 +124,8 @@ export function applyReveals(view: UiView, kinds: Reveals): void {
 
 export function liveMsg(live: LivePayload): ExtensionMessage {
   return { type: "live", ...clone(live) }
+}
+
+function zoomOf(): number {
+  return Number(document.documentElement.style.zoom) || 1
 }
