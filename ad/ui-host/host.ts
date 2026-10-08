@@ -149,6 +149,22 @@ function reveal(view: UiView): void {
       })
     },
     spark: p => $$(".spark").forEach(s => { s.style.clipPath = p >= 1 ? "" : `inset(0 ${((1 - ease(p)) * 100).toFixed(1)}% 0 0)` }),
+    card: p => {
+      const c = $("#xd-preview canvas")
+      if (c) c.style.clipPath = p >= 1 ? "" : `inset(0 0 ${((1 - ease(p)) * 100).toFixed(1)}% 0)`
+    },
+    fly: () => {
+      // in place unless asked: the default for every other reveal (1) would mean "gone"
+      const p = view.reveal?.fly ?? 0
+      const c = $("#xd-preview canvas")
+      if (!c) return
+      const t = p * p
+      c.style.transformOrigin = "50% 50%"
+      c.style.position = "relative"
+      c.style.zIndex = "60"
+      c.style.transform = p <= 0 ? "" : `translate(${(t * 900).toFixed(1)}px, ${(-t * 1300 + Math.sin(p * Math.PI) * -60).toFixed(1)}px) scale(${(1 + 2.6 * t).toFixed(3)}) rotate(${(p * 24).toFixed(2)}deg)`
+      c.style.boxShadow = p <= 0 ? "" : `0 ${40 * p}px ${120 * p}px rgba(0,0,0,.7), 0 0 ${60 * p}px rgba(255,183,3,${0.5 * p})`
+    },
     rows: p => {
       const rows = $$("#stat tr, #log li, .prows .prow:not(.hdr), .lang .row:not(.hdr)")
       rows.forEach((r, i) => {

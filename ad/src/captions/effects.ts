@@ -41,7 +41,7 @@ export function captionCues(caps: CaptionSpec[], scene: string): Cue[] {
     out.push({ frame: c.at, sound, gain: c.style === "glitch" ? 0.9 : 1, event: `${name} in` })
     if (c.style === "decode") {
       // the letters' chatter, every 3 frames while they lock in
-      for (let f = 2; f < ENTRANCE_FRAMES.decode; f += 3) out.push({ frame: c.at + f, sound: "tick", variant: f, gain: 0.5, event: `${name} decode ${f}` })
+      for (let f = 2; f < ENTRANCE_FRAMES.decode; f += 4) out.push({ frame: c.at + f, sound: "tick", variant: f, gain: 0.5, event: `${name} decode ${f}` })
     }
     if (c.flicker !== undefined) out.push({ frame: c.flicker, sound: "glitch", variant: c.lines.length, event: `${name} flicker` })
   }

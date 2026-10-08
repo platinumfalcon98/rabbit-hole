@@ -51,22 +51,22 @@ export const SHOTS: Shot[] = [
   },
   {
     id: "year", page: "host", width: 1440, height: 1080,
-    view: { tab: "activity", zoom: 1.32, css: `.bar .range, .projpick { visibility: hidden; } .filters { display: none !important; }` },
+    view: { tab: "activity", zoom: 1.55, css: `.bar .range, .projpick { visibility: hidden; } .filters { display: none !important; }` },
     targets: { cli: `.prow[data-ap=${q(HERO_PROJECT)}]`, heat: "#heat", stats: "#ystats" },
   },
   {
     id: "streaks", page: "host", width: 1440, height: 1080,
-    view: { tab: "projects", zoom: 1.5, css: `${hideBar} .filters { display: none !important; } #pcards .pcard .target, #pcards .pcard .foot { display: none !important; }` },
+    view: { tab: "projects", zoom: 1.6, css: `${hideBar} .filters { display: none !important; } #pcards .pcard .target, #pcards .pcard .foot { display: none !important; }` },
     targets: { risk: "#pcards .pcard:nth-child(4) .stats > div:nth-child(2)", card: "#pcards .pcard:nth-child(4)" },
   },
   {
     id: "share", page: "host", width: 1440, height: 1080,
-    view: { tab: "settings", zoom: 1.5, exportOpen: true, css: hideBar },
+    view: { tab: "settings", zoom: 1.4, exportOpen: true, css: `${hideBar} .xd-back, .xd, .xd-stage, .xd-canvas, #xd-preview { overflow: visible !important; }` },
     targets: { go: "#xd-go", canvas: "#xd-preview canvas", dialog: "#xd .xd" },
   },
   {
     id: "settings", page: "host", width: 1440, height: 1080,
-    view: { tab: "settings", zoom: 1.5, scrollY: 0, css: hideBar },
+    view: { tab: "settings", zoom: 1.4, scrollY: 0, css: hideBar },
     targets: { export: `[data-act="export"]` },
   },
 ]

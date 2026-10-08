@@ -32,3 +32,5 @@ export type RevealKind =
   | "week"     // the lines panel's / sidebar's week columns
   | "spark"    // sparklines
   | "rows"     // list rows (files, sessions, days, project list) slide in
+  | "card"     // the export dialog's share-card preview draws in, top to bottom
+  | "fly"      // the share card flies out of the screen (0 = in place)

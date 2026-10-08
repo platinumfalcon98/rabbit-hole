@@ -100,7 +100,7 @@ export function hookCues(): Cue[] {
 // ── today ──
 const todayT = (k: string, dx = 0) => { const c = centre(L.today[k]); return { x: c.x + dx, y: c.y } }
 export const TODAY_S = {
-  enter: 24, countFrom: 8, countTo: 68, tapeFrom: 52, tapeTo: 132, meterFrom: 134, meterTo: 176,
+  enter: 24, countFrom: 8, countTo: 68, tapeFrom: 70, tapeTo: 140, meterFrom: 142, meterTo: 182,
   pan: 252, panTo: 292, focusGo: 325, focusTs: 433, leave: 515, exit: 545,
 }
 export const TODAY_CURSOR: CursorKey[] = [
@@ -128,7 +128,7 @@ export function todayCues(): Cue[] {
     { frame: TODAY_S.pan, sound: "sweep", variant: 0, event: "today camera to languages" },
     { frame: TODAY_S.exit, sound: "whoosh", event: "today exit" },
   ]
-  for (let f = TODAY_S.countFrom; f < TODAY_S.countTo; f += 4) out.push({ frame: f, sound: "tick", variant: f, gain: 0.55, event: `today count ${f}` })
+  for (let f = TODAY_S.countFrom; f < TODAY_S.countTo; f += 6) out.push({ frame: f, sound: "tick", variant: f, gain: 0.55, event: `today count ${f}` })
   for (let f = TODAY_S.tapeFrom; f < TODAY_S.tapeTo; f += 3) out.push({ frame: f, sound: "tick", variant: f + 1, gain: 0.45, event: `today tape ${f}` })
   return [...out, ...cursorCues(TODAY_CURSOR, "today")]
 }
