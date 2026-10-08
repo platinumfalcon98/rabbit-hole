@@ -28,6 +28,7 @@ for (const f of ["style.css", "mini.css"]) fs.copyFileSync(path.join(root, "src/
 fs.copyFileSync(path.join(root, "src/webview/fonts/MartianMono-VF.woff2"), path.join(out, "fonts/MartianMono-VF.woff2"))
 fs.copyFileSync(path.join(root, "resources/rabbithole-icons.woff"), path.join(out, "fonts/rabbithole-icons.woff"))
 fs.copyFileSync(path.join(root, "resources/rabbithole-icon.svg"), path.join(out, "rabbithole-icon.svg"))
+fs.copyFileSync(path.join(root, "resources/icon.svg"), path.join(out, "activitybar-icon.svg"))
 
 // 2. the markup, extracted from the real panels with a stub vscode module
 const vscodeStub = path.join(tmp, "vscode-stub.js")
