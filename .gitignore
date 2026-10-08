@@ -13,3 +13,10 @@ AGENTS.md
 LOGBOOK_GUIDE.md
 docs/superpowers/
 docs/reviews/
+
+# promo video (ad/): dependencies, renders, the local music/drone copies, generated UI
+ad/node_modules/
+ad/out/
+ad/public/local/
+ad/public/ui/
+ad/.superpowers-ledger.md

@@ -29,3 +29,4 @@ package-lock.json
 docs/
 .superpowers/
 *.log
+ad/**
