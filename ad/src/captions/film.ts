@@ -8,4 +8,5 @@ export const CAPTIONS: FilmCaption[] = [
   { lines: ["WHERE DID", "TODAY [GO?]"], at: 383, until: 540, style: "slam", position: "top", seed: 1 },
   { lines: ["EVERY [MINUTE].", "EVERY [LANGUAGE]."], at: 888 + 36, until: 888 + 250, style: "decode", position: "bottom", seed: 2 },
   { lines: ["EVERY DAY,", "AT A [GLANCE]."], at: 1466 + 180, until: 1466 + 420, style: "stretch", position: "bottom", seed: 3 },
+  { lines: ["YOUR AGENT CODES.", "RABBIT HOLE [KNOWS.]"], at: 2043 + 330, flicker: 2043 + 430, until: 2043 + 548, style: "glitch", position: "bottom", seed: 4 },
 ]

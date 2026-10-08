@@ -157,7 +157,7 @@ const HERO: Record<string, [number, number, number, Record<string, number>][]> =
 }
 /** The hero project's language minutes for today, before and after the agent span resolves. */
 export const AGENT_SCENE: { before: Record<string, number>; after: Record<string, number> } = {
-  before: { go: 39 * MIN, markdown: 43 * MIN },
+  before: { go: 42 * MIN, markdown: 40 * MIN },   // go keeps the first colour throughout (paints rank by time)
   after: { go: 64 * MIN, markdown: 18 * MIN },
 }
 
