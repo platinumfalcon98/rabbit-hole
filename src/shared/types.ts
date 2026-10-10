@@ -76,12 +76,13 @@ export interface ProjectYear {
   lastActive?: number            // unix ms of the latest session end in the year
   active: number[]               // active ms per day, aligned with YearPayload.days
   targetMs: (number | null)[]    // stamped target per day; null = recorded before stamping
+  streaks?: number[]             // stored per-project streak per day; absent in older payloads
 }
 export interface YearPayload {
   today: string
   days: string[]                 // Monday-aligned, ending today (365–371 days)
   globalTargetMs: number
-  global: { streak: number; active: number[]; targetMs: (number | null)[] }
+  global: { streak: number; active: number[]; targetMs: (number | null)[]; streaks?: number[] }  // streaks: stored per day
   projects: ProjectYear[]        // registry order
 }
 export interface RangePayload {

@@ -61,7 +61,7 @@ export function renderOverview(store: Store, openDay: (date: string) => void, ba
   const metDays = view.days.filter(d => d.whole.activeMs >= targetOn(d.date)).length
 
   if (!focus) lockHeights($("ov"), false)
-  renderStreak(year, sel)
+  renderStreak(year, sel, to)
 
   $("hero-k").textContent = single ? "day" : "range"
   $("hero-when").textContent = (single ? dstr(from) : `${dstr(from)} – ${dstr(to)} · ${n} days`)

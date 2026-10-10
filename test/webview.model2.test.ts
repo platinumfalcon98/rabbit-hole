@@ -1,7 +1,7 @@
 import { describe, it } from "node:test"
 import * as assert from "node:assert"
 // @ts-ignore — esbuild alias to src/webview/model.ts
-import { mergeLive, seriesFor, storedStreak, streakInfo, tapeCells, tapeWindow, targetMetAt, yearStats } from "model"
+import { mergeLive, seriesFor, seriesUntil, storedStreak, streakInfo, streakOn, tapeCells, tapeWindow, targetMetAt, yearStats } from "model"
 
 const MIN = 60_000
 const T = 20 * MIN
@@ -186,5 +186,59 @@ describe("phase 2 fixes", () => {
   it("says when the live project isn't in the year yet", () => {
     assert.strictEqual(mergeLive(year(), null, liveFor("newcomer")), false)
     assert.strictEqual(mergeLive(year(), null, liveFor("alpha")), true)
+  })
+})
+
+describe("streak on a past day", () => {
+  // year(): T = 20m, all-projects active [30, 0, 25, 15, 5] min, stamped
+  // [T, null, T, 10m, T]: 09-29 met, 09-30 missed, 10-01 met, 10-02 met (10m
+  // stamp), 10-03 today, not yet met. alpha: 15m target, [20, 0, 16, 0, 18].
+  const withStreaks = () => {
+    const y = year()
+    y.global.streak = 7                      // today's count differs from every past day's
+    y.global.streaks = [1, 1, 1, 2, 7]
+    y.projects[0].streaks = [1, 0, 1, 0, 1]
+    return y
+  }
+
+  it("today is storage's current streak", () => {
+    assert.strictEqual(streakOn(withStreaks(), "all", "2026-10-03"), 7)
+  })
+
+  it("a met past day uses the streak stored for it", () => {
+    assert.strictEqual(streakOn(withStreaks(), "all", "2026-10-02"), 2)
+  })
+
+  it("a missed past day is 0, whatever was stored", () => {
+    assert.strictEqual(streakOn(withStreaks(), "all", "2026-09-30"), 0)
+  })
+
+  it("a met past day stored as 0 falls back to the run ending on it", () => {
+    const y = withStreaks()
+    y.global.streaks = [1, 0, 0, 0, 7]
+    assert.strictEqual(streakOn(y, "all", "2026-10-02"), 2)
+  })
+
+  it("no stored streaks (older payload) also falls back to the run", () => {
+    assert.strictEqual(streakOn(year(), "all", "2026-10-01"), 1)
+  })
+
+  it("a project uses its own streaks and target", () => {
+    assert.strictEqual(streakOn(withStreaks(), "alpha", "2026-10-01"), 1)
+    assert.strictEqual(streakOn(withStreaks(), "alpha", "2026-09-30"), 0)
+  })
+
+  it("a day outside the year is 0", () => {
+    assert.strictEqual(streakOn(withStreaks(), "all", "2025-01-01"), 0)
+  })
+
+  it("seriesUntil cuts the series to end on the day", () => {
+    const s = seriesUntil(seriesFor(year(), "all"), "2026-10-01")
+    assert.deepStrictEqual(s.days, ["2026-09-29", "2026-09-30", "2026-10-01"])
+    assert.strictEqual(s.active.length, 3)
+    assert.strictEqual(s.targetMs.length, 3)
+    const info = streakInfo(s, 1)
+    assert.strictEqual(info.todayMet, true)      // its last day is met: no "at risk"
+    assert.strictEqual(info.longest, 1)
   })
 })

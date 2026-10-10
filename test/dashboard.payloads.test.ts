@@ -65,6 +65,18 @@ describe("year payload", () => {
     assert.ok(typeof y.projects[0].lastActive === "number")
     assert.strictEqual(y.projects[1].lastActive, undefined)
   })
+
+  it("carries each day's stored streak, global and per project", () => {
+    const y = buildYear(store(), new Date(), TARGET)
+    const g = y.global.streaks!
+    assert.strictEqual(g.length, y.days.length)
+    assert.strictEqual(g[g.length - 1], 6)
+    assert.strictEqual(g[g.length - 2], 0)         // no global record that day
+    assert.strictEqual(g[g.length - 3], 5)
+    const alpha = y.projects[0]
+    assert.strictEqual(alpha.streaks!.length, y.days.length)
+    assert.strictEqual(alpha.streaks![alpha.streaks!.length - 2], 4)
+  })
 })
 
 describe("range payload", () => {

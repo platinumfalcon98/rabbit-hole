@@ -355,12 +355,12 @@ export class StorageService {
 
   // Cross-project day records for a date range, with the target each day was
   // judged against. Read-only; a missing day comes back as zero.
-  getGlobalDays(startDate: string, endDate: string): { date: string; activeTime: number; targetMs?: number }[] {
+  getGlobalDays(startDate: string, endDate: string): { date: string; activeTime: number; streak: number; targetMs?: number }[] {
     return this.iterDateRange(startDate, endDate).map(date => {
       const g = this.getGlobalDay(date)
       return g.targetMs === undefined
-        ? { date, activeTime: g.activeTime }
-        : { date, activeTime: g.activeTime, targetMs: g.targetMs }
+        ? { date, activeTime: g.activeTime, streak: g.streak }
+        : { date, activeTime: g.activeTime, streak: g.streak, targetMs: g.targetMs }
     })
   }
 

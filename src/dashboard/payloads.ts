@@ -47,6 +47,7 @@ export function buildYear(storage: StorageService, now: Date, globalTargetMs: nu
       lastActive,
       active: logs.map(l => l.activeTime),
       targetMs: logs.map(l => l.targetMs ?? null),
+      streaks: logs.map(l => l.streak ?? 0),
     }
   })
   return {
@@ -57,6 +58,7 @@ export function buildYear(storage: StorageService, now: Date, globalTargetMs: nu
       streak: storage.getGlobalToday().streak,
       active: global.map(g => g.activeTime),
       targetMs: global.map(g => g.targetMs ?? null),
+      streaks: global.map(g => g.streak),
     },
     projects,
   }

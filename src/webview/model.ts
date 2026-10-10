@@ -192,6 +192,31 @@ export function storedStreak(year: YearPayload, sel: Selection): number {
   return sel === "all" ? year.global.streak : year.projects.find(p => p.id === sel)?.streak ?? 0
 }
 
+// The series cut to end on `date`: a past day's card judges its own last day.
+export function seriesUntil(s: Series, date: string): Series {
+  const i = s.days.indexOf(date)
+  if (i < 0 || i === s.days.length - 1) return s
+  return { days: s.days.slice(0, i + 1), active: s.active.slice(0, i + 1), targetMs: s.targetMs.slice(0, i + 1) }
+}
+
+// The streak as it stood at the end of `date`. Today: storage's current count.
+// A missed past day ended the chain (its stored value is the "at risk" carry-
+// over). A met past day: its stored value, or — stored as 0 or not carried —
+// the run of met days ending on it, which is what storage's self-heal computes.
+export function streakOn(year: YearPayload, sel: Selection, date: string): number {
+  if (date === year.today) return storedStreak(year, sel)
+  const s = seriesFor(year, sel)
+  const i = s.days.indexOf(date)
+  if (i < 0) return 0
+  const met = (k: number) => s.active[k] >= s.targetMs[k]
+  if (!met(i)) return 0
+  const stored = sel === "all" ? year.global.streaks : year.projects.find(p => p.id === sel)?.streaks
+  if (stored && stored[i] > 0) return stored[i]
+  let run = 0
+  for (let k = i; k >= 0 && met(k); k--) run++
+  return run
+}
+
 export interface StreakInfo {
   current: number
   todayMet: boolean
