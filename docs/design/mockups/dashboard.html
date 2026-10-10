@@ -471,7 +471,7 @@ fieldset.danger legend b { color: var(--del); }
     </fieldset>
 
     <fieldset class="span-7">
-      <legend><b>lines</b> <span id="lines-when">net per file, today</span></legend>
+      <legend><b>lines</b> <span id="lines-when">today, and the past week</span></legend>
       <div class="diff">
         <span class="big add" id="ln-add">+412</span>
         <span class="big del" id="ln-del">−168</span>
@@ -1472,14 +1472,14 @@ function setView(from, to, keepFocus) {
   $("ln-add").textContent = "+" + v.add; $("ln-del").textContent = "−" + v.del;
   $("ln-net").textContent = (v.add - v.del >= 0 ? "+" : "−") + Math.abs(v.add - v.del);
   if (single) {
-    $("lines-when").textContent = "net per file, " + (isToday ? "today" : dstr(from));
+    $("lines-when").textContent = isToday ? "today, and the past week" : dstr(from) + ", and the week before";
     const rows = days.filter(x => x.date > addDays(to, -7) && x.date <= to).map(x => { const d = sliceDay(x, partFor(x), valFor(x)).d; return { label: WD[x.date.getDay()], a: d.add, r: d.del, now: x.iso === iso(to), sub: dstr(x.date) }; });
     renderLineRows(rows, false);
   } else if (n <= 14) {
-    $("lines-when").textContent = `net per file, ${n} days`;
+    $("lines-when").textContent = `${n} days, by day`;
     renderLineRows(v.list.map(({ x, d }) => ({ label: `${WD[x.date.getDay()]} ${x.date.getDate()}`, a: d.add, r: d.del, now: x.iso === iso(TODAY), sub: dstr(x.date) })), true);
   } else {
-    $("lines-when").textContent = `net per file, ${n} days · one row per week`;
+    $("lines-when").textContent = `${n} days, by week`;
     const rows = [];
     for (let end = n; end > 0; end -= 7) {
       const chunk = v.list.slice(Math.max(0, end - 7), end);

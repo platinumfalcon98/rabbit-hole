@@ -57,6 +57,13 @@ export function dstr(key: string): string {
   return `${WD[d.getDay()]} ${d.getDate()} ${MON[d.getMonth()]}`
 }
 
+// The lines card's title: what the header totals cover, and what each row is.
+// A single day's card lists the seven days ending on it.
+export function linesWhen(mode: "day" | "days" | "weeks", n: number, to: string, isToday: boolean): string {
+  if (mode === "day") return isToday ? "today, and the past week" : `${dstr(to)}, and the week before`
+  return `${n} days, by ${mode === "days" ? "day" : "week"}`
+}
+
 export function shortDate(key: string): string {
   const d = fromKey(key)
   return `${d.getDate()} ${MON[d.getMonth()]}`

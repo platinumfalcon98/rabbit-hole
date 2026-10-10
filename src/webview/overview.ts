@@ -5,7 +5,7 @@ import { langPaint, languagePaints, namesFor } from "./colors"
 import { $, el, keyBox, kv } from "./dom"
 import { renderFiles } from "./files"
 import { hlOf, lockHeights } from "./focus"
-import { MIN, addDaysKey, clock, dstr, fmt, fromKey, hours, pct, shortDate, weekday } from "./format"
+import { MIN, addDaysKey, clock, dstr, fmt, fromKey, hours, linesWhen, pct, shortDate, weekday } from "./format"
 import { renderLangs } from "./languages"
 import { meter } from "./layout"
 import { renderLines, setLineTotals } from "./lines"
@@ -181,10 +181,10 @@ export function renderOverview(store: Store, openDay: (date: string) => void, ba
   if (single) {
     const week = store.days(addDaysKey(to, -6), to)
     const days = week ? buildView(week, sel, focus).days : view.days
-    $("lines-when").textContent = `net per file, ${isToday ? "today" : dstr(from)}`
+    $("lines-when").textContent = linesWhen("day", 1, to, isToday)
     renderLines(days.map(d => ({ label: weekday(d.date), added: d.shown.linesAdded, deleted: d.shown.linesDeleted, now: d.date === to, sub: dstr(d.date) })), false)
   } else if (n <= 14) {
-    $("lines-when").textContent = `net per file, ${n} days`
+    $("lines-when").textContent = linesWhen("days", n, to, isToday)
     renderLines(view.days.map(d => ({
       label: `${weekday(d.date)} ${fromKey(d.date).getDate()}`,
       added: d.shown.linesAdded,
@@ -193,7 +193,7 @@ export function renderOverview(store: Store, openDay: (date: string) => void, ba
       sub: dstr(d.date),
     })), true)
   } else {
-    $("lines-when").textContent = `net per file, ${n} days · one row per week`
+    $("lines-when").textContent = linesWhen("weeks", n, to, isToday)
     renderLines(lineRows(view.days).map(r => ({
       label: shortDate(r.from), added: r.added, deleted: r.deleted, now: false, sub: `${shortDate(r.from)} – ${shortDate(r.to)}`,
     })), true)

@@ -1,7 +1,7 @@
 import { describe, it } from "node:test"
 import * as assert from "node:assert"
 // @ts-ignore — esbuild alias to src/webview/format.ts
-import { addDaysKey, ago, dayDiff, dstr, fmt, hhmm, hours, signed, splitPath } from "format"
+import { addDaysKey, ago, dayDiff, dstr, fmt, hhmm, hours, linesWhen, signed, splitPath } from "format"
 // @ts-ignore — esbuild alias to src/webview/layout.ts
 import { colAxis, colSegments, heatCells, heatLevel, heatMonths, heatWeeksFor, meter, runs, sparkGlyphs, tapeCellCount, tapeMaxCells, tapeTicks } from "layout"
 // @ts-ignore — esbuild alias to src/webview/colors.ts
@@ -251,5 +251,14 @@ describe("calendar", () => {
     assert.strictEqual(pickLabel({ start: null, end: null }), "no range")
     assert.strictEqual(pickLabel({ start: "2026-09-10", end: null }), "10 Sep – …")
     assert.strictEqual(pickLabel({ start: "2026-09-10", end: "2026-09-12" }), "10 Sep – 12 Sep · 3 days")
+  })
+})
+
+describe("lines card title", () => {
+  it("says what the card shows", () => {
+    assert.strictEqual(linesWhen("day", 1, "2026-10-10", true), "today, and the past week")
+    assert.strictEqual(linesWhen("day", 1, "2026-10-06", false), "Tue 6 Oct, and the week before")
+    assert.strictEqual(linesWhen("days", 7, "2026-10-10", true), "7 days, by day")
+    assert.strictEqual(linesWhen("weeks", 30, "2026-10-10", true), "30 days, by week")
   })
 })

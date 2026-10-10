@@ -25,7 +25,7 @@ export function renderLines(items: LineItem[], wide: boolean): void {
     const row = el("div", r.now ? "row now" : "row")
     const node = el("span", "bars")
     row.append(el("span", "d", r.label), node, el("span", "n", `+${r.added} −${r.deleted}`))
-    bindTip(row, () => [tipLine(`+${r.added}  −${r.deleted}`, r.sub), tipSub(`net ${signed(r.added - r.deleted)}`)])
+    bindTip(row, () => [tipLine(`+${r.added}  −${r.deleted}`, r.sub), tipSub(`net ${signed(r.added - r.deleted)} · each file against its start of day`)])
     bars.push({ node, added: r.added, deleted: r.deleted })
     return row
   }))
