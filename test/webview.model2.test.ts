@@ -219,6 +219,12 @@ describe("streak on a past day", () => {
     assert.strictEqual(streakOn(y, "all", "2026-10-02"), 2)
   })
 
+  it("the fallback stops at the first stored value, as storage's chain walk does", () => {
+    const y = withStreaks()
+    y.global.streaks = [1, 0, 10, 0, 7]      // 10-01 stored 10; 10-02 met but lost
+    assert.strictEqual(streakOn(y, "all", "2026-10-02"), 11)
+  })
+
   it("no stored streaks (older payload) also falls back to the run", () => {
     assert.strictEqual(streakOn(year(), "all", "2026-10-01"), 1)
   })

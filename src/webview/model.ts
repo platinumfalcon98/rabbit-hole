@@ -202,7 +202,8 @@ export function seriesUntil(s: Series, date: string): Series {
 // The streak as it stood at the end of `date`. Today: storage's current count.
 // A missed past day ended the chain (its stored value is the "at risk" carry-
 // over). A met past day: its stored value, or — stored as 0 or not carried —
-// the run of met days ending on it, which is what storage's self-heal computes.
+// what storage's self-heal (chainEndingAt) computes: walk back over met days to
+// the first stored non-zero value and add the gap, else count the whole run.
 export function streakOn(year: YearPayload, sel: Selection, date: string): number {
   if (date === year.today) return storedStreak(year, sel)
   const s = seriesFor(year, sel)
@@ -213,7 +214,10 @@ export function streakOn(year: YearPayload, sel: Selection, date: string): numbe
   const stored = sel === "all" ? year.global.streaks : year.projects.find(p => p.id === sel)?.streaks
   if (stored && stored[i] > 0) return stored[i]
   let run = 0
-  for (let k = i; k >= 0 && met(k); k--) run++
+  for (let k = i; k >= 0 && met(k); k--) {
+    if (stored && stored[k] > 0) return stored[k] + run
+    run++
+  }
   return run
 }
 

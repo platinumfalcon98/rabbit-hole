@@ -119,6 +119,17 @@ describe("no active editor", () => {
     assert.deepStrictEqual([...credits], [])
   })
 
+  // Before 2026-10-10 the no-editor stretch was never flushed, so the first
+  // file opened afterwards was credited with all of it.
+  it("opening a file after a no-editor stretch does not hand it that stretch", () => {
+    const goDoc = v.__openDoc("/repo/opened.go", "package o\n", "go")
+    now += 10 * MIN
+    v.__setActiveEditor(goDoc)
+    now += MIN
+    blur()
+    assert.deepStrictEqual([...credits], [["go", MIN]])
+  })
+
   it("an excluded file in front: agent edits claim the held time", async () => {
     const lock = v.__openDoc("/repo/package-lock.json", "{}\n", "json")
     v.__setActiveEditor(lock)
