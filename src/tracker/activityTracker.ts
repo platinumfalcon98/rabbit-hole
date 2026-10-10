@@ -344,8 +344,9 @@ export class ActivityTracker {
   private onEditorChange(editor: vscode.TextEditor | undefined): void {
     this.lastProgrammatic = Date.now()
     if (editor) {
-      // Empty when the document is excluded — flushLanguageTime treats that as
-      // "credit nothing", so time on a generated file stays unattributed.
+      // Empty when the document is excluded — flushLanguageTime credits nothing
+      // live for it; time past the grace is held and goes to an agent's edited
+      // languages, or nowhere.
       const newLanguage = trackableLanguage(editor.document) ?? ""
       const newProjectId = this.resolveProjectForUri(editor.document.uri)
 
@@ -510,9 +511,9 @@ export class ActivityTracker {
     const sd = new Date(this.currentSession.startTime)
     const sessionDateStr = `${sd.getFullYear()}-${String(sd.getMonth() + 1).padStart(2, "0")}-${String(sd.getDate()).padStart(2, "0")}`
 
-    if (!this.isPaused && this.languageCurrent && this.languageIntervalStart < midnight) {
+    if (!this.isPaused && this.languageIntervalStart !== 0 && this.languageIntervalStart < midnight) {
       const live = this.span.take(this.languageCurrent, this.languageIntervalStart, midnight)
-      if (live > 0) {
+      if (live > 0 && this.languageCurrent) {
         this.storage.updateLanguageTimeForDate(this.languageCurrent, live, sessionDateStr)
         this.creditSessionLanguage(this.languageCurrent, live)
       }
@@ -559,11 +560,13 @@ export class ActivityTracker {
   // Credit elapsed time to the current language — on the day log and on the
   // open session — and advance the interval start. Both get the same ms from
   // the same call, so a session's languages always sum to what it added to the
-  // day's language totals.
+  // day's language totals. With no usable editor the language is "": nothing
+  // is credited live, but time past the grace is still held, so an agent's
+  // edits can claim it (creditSpan never writes "").
   private flushLanguageTime(now: number): void {
-    if (!this.languageCurrent || this.languageIntervalStart === 0) return
+    if (this.languageIntervalStart === 0) return
     const live = this.span.take(this.languageCurrent, this.languageIntervalStart, now)
-    if (live > 0) {
+    if (live > 0 && this.languageCurrent) {
       this.storage.updateLanguageTime(this.languageCurrent, live)
       this.creditSessionLanguage(this.languageCurrent, live)
     }
@@ -587,8 +590,11 @@ export class ActivityTracker {
     this.creditSpan(this.span.settle())
   }
 
+  // "" is time held with no usable editor: it goes to a language only if edits
+  // claimed it (allocate shares it out); left over, it stays in the day total.
   private creditSpan(allocation: [string, number][], date?: string): void {
     for (const [language, ms] of allocation) {
+      if (!language) continue
       if (date) this.storage.updateLanguageTimeForDate(language, ms, date)
       else this.storage.updateLanguageTime(language, ms)
       this.creditSessionLanguage(language, ms)
