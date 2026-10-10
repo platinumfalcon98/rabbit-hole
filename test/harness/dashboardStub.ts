@@ -1,9 +1,10 @@
 // A stand-in for VS Code's webview API that answers the dashboard from fixture
 // data, and downloads any file the export dialog asks the host to save.
 import { MIN, crowdedWorld, sampleWorld } from "../helpers/exportFixtures"
+import { consistent } from "./showcase"
 
 // ?many: more projects and languages than the palette has colours
-const { year, range } = location.search.includes("many") ? crowdedWorld() : sampleWorld()
+const { year, range } = location.search.includes("many") ? crowdedWorld() : consistent(sampleWorld())
 const settings = {
   type: "settings", dailyTargetMs: 20 * MIN, dailyTargetMinutes: 20, idleThresholdMinutes: 5, storagePath: "/harness",
   crt: { mask: "slot", pitch: "fine", strength: 23, vignette: 35, effects: ["scanlines", "bloom"] },

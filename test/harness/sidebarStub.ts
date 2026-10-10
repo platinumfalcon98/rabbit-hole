@@ -1,8 +1,9 @@
 // A stand-in for VS Code's webview API that answers the sidebar from fixture data.
 import { MIN, crowdedWorld, sampleWorld, todayLogs } from "../helpers/exportFixtures"
+import { consistent } from "./showcase"
 
 // ?many: more projects than the palette has colours
-const w = location.search.includes("many") ? crowdedWorld() : sampleWorld()
+const w = location.search.includes("many") ? crowdedWorld() : consistent(sampleWorld())
 const settings = {
   type: "settings", dailyTargetMs: 20 * MIN, dailyTargetMinutes: 20, idleThresholdMinutes: 5, storagePath: "/harness",
   crt: { mask: "slot", pitch: "fine", strength: 23, vignette: 35, effects: ["scanlines", "bloom"] },
