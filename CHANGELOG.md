@@ -2,6 +2,49 @@
 
 All notable changes to Rabbit Hole. This project follows [semantic versioning](https://semver.org/).
 
+## [0.6.0] — 2026-10-10
+
+A new dashboard and sidebar, and line counts you can check against git.
+
+### Added
+
+- **A redesigned dashboard**, drawn as a phosphor terminal: Overview, Activity, Projects and
+  Settings. The overview puts the day on a 15-minute tape, a range on a column per day, and
+  narrows every panel to a project or language you hover. It follows light, dark and high
+  contrast themes.
+- **A redesigned Activity Bar sidebar** with the streak, today against your target, the
+  day's tape, lines, the last seven days and today's projects.
+- **New exports:** a share card image and an A4 PDF report, alongside CSV and JSON, each
+  for all projects or one, with a live preview.
+- **CRT display settings** (mask, pitch, strength, vignette, effects), all of which can be
+  turned down or off.
+- A carrot icon in the status bar and the Activity Bar.
+- **Language time follows terminal agents.** While an agent edits files and you aren't
+  using the editor, your time goes to the languages of the files it edits, not to
+  whichever tab was last open — including when no file is open at all.
+- The streak card follows the day you are viewing: a past day shows the streak as it stood
+  that night.
+
+### Changed
+
+- **Lines are counted net per file per day**, the way `git diff` would report each file
+  against its start-of-day content. Rewriting the same code repeatedly counts once, and
+  work undone the same day cancels out. Days recorded by earlier versions keep their old
+  counts.
+- The lines card's title says what it shows ("today, and the past week").
+
+### Fixed
+
+- **Line counts were badly inflated.** When an agent rewrote an open file on disk, a
+  two-line change at its top and bottom was scored as the whole file changing.
+- **The first edit to each file after a restart was lost.** It is now measured from the
+  file's content at midnight, and in a git repository edits made while VS Code was closed
+  earlier that day are counted when it opens.
+- Creating and removing a git worktree no longer records the whole tree as written and
+  deleted.
+- Idle gaps inside a session are no longer drawn as work on the day's tape, and the tape
+  places time correctly on daylight-saving days.
+
 ## [0.5.0] — 2026-08-10
 
 First release with backup and restore. Everything before this could delete data with no way
