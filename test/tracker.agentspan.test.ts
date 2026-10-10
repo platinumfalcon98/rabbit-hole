@@ -220,3 +220,18 @@ describe("midnight", () => {
     assert.deepStrictEqual(s.resolve(), [["markdown", 2 * MIN - ENGAGE_GRACE_MS]])
   })
 })
+
+// "" is time held with no usable editor; the tracker never credits it, so
+// allocate may return it only when no edit claimed it.
+describe("unattributed time", () => {
+  it("\"\" comes back only when no edit claimed it", () => {
+    const s = new AgentSpan()
+    s.engage(0)
+    s.take("", 0, 10 * MIN)
+    assert.deepStrictEqual(s.resolve(), [["", 10 * MIN - ENGAGE_GRACE_MS]])
+    s.engage(0)
+    s.take("", 0, 10 * MIN)
+    s.edit("go", 2, MIN)
+    assert.deepStrictEqual(s.resolve(), [["go", 10 * MIN - ENGAGE_GRACE_MS]])
+  })
+})

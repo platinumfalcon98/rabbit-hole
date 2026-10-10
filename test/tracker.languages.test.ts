@@ -137,6 +137,37 @@ describe("session languages", () => {
     assert.deepStrictEqual(calls.appendedTo[0][0].languages, { markdown: 60 * MIN })
     assert.deepStrictEqual(calls.day, [])              // nothing after midnight credited yet: still held
   })
+
+  it("no editor across midnight: edits weight each day's held time, nothing is written as \"\"", () => {
+    now = at(2026, 9, 2, 23, 0)
+    const t = trackerAt(now, "")             // no usable editor
+    t.isWindowFocused = true
+    now = at(2026, 9, 2, 23, 30)
+    t.span.edit("go", 3, now)                // the agent edits Go before midnight
+    now = at(2026, 9, 3, 0, 10)
+    t.saveCheckpoint()                       // the split credits yesterday's share
+    now = at(2026, 9, 3, 0, 20)
+    t.onEngagement()
+    t.clearIdleTimer()
+    const yesterday = calls.dayFor.filter(([, , d]) => d === "2026-10-02")
+    assert.deepStrictEqual(yesterday, [["go", 60 * MIN - 5_000, "2026-10-02"]])
+    assert.deepStrictEqual(calls.day, [["go", 20 * MIN]])
+    assert.ok(![...calls.day, ...calls.dayFor].some(([l]) => l === ""))
+  })
+
+  it("no editor across midnight with no edits writes no language time", () => {
+    now = at(2026, 9, 2, 23, 0)
+    const t = trackerAt(now, "")
+    t.isWindowFocused = true
+    now = at(2026, 9, 3, 0, 10)
+    t.saveCheckpoint()
+    now = at(2026, 9, 3, 0, 20)
+    t.onEngagement()
+    t.clearIdleTimer()
+    assert.deepStrictEqual(calls.day, [])
+    assert.deepStrictEqual(calls.dayFor, [])
+    assert.strictEqual(calls.appendedTo[0][0].languages, undefined)
+  })
 })
 
 // The day tape and target-met time must show when work happened, not the whole
