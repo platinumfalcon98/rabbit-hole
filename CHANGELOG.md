@@ -44,6 +44,8 @@ A new dashboard and sidebar, and line counts you can check against git.
   deleted.
 - Idle gaps inside a session are no longer drawn as work on the day's tape, and the tape
   places time correctly on daylight-saving days.
+- Hovering a project in a narrow sidebar no longer makes the panels jump and the focus
+  flicker between neighbouring projects.
 
 ## [0.5.0] — 2026-08-10
 
