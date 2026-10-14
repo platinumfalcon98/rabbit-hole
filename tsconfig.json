@@ -11,6 +11,6 @@
     "sourceMap": true
   },
   // `test` is excluded because rootDir is src: the tests (and scripts/verify-lines) are type-checked by
-  // tsconfig.test.json instead (npm run typecheck runs both).
-  "exclude": ["node_modules", "out", "test", "scripts"]
+  // tsconfig.test.json instead (npm run typecheck runs both). `ad` is the promo video, with its own tsconfig.
+  "exclude": ["node_modules", "out", "test", "scripts", "ad"]
 }
