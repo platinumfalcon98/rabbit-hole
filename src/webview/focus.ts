@@ -21,8 +21,9 @@ export const hlOf = (f: NonNullable<Focus>): string => `${f.kind === "project" ?
 export const sameFocus = (a: Focus, b: Focus): boolean =>
   a === b || (!!a && !!b && a.kind === b.kind && a.id === b.id)
 
+// The dashboard's panels sit in .grid, the sidebar's directly in .mini.
 export function lockHeights(root: HTMLElement, on: boolean): void {
-  root.querySelectorAll<HTMLElement>(".grid > fieldset").forEach(f => { f.style.minHeight = on ? `${f.offsetHeight}px` : "" })
+  root.querySelectorAll<HTMLElement>(".grid > fieldset, .mini > fieldset").forEach(f => { f.style.minHeight = on ? `${f.offsetHeight}px` : "" })
 }
 
 const CLEAR_GRACE_MS = 120

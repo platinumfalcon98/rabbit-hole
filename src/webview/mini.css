@@ -31,6 +31,10 @@ body { padding: 12px 12px 18px; }
 .days .now { color: var(--chrome); }
 /* the tape's block glyphs draw taller than their line box: without the gap they run into "daily target met at HH:MM" */
 .meter { margin: 4px 0 8px; color: var(--ink-dim); display: flex; flex-wrap: wrap; column-gap: 1ch; }
+/* The text changes with a focus ("met at 14:05" / "1h20m to"), and wrapping by its
+   own length moved every panel below out from under the pointer. Sized to the
+   longest it can be, it wraps by sidebar width alone. */
+.meter > span:last-child { min-width: min(25ch, 100%); }
 .meter .on { color: var(--add); }
 .meter .off { color: var(--ink-mute); }
 .mini .tape { padding-top: 12px; }
