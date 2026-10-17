@@ -82,9 +82,20 @@ export function activate(context: vscode.ExtensionContext): void {
   statusBar.show()
   context.subscriptions.push(statusBar)
 
+  // The message handler is attached once, when the panel is created; attaching
+  // it on every reveal handled each later message (exports, backups) twice.
+  const openDashboard = (exportDialog = false): void => {
+    const existing = DashboardPanel.currentPanel
+    DashboardPanel.createOrShow(context)
+    const panel = DashboardPanel.currentPanel
+    if (!panel) return
+    if (panel !== existing) panel.onMessage((msg: unknown) => handleMessage(msg as WebviewMessage, storage, panel))
+    if (exportDialog) panel.openExportWhenReady()
+  }
+
   // Activity Bar sidebar: it sends "ready" when it loads or is shown again
   const miniPanel: MiniPanel = new MiniPanel(context.extensionUri, msg =>
-    handleMiniMessage(msg, storage, miniPanel, () => { void vscode.commands.executeCommand("rabbithole.openDashboard") }))
+    handleMiniMessage(msg, storage, miniPanel, openDashboard))
   context.subscriptions.push(vscode.window.registerWebviewViewProvider(MiniPanel.viewId, miniPanel))
 
   // The year grid ends today; when the date changes the open dashboard needs a new one.
@@ -121,14 +132,7 @@ export function activate(context: vscode.ExtensionContext): void {
   )
 
   context.subscriptions.push(
-    vscode.commands.registerCommand("rabbithole.openDashboard", () => {
-      DashboardPanel.createOrShow(context)
-      if (DashboardPanel.currentPanel) {
-        DashboardPanel.currentPanel.onMessage((msg: unknown) => {
-          handleMessage(msg as WebviewMessage, storage, DashboardPanel.currentPanel!)
-        })
-      }
-    }),
+    vscode.commands.registerCommand("rabbithole.openDashboard", () => openDashboard()),
 
     { dispose: () => clearInterval(interval) }
   )

@@ -1,5 +1,5 @@
 // Range presets and the two-month picker's rules. Pure.
-import { addDaysKey, dayDiff, plural, shortDate } from "./format"
+import { addDaysKey, dayDiff, dstr, plural, shortDate } from "./format"
 import { dayKey } from "./model"
 
 export const MAX_SPAN = 92   // the host's limit (payloads.MAX_RANGE_DAYS)
@@ -50,6 +50,19 @@ export function pickLabel(p: Pick): string {
   return `${shortDate(p.start)} – ${shortDate(p.end)} · ${plural(dayDiff(p.start, p.end) + 1, "day")}`
 }
 
-// The calendar button's text once a range that isn't a preset is showing.
-export const rangeLabel = (from: string, to: string): string =>
-  (from === to ? shortDate(from) : `${shortDate(from)} – ${shortDate(to)}`).toLowerCase()
+// ‹ › beside the date: the same number of days, one span earlier or later.
+// A step that would pass today or the year's first day stops there, keeping
+// the length; null when the view already touches that end.
+export function stepRange(from: string, to: string, dir: -1 | 1, first: string, today: string): { from: string; to: string } | null {
+  if (dir > 0 ? to >= today : from <= first) return null
+  const n = dayDiff(from, to) + 1
+  let a = addDaysKey(from, dir * n)
+  let z = addDaysKey(to, dir * n)
+  if (z > today) { z = today; a = addDaysKey(today, 1 - n) }
+  if (a < first) { a = first; z = addDaysKey(first, n - 1) }
+  return { from: a, to: z > today ? today : z }
+}
+
+// The range bar's date: the day, or both ends and how many days.
+export const spanLabel = (from: string, to: string): string =>
+  from === to ? dstr(from) : `${shortDate(from)} – ${shortDate(to)} · ${plural(dayDiff(from, to) + 1, "day")}`

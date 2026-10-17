@@ -1,16 +1,16 @@
 // The Activity Bar sidebar's side of the protocol. It asks for nothing but
-// "ready" and "open dashboard"; everything it draws arrives in one message.
-import { getDailyTargetMs } from "../shared/config"
+// "ready", "open dashboard" and "open export"; everything it draws arrives in one message.
+import { getColorPicks, getDailyTargetMs } from "../shared/config"
 import type { MiniMessage } from "../shared/types"
 import type { StorageService } from "../tracker/storageService"
 import { Poster, sendSettings } from "./messageHandler"
 import { buildMini } from "./payloads"
 
 export function postMini(storage: StorageService, view: Poster): void {
-  view.postMessage({ type: "mini", ...buildMini(storage, new Date(), getDailyTargetMs()) })
+  view.postMessage({ type: "mini", ...buildMini(storage, new Date(), getDailyTargetMs(), getColorPicks()) })
 }
 
-export function handleMiniMessage(msg: MiniMessage, storage: StorageService, view: Poster, openDashboard: () => void): void {
+export function handleMiniMessage(msg: MiniMessage, storage: StorageService, view: Poster, openDashboard: (exportDialog?: boolean) => void): void {
   switch (msg?.type) {
     case "ready":
       // settings first: the CRT layers are drawn from them
@@ -19,6 +19,10 @@ export function handleMiniMessage(msg: MiniMessage, storage: StorageService, vie
       break
     case "openDashboard":
       openDashboard()
+      break
+    case "openExport":
+      // the dialog needs the dashboard's room; it opens there, over whatever tab
+      openDashboard(true)
       break
   }
 }

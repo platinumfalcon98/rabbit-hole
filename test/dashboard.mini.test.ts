@@ -28,8 +28,15 @@ describe("sidebar messages", () => {
 
   it("open dashboard opens it and sends nothing", () => {
     let opened = 0
-    handleMiniMessage({ type: "openDashboard" }, store(), view, () => { opened++ })
+    handleMiniMessage({ type: "openDashboard" }, store(), view, (exp?: boolean) => { opened++; assert.ok(!exp, "plain open asks for no dialog") })
     assert.strictEqual(opened, 1)
+    assert.deepStrictEqual(types(), [])
+  })
+
+  it("share opens the dashboard with the export dialog and sends the sidebar nothing", () => {
+    const asked: (boolean | undefined)[] = []
+    handleMiniMessage({ type: "openExport" }, store(), view, (exp?: boolean) => { asked.push(exp) })
+    assert.deepStrictEqual(asked, [true])
     assert.deepStrictEqual(types(), [])
   })
 

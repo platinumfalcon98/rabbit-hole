@@ -2,7 +2,7 @@
 // dashboard, so a share card or report never disagrees with the screen. Pure:
 // the renderers and the dialog only draw what this returns.
 import type { ActivitySession, RangePayload, YearPayload } from "../shared/types"
-import { MARKS, Texture, markOf } from "./colors"
+import { Texture, languageMarks, markOf } from "./colors"
 import { addDaysKey, clock, dstr, shortDate, splitPath } from "./format"
 import { heatCells, heatLevel, tapeCellCount } from "./layout"
 import { Mark, Selection, TapeCell, TapeWindow, buildView, dayKey, recentMarks, seriesFor, storedStreak, tapeCells, tapeWindow } from "./model"
@@ -41,11 +41,11 @@ export const OTHER_COLOR = "#4f6459"
 // toward the background, never transparency, which JPEG and PDF both keep exactly.
 export const SHADE = [0, 0.3, 0.55, 0.8, 1]
 
-// The dashboard's marks with literal colours: past six a language takes a
-// texture, past 24 it is "other".
-function langMark(i: number): { color: string; texture: Texture } {
-  if (i >= MARKS) return { color: OTHER_COLOR, texture: "solid" }
-  const m = markOf(i)
+// The dashboard's marks (picked, else rank by use over the year) with literal
+// colours: past six a language takes a texture, -1 (past 24) is "other".
+function langMark(mark: number): { color: string; texture: Texture } {
+  if (mark < 0) return { color: OTHER_COLOR, texture: "solid" }
+  const m = markOf(mark)
   return { color: LANG_COLORS[m.slot], texture: m.texture }
 }
 
@@ -105,6 +105,7 @@ export function exportData(range: RangePayload, year: YearPayload, sel: Selectio
   // the dialog fetches 90 days once; every span is a slice of that reply
   const logs = Object.fromEntries(Object.entries(range.logs).map(([id, list]) => [id, list.filter(l => l.date >= from && l.date <= to)]))
   const view = buildView({ from, to, logs }, sel, null)
+  const langMarks = languageMarks(year, view.languages)
   const series = seriesFor(year, sel)
   const n = series.days.length
   const at = new Map(series.days.map((d, i) => [d, i] as [string, number]))
@@ -159,7 +160,7 @@ export function exportData(range: RangePayload, year: YearPayload, sel: Selectio
     marks,
     firstStart: sessions.length ? Math.min(...sessions.map(s => s.start)) : null,
     lastEnd: sessions.length ? Math.max(...sessions.map(s => s.end)) : null,
-    langs: view.languages.map((l, i) => ({ ...l, ...langMark(i) })),
+    langs: view.languages.map(l => ({ ...l, ...langMark(langMarks.get(l.name) ?? -1) })),
     daysList,
     sessions,
     tapes: single ? { card: dayTape(raw, 24, now), report: dayTape(raw, 48, now) } : null,

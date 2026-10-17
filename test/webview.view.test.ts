@@ -5,9 +5,9 @@ import { addDaysKey, ago, dayDiff, dstr, fmt, hhmm, hours, linesWhen, signed, sp
 // @ts-ignore — esbuild alias to src/webview/layout.ts
 import { colAxis, colSegments, heatCells, heatLevel, heatMonths, heatWeeksFor, meter, runs, sparkGlyphs, tapeCellCount, tapeMaxCells, tapeTicks } from "layout"
 // @ts-ignore — esbuild alias to src/webview/colors.ts
-import { OTHER, langPaint, languagePaints, namesFor, projectPaint } from "colors"
+import { OTHER, langPaint, languageMarks, languagePaints, markName, namesFor, projectPaint } from "colors"
 // @ts-ignore — esbuild alias to src/webview/calendar.ts
-import { dayDisabled, monthDays, pickDay, pickLabel, presetOf, presetRange } from "calendar"
+import { dayDisabled, monthDays, pickDay, pickLabel, presetOf, presetRange, spanLabel, stepRange } from "calendar"
 
 const MIN = 60_000
 const HOUR = 60 * MIN
@@ -194,12 +194,40 @@ describe("colours", () => {
 
   it("languages are painted by rank the same way; past 24 they are other", () => {
     const rows = Array.from({ length: 25 }, (_, i) => ({ name: "l" + i, ms: 1, added: 0, deleted: 0 }))
-    const m = languagePaints(rows)
+    const m = languagePaints(null, rows)
     assert.deepStrictEqual(m.get("l0"), projectPaint(year, "p0"))
     assert.deepStrictEqual(m.get("l6"), projectPaint(year, "p6"))
     assert.deepStrictEqual(m.get("l23"), projectPaint(year, "p23"))
     assert.deepStrictEqual(langPaint(m, "l24"), OTHER)
     assert.deepStrictEqual(langPaint(m, "nope"), OTHER)
+  })
+
+  it("a language keeps its rank over the year in any view, so it is the same colour everywhere", () => {
+    const y: any = { ...year, languages: ["go", "ts", "css"] }
+    // a view where css is the busiest still paints it third
+    const m = languagePaints(y, [{ name: "css", ms: 9, added: 0, deleted: 0 }, { name: "go", ms: 1, added: 0, deleted: 0 }])
+    assert.deepStrictEqual(m.get("css"), projectPaint(year, "p2"))
+    assert.deepStrictEqual(m.get("go"), projectPaint(year, "p0"))
+    // a language newer than the year ranks after it
+    assert.strictEqual(languageMarks(y, [{ name: "zig" }]).get("zig"), 3)
+  })
+
+  it("a picked mark wins over the default, for projects and languages", () => {
+    const y: any = { ...year, languages: ["go", "ts"], colors: { projects: { p0: 7, p1: 99 }, languages: { ts: 0 } } }
+    assert.deepStrictEqual(projectPaint(y, "p0"), projectPaint(year, "p7"))
+    // a hand-edited mark outside the 24 is ignored
+    assert.deepStrictEqual(projectPaint(y, "p1"), projectPaint(year, "p1"))
+    // the pick may repeat another's colour: that is the user's call
+    assert.strictEqual(languageMarks(y, []).get("ts"), 0)
+    assert.strictEqual(languageMarks(y, []).get("go"), 0)
+    // a pick for a project the year doesn't list paints nothing
+    assert.deepStrictEqual(projectPaint({ ...y, colors: { projects: { zzz: 2 }, languages: {} } }, "zzz"), OTHER)
+  })
+
+  it("marks have names", () => {
+    assert.strictEqual(markName(0), "green")
+    assert.strictEqual(markName(7), "blue stripes")
+    assert.strictEqual(markName(23), "olive checks")
   })
 
   it("names fall back for a project the year doesn't know", () => {
@@ -251,6 +279,27 @@ describe("calendar", () => {
     assert.strictEqual(pickLabel({ start: null, end: null }), "no range")
     assert.strictEqual(pickLabel({ start: "2026-09-10", end: null }), "10 Sep – …")
     assert.strictEqual(pickLabel({ start: "2026-09-10", end: "2026-09-12" }), "10 Sep – 12 Sep · 3 days")
+  })
+
+  it("‹ › step by the span's own length", () => {
+    const first = "2025-09-29"
+    assert.deepStrictEqual(stepRange(today, today, -1, first, today), { from: "2026-10-02", to: "2026-10-02" })
+    assert.deepStrictEqual(stepRange("2026-09-27", today, -1, first, today), { from: "2026-09-20", to: "2026-09-26" })
+    assert.deepStrictEqual(stepRange("2026-09-20", "2026-09-26", 1, first, today), { from: "2026-09-27", to: today })
+  })
+
+  it("‹ › stop at today and at the first day held, keeping the length", () => {
+    const first = "2025-09-29"
+    assert.strictEqual(stepRange(today, today, 1, first, today), null)
+    assert.strictEqual(stepRange(first, "2025-10-05", -1, first, today), null)
+    // a 7-day span ending two days ago lands on the last 7 days, not past today
+    assert.deepStrictEqual(stepRange("2026-09-25", "2026-10-01", 1, first, today), { from: "2026-09-27", to: today })
+    assert.deepStrictEqual(stepRange("2025-10-02", "2025-10-08", -1, first, today), { from: first, to: "2025-10-05" })
+  })
+
+  it("the range bar names the days shown", () => {
+    assert.strictEqual(spanLabel(today, today), "Sat 3 Oct")
+    assert.strictEqual(spanLabel("2026-09-27", today), "27 Sep – 3 Oct · 7 days")
   })
 })
 

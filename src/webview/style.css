@@ -99,17 +99,40 @@ body.vscode-high-contrast .crt, body.vscode-high-contrast-light .crt { display: 
 body.vscode-high-contrast .screen, body.vscode-high-contrast-light .screen { filter: none; }
 @media (forced-colors: active) { .crt { display: none; } .screen { filter: none; } body { text-shadow: none; } }
 
-/* top status line, like a tmux bar */
-.bar { position: relative; display: flex; flex-wrap: wrap; gap: 4px 18px; align-items: baseline; padding: 6px 2px 14px; color: var(--ink-dim); }
+/* top bar: project, a tab strip whose active tab opens into the page, then a
+   range row (the date, presets, calendar) with share always at its right */
+.bar { position: relative; display: grid; gap: 0; padding: 6px 2px 14px; color: var(--ink-dim); }
 .bar .spacer { flex: 1; }
+.bar-top { display: flex; flex-wrap: wrap; gap: 4px 18px; align-items: center; padding-bottom: 8px; }
 .bar .brand { display: inline-flex; align-self: center; margin-right: 2px; }
 .bar .brand svg { display: block; filter: var(--carrot-glow); }
-.tabs, .range { display: flex; gap: 2px; flex-wrap: wrap; }
-.tabs button, .range button {
-  font: inherit; color: var(--ink-dim); background: none; border: 0; padding: 2px 8px; cursor: pointer; text-shadow: inherit;
+.tabs { display: flex; flex-wrap: wrap; align-items: flex-end; border-bottom: 1px solid var(--chrome); }
+.tabs button {
+  font: inherit; color: var(--ink-dim); background: none; border: 1px solid transparent; border-bottom: 0; margin-bottom: -1px;
+  padding: 5px 16px 4px; cursor: pointer; text-shadow: inherit;
 }
-.tabs button[aria-pressed="true"], .range button[aria-pressed="true"] { background: var(--chrome); color: var(--chrome-ink); text-shadow: none; }
-.tabs button:hover:not([aria-pressed="true"]), .range button:hover:not([aria-pressed="true"]) { color: var(--chrome); }
+.tabs button:hover:not([aria-pressed="true"]) { color: var(--ink); }
+.tabs button[aria-pressed="true"] { color: var(--chrome); font-weight: 600; background: var(--bg); border-color: var(--chrome); border-bottom: 1px solid var(--bg); }
+.rangebar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding-top: 10px; min-height: 2.4em; }
+.range { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+.range .when { display: inline-flex; align-items: center; }
+.range .step { font: inherit; color: var(--ink); background: none; border: 1px solid var(--rule); padding: 1px 8px; cursor: pointer; text-shadow: inherit; }
+.range .step:hover:not(:disabled) { border-color: var(--chrome); color: var(--chrome); }
+.range .step:disabled { color: var(--ink-mute); cursor: default; }
+/* wide enough for "30 Sep – 30 Dec · 92 days": a growing date moved › and the presets under the pointer */
+.range .date { color: var(--ink); font-weight: 600; font-size: 14px; padding: 0 12px; min-width: 26ch; text-align: center; white-space: nowrap; }
+.presets { display: inline-flex; flex-wrap: wrap; gap: 2px; }
+.presets button { font: inherit; color: var(--ink-dim); background: none; border: 0; padding: 2px 8px; cursor: pointer; text-shadow: inherit; }
+.presets button[aria-pressed="true"] { background: var(--chrome); color: var(--chrome-ink); text-shadow: none; }
+.presets button:hover:not([aria-pressed="true"]) { color: var(--chrome); }
+.presets .cal { color: var(--ink); border: 1px dashed var(--ink-mute); margin-left: 6px; }
+.presets .cal[aria-expanded="true"] { border-color: var(--chrome); }
+.rangebar .fixed { color: var(--ink-mute); }
+/* the postcard icon's outline is currentColor, so it inverts with the button */
+.share-bar { font: inherit; text-shadow: inherit; display: inline-flex; gap: 9px; align-items: center; cursor: pointer;
+  color: var(--add); background: none; border: 1px solid var(--add); padding: 3px 12px 3px 9px; }
+.share-bar svg { display: block; flex: none; }
+.share-bar:hover { background: var(--add); color: var(--bg); text-shadow: none; }
 button:focus-visible, [tabindex]:focus-visible, select:focus-visible, input:focus-visible { outline: 1px solid var(--chrome); outline-offset: 2px; }
 .hint { color: var(--ink-mute); }
 .status { color: var(--ink-dim); margin: 0 2px 14px; }
@@ -134,7 +157,7 @@ button:focus-visible, [tabindex]:focus-visible, select:focus-visible, input:focu
 .pm-item[aria-selected="true"] small, .pm-item[aria-selected="true"] .pm-t { color: var(--chrome-ink); }
 
 /* range picker: a two-month calendar */
-.picker { position: absolute; right: 0; top: calc(100% - 8px); z-index: 20; background: var(--panel); border: 1px solid var(--chrome);
+.picker { position: absolute; left: 0; top: calc(100% + 6px); z-index: 20; background: var(--panel); border: 1px solid var(--chrome);
   padding: 10px 14px 12px; box-shadow: 0 10px 30px rgba(0,0,0,.28); max-width: calc(100vw - 32px); color: var(--ink); }
 .pk-head, .pk-foot { display: flex; align-items: center; gap: 8px; }
 .pk-head { margin-bottom: 8px; }
@@ -210,6 +233,9 @@ legend b { color: var(--chrome); font-weight: 600; }
 
 /* lines */
 .diff { display: flex; gap: 22px; align-items: baseline; flex-wrap: wrap; }
+/* today's line-counting notes live in the settings console; this points there */
+.note-mark { font: inherit; margin-left: auto; background: none; border: 0; padding: 0 2px; color: var(--chrome); cursor: pointer; text-shadow: inherit; }
+.note-mark:hover, .note-mark:focus-visible { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
 .add { color: var(--add); } .del { color: var(--del); }
 .week { margin-top: 14px; display: grid; gap: 3px; }
 .week .row { display: grid; grid-template-columns: 3.2em 1fr 7.5em; gap: 10px; align-items: center; cursor: default; }
@@ -307,7 +333,7 @@ legend b { color: var(--chrome); font-weight: 600; }
 .tin::-webkit-inner-spin-button, .tin::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 .tin:focus { border-color: var(--chrome); outline: none; }
 .tin.wide { width: 16ch; text-align: left; }
-select.tin { width: auto; max-width: 100%; text-align: left; }
+select.tin { width: auto; max-width: min(100%, 26ch); text-overflow: ellipsis; text-align: left; }
 .tin::placeholder { color: var(--ink-mute); }
 .unit { color: var(--ink-dim); }
 
@@ -375,7 +401,8 @@ select.tin { width: auto; max-width: 100%; text-align: left; }
 .pcard .foot { margin-top: 10px; }
 
 /* settings */
-.set { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 24px; align-items: center; padding-block: 10px; }
+/* the text keeps 28ch: an auto column sized to a long select squeezed it to a word per line */
+.set { display: grid; grid-template-columns: minmax(min(28ch, 100%), 1fr) auto; gap: 6px 24px; align-items: center; padding-block: 10px; }
 .set + .set { border-top: 1px dashed var(--rule); }
 .set .name { color: var(--ink); font-weight: 600; }
 .set .desc { color: var(--ink-dim); max-width: 64ch; }
@@ -386,7 +413,6 @@ fieldset.danger { border-color: color-mix(in srgb, var(--del) 55%, var(--rule));
 fieldset.danger legend b { color: var(--del); }
 .console { min-height: 5.5em; color: var(--ink-dim); white-space: pre-wrap; overflow-wrap: anywhere; }
 .console .cmd { color: var(--ink); }
-.console .cmd::before { content: "$ "; color: var(--chrome); }
 .console .ok { color: var(--add); }
 .console .bad { color: var(--del); }
 .console .cursor::after { content: "█"; color: var(--add); }
@@ -417,3 +443,24 @@ fieldset.danger legend b { color: var(--del); }
 .xd-outline li.pg { color: var(--chrome); padding-left: 0; margin-top: 6px; }
 .hint.bad { color: var(--del); }
 .xd-foot { display: flex; justify-content: flex-end; gap: 12px; margin-top: 14px; }
+
+/* settings: colours */
+.cl-cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 28px; }
+@media (max-width: 860px) { .cl-cols { grid-template-columns: minmax(0, 1fr); } }
+.cl-h { color: var(--ink); font-weight: 600; margin-bottom: 6px; }
+.cl-h span { color: var(--ink-mute); font-weight: 400; }
+.cl-list { display: grid; gap: 1px; max-height: 24em; overflow-y: auto; padding-right: 4px; }
+.cl-btn { font: inherit; color: var(--ink); background: none; border: 0; width: 100%; cursor: pointer; text-shadow: inherit; text-align: left;
+  display: grid; grid-template-columns: 12px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 4px 6px; }
+.cl-btn .key { width: 12px; height: 12px; }
+.cl-btn:hover, .cl-btn[aria-expanded="true"] { background: color-mix(in srgb, var(--ink) 7%, transparent); }
+.cl-n { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cl-m { color: var(--ink-mute); font-size: 11px; white-space: nowrap; }
+.cl-grid { display: grid; grid-template-columns: repeat(6, max-content); gap: 4px; align-items: center; padding: 8px 6px 10px 28px; }
+.cl-sw { font: inherit; background: none; border: 1px solid transparent; padding: 3px; cursor: pointer; position: relative; line-height: 0; }
+.cl-sw .key { width: 16px; height: 16px; }
+.cl-sw:hover { border-color: var(--ink-mute); }
+.cl-sw[aria-pressed="true"] { border-color: var(--chrome); }
+/* already someone's colour: a dot in the corner, the name in the tooltip */
+.cl-sw.used::after { content: ""; position: absolute; right: 1px; top: 1px; width: 3px; height: 3px; background: var(--ink); }
+.cl-auto { grid-column: 1 / -1; justify-self: start; margin-top: 4px; }

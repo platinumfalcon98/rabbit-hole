@@ -3,7 +3,7 @@ import * as os from "os"
 import * as vscode from "vscode"
 import { ExportExt, safeFileName } from "../shared/exportName"
 import { ExtensionMessage, WebviewMessage } from "../shared/types"
-import { crtSettingValue, getCrtSettings, getDailyTargetMinutes, getDailyTargetMs, getIdleThresholdMs } from "../shared/config"
+import { colorPicksWith, crtSettingValue, getColorPicks, getCrtSettings, getDailyTargetMinutes, getDailyTargetMs, getIdleThresholdMs } from "../shared/config"
 import {
   PROJECTS_KEY,
   SnapshotSummary,
@@ -30,6 +30,7 @@ export function handleMessage(
       // Settings first: the webview needs the target before it draws a streak.
       sendSettings(storage, panel)
       postYear(storage, panel)
+      panel.markReady?.()
       break
     }
 
@@ -102,6 +103,17 @@ export function handleMessage(
           () => sendSettings(storage, panel),
           err => tell(panel, false, `Rabbit Hole: Couldn't save the display setting (${err instanceof Error ? err.message : String(err)}).`),
         )
+      break
+    }
+
+    case "setColor": {
+      // a pick the manifest would reject never reaches settings.json; the
+      // configuration change resends the year, which carries the picks
+      const next = colorPicksWith(getColorPicks(), msg.kind, msg.id, msg.mark)
+      if (!next) break
+      vscode.workspace.getConfiguration("rabbithole")
+        .update("colors", next, vscode.ConfigurationTarget.Global)
+        .then(undefined, err => tell(panel, false, `Rabbit Hole: Couldn't save the colour (${err instanceof Error ? err.message : String(err)}).`))
       break
     }
 
@@ -333,11 +345,12 @@ export function onConfigChanged(
     storage.updateProjectStreak(storage.getCurrentProjectId())
   }
   sendSettings(storage, panel)
-  if (targetChanged) postYear(storage, panel)
+  // the year carries the colour picks
+  if (targetChanged || affects("rabbithole.colors")) postYear(storage, panel)
 }
 
 export function postYear(storage: StorageService, panel: DashboardPanel): void {
-  panel.postMessage({ type: "year", ...buildYear(storage, new Date(), getDailyTargetMs()) })
+  panel.postMessage({ type: "year", ...buildYear(storage, new Date(), getDailyTargetMs(), getColorPicks()) })
 }
 
 // Shows the result the way it always has, and also hands it to the dashboard's

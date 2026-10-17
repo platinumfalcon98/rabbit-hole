@@ -48,7 +48,7 @@ export function renderOverview(store: Store, openDay: (date: string) => void, ba
     const i = series.days.indexOf(date)
     return i >= 0 ? series.targetMs[i] : series.targetMs[series.targetMs.length - 1] ?? year.globalTargetMs
   }
-  const colors = languagePaints(view.wholeLanguages)
+  const colors = languagePaints(year, view.wholeLanguages)
   const focusName = !focus ? "" : focus.kind === "project" ? names.project(focus.id) : focus.id
   const focusColor = !focus ? null : (focus.kind === "project" ? names.paint(focus.id) : langPaint(colors, focus.id)).color
   const yearIndex = new Map(year.days.map((d, i) => [d, i] as [string, number]))
@@ -178,6 +178,13 @@ export function renderOverview(store: Store, openDay: (date: string) => void, ba
   })
 
   setLineTotals(view.linesAdded, view.linesDeleted)
+  // the notes are about today's counting, so only a view that includes today shows them
+  const notes = to >= year.today ? store.settings?.lineNotes ?? [] : []
+  const mark = $("ln-notes")
+  mark.hidden = notes.length === 0
+  mark.textContent = `! ${notes.length} ${notes.length === 1 ? "note" : "notes"}`
+  mark.title = notes.join("\n")
+  mark.setAttribute("aria-label", `${notes.length} line-counting ${notes.length === 1 ? "note" : "notes"}, shown in settings output`)
   if (single) {
     const week = store.days(addDaysKey(to, -6), to)
     const days = week ? buildView(week, sel, focus).days : view.days

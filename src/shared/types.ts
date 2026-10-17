@@ -84,6 +84,14 @@ export interface YearPayload {
   globalTargetMs: number
   global: { streak: number; active: number[]; targetMs: (number | null)[]; streaks?: number[] }  // streaks: stored per day
   projects: ProjectYear[]        // registry order
+  languages?: string[]           // every language of the past year, most active first: the default colour order
+  colors?: ColorPicks            // colours picked in Settings
+}
+// Picked marks from the rabbithole.colors setting: an index into the 24 marks
+// (6 palette colours × 4 textures, colors.ts markOf).
+export interface ColorPicks {
+  projects: Record<string, number>
+  languages: Record<string, number>
 }
 export interface RangePayload {
   from: string
@@ -107,7 +115,7 @@ export interface MiniPayload {
   year: YearPayload
   logs: Record<string, DailyLog>   // today's log for every registered project
 }
-export type MiniMessage = { type: "ready" } | { type: "openDashboard" }
+export type MiniMessage = { type: "ready" } | { type: "openDashboard" } | { type: "openExport" }
 
 // ── CRT display (dashboard + sidebar) ─────────────────────────────────────
 export type CrtMask = "slot" | "grille" | "shadow" | "off"
@@ -131,6 +139,7 @@ export type ExtensionMessage =
   | ({ type: "live" } & LivePayload)
   | { type: "actionResult"; ok: boolean; lines: string[] }
   | ({ type: "mini" } & MiniPayload)
+  | { type: "openExport" }   // the sidebar's share button: open the export dialog
 
 
 export type WebviewMessage =
@@ -142,6 +151,7 @@ export type WebviewMessage =
   | { type: "updateSetting"; key: "dailyTargetMinutes" | "idleThresholdMinutes"; value: number }
   | { type: "updateProjectSetting"; projectId: string; key: "dailyTargetMinutes"; value: number | null }
   | { type: "updateCrtSetting"; key: "mask" | "pitch" | "strength" | "vignette" | "effects"; value: string | number | string[] }
+  | { type: "setColor"; kind: "project" | "language"; id: string; mark: number | null }   // null: back to automatic
   | { type: "revealStorage" }
   | { type: "createBackup"; scope: "projects" | "all" }
   | { type: "importData"; scope: "projects" | "all" }

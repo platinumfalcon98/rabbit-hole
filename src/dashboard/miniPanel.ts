@@ -83,7 +83,10 @@ export class MiniPanel implements vscode.WebviewViewProvider {
     <div class="plist" id="pj-list"></div>
   </fieldset>
 
-  <button class="open" id="open" type="button">open dashboard</button>
+  <div class="actions">
+    <button class="open" id="open" type="button">open dashboard</button>
+    <button class="share" id="share" type="button"><span class="thumb" id="share-icon"></span><span class="lbl">share your activity<small id="share-sub"></small></span></button>
+  </div>
 </div>
 <div id="tip" hidden></div>
 <canvas class="crt" id="mask" aria-hidden="true"></canvas>

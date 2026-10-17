@@ -1,7 +1,7 @@
 // Imports `vscode` — never import this from `src/webview/*`. It sits beside
 // types.ts, which IS webview-shared; the proximity invites the mistake.
 import * as vscode from "vscode"
-import type { CrtEffect, CrtMask, CrtPitch, CrtSettings } from "./types"
+import type { ColorPicks, CrtEffect, CrtMask, CrtPitch, CrtSettings } from "./types"
 
 export const DAILY_TARGET_DEFAULT = 20
 export const SESSION_EXPIRY_MS = 60 * 60_000
@@ -84,4 +84,34 @@ export function crtSettingValue(key: string, value: unknown): CrtMask | CrtPitch
     default:
       return null
   }
+}
+
+// colors.ts's MARKS (6 palette colours × 4 textures); the webview can't be imported here.
+export const COLOR_MARKS = 24
+
+const isMark = (v: unknown): v is number => typeof v === "number" && Number.isInteger(v) && v >= 0 && v < COLOR_MARKS
+
+function marksIn(raw: unknown): Record<string, number> {
+  const out: Record<string, number> = {}
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return out
+  for (const [k, v] of Object.entries(raw)) if (k && isMark(v)) out[k] = v
+  return out
+}
+
+// Hand-edited entries that aren't a mark are dropped, never guessed at.
+export function getColorPicks(): ColorPicks {
+  const raw = vscode.workspace.getConfiguration("rabbithole").get<Record<string, unknown>>("colors")
+  return { projects: marksIn(raw?.projects), languages: marksIn(raw?.languages) }
+}
+
+// The setting after one pick (or, with mark null, back to automatic); null for
+// anything the dashboard shouldn't be able to write.
+export function colorPicksWith(current: ColorPicks, kind: unknown, id: unknown, mark: unknown): ColorPicks | null {
+  if ((kind !== "project" && kind !== "language") || typeof id !== "string" || !id) return null
+  if (mark !== null && !isMark(mark)) return null
+  const key = kind === "project" ? "projects" : "languages"
+  const next = { ...current[key] }
+  if (mark === null) delete next[id]
+  else next[id] = mark
+  return { ...current, [key]: next }
 }

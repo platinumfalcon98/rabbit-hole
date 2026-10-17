@@ -1,6 +1,6 @@
 // Range buttons and the two-month calendar dropped from the status line.
 // The rules (presets, 92-day limit, click order) are calendar.ts's.
-import { Pick, RangeId, dayDisabled, monthDays, pickDay, pickLabel, presetOf, presetRange, rangeLabel } from "./calendar"
+import { Pick, RangeId, dayDisabled, monthDays, pickDay, pickLabel, presetOf, presetRange, spanLabel, stepRange } from "./calendar"
 import { $, el, press } from "./dom"
 import { MON, dstr, fmt, fromKey } from "./format"
 import { closeMenu } from "./projectPicker"
@@ -17,9 +17,21 @@ const ym = (key: string): number => {
 
 export function renderRangeButtons(store: Store): void {
   const v = store.view
+  const year = store.year
   const picked = v.preset === null && !!v.from
-  press($("range"), b => (b.dataset.range ? b.dataset.range === v.preset : picked))
-  $("r-cal").textContent = picked ? rangeLabel(v.from, v.to) : "pick…"
+  press($("r-presets"), b => (b.dataset.range ? b.dataset.range === v.preset : picked))
+  $("r-date").textContent = v.from ? spanLabel(v.from, v.to) : ""
+  $<HTMLButtonElement>("r-prev").disabled = !year || !v.from || !stepRange(v.from, v.to, -1, year.days[0], year.today)
+  $<HTMLButtonElement>("r-next").disabled = !year || !v.from || !stepRange(v.from, v.to, 1, year.days[0], year.today)
+}
+
+function step(store: Store, dir: -1 | 1): void {
+  const year = store.year
+  const { from, to } = store.view
+  const r = year && from ? stepRange(from, to, dir, year.days[0], year.today) : null
+  if (!year || !r) return
+  closePicker()
+  store.setView(r.from, r.to, presetOf(r.from, r.to, year.today))
 }
 
 export function closePicker(): void {
@@ -92,7 +104,11 @@ const dayButton = (t: EventTarget | null): HTMLButtonElement | null =>
 export function initDatePicker(store: Store): void {
   $("range").addEventListener("click", e => {
     const b = e.target instanceof Element ? e.target.closest<HTMLButtonElement>("button") : null
-    if (!b || !store.year) return
+    if (!b || !store.year || $("picker").contains(b)) return
+    if (b.id === "r-prev" || b.id === "r-next") {
+      step(store, b.id === "r-prev" ? -1 : 1)
+      return
+    }
     if (b.id === "r-cal") {
       if ($("picker").hidden) openPicker(store)
       else closePicker()

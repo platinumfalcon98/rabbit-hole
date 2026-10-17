@@ -2,6 +2,7 @@
 // number comes from miniModel.ts.
 import type { DailyLog, ExtensionMessage, MiniMessage, YearPayload } from "../shared/types"
 import { carrotSvg } from "./carrot"
+import { shareIconSvg } from "./shareIcon"
 import { projectPaint } from "./colors"
 import { applyCrt, initCrt } from "./crt"
 import { $, el, keyBox } from "./dom"
@@ -99,6 +100,11 @@ function projects(v: MiniView): void {
     : [el("div", "hint", "no activity yet today")]))
 }
 
+// what the card the button makes will say: today, all projects, whatever is hovered
+function shareLine(all: MiniView): void {
+  $("share-sub").textContent = `${fmt(all.todayMs)} today · ${all.streak > 0 ? `${all.streak}-day streak` : "no streak yet"}`
+}
+
 function render(): void {
   if (!year) return
   const now = Date.now()
@@ -111,6 +117,7 @@ function render(): void {
     lines(v)
     week(v)
     projects(v)
+    shareLine(focus ? miniView(year!, logs, null, now) : v)
   })
 }
 
@@ -137,4 +144,6 @@ wireFocus($("mini"), {
   },
 })
 $("open").addEventListener("click", () => vscode.postMessage({ type: "openDashboard" }))
+$("share-icon").append(shareIconSvg(2))
+$("share").addEventListener("click", () => vscode.postMessage({ type: "openExport" }))
 vscode.postMessage({ type: "ready" })

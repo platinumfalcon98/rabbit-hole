@@ -27,6 +27,22 @@ function store() {
   }).s
 }
 
+describe("year payload: colours", () => {
+  it("ranks the year's languages by time, ties by name, and carries the picks", () => {
+    const lang = (time: number) => ({ time, linesAdded: 0, linesDeleted: 0 })
+    const s = makeStore({
+      [PROJECTS_KEY]: [proj("alpha"), proj("beta")],
+      [`rabbithole:log:alpha:${today}`]: { ...log(30 * MIN), languages: { go: lang(10 * MIN), css: lang(2 * MIN) } },
+      [`rabbithole:log:beta:${daysAgo(3)}`]: { ...log(30 * MIN, daysAgo(3)), languages: { go: lang(5 * MIN), rust: lang(12 * MIN), abc: lang(2 * MIN) } },
+    }).s
+    const picks = { projects: { beta: 4 }, languages: { css: 0 } }
+    const y = buildYear(s, new Date(), TARGET, picks)
+    assert.deepStrictEqual(y.languages, ["go", "rust", "abc", "css"])
+    assert.deepStrictEqual(y.colors, picks)
+    assert.deepStrictEqual(buildMini(s, new Date(), TARGET, picks).year.colors, picks)
+  })
+})
+
 describe("year payload", () => {
   it("starts on a Monday, 364–370 days back, and ends today", () => {
     const now = new Date()

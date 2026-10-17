@@ -46,17 +46,45 @@ function slot(i: number): Paint {
   return { color, fill: fill(color, texture), texture }
 }
 
-// By registry order, which never reorders, so a project keeps its mark everywhere.
-export function projectPaint(year: YearPayload | null, id: string): Paint {
-  const i = year ? year.projects.findIndex(p => p.id === id) : -1
-  return i < 0 ? OTHER : slot(i)
+export const paintOf = (mark: number): Paint => (mark < 0 ? OTHER : slot(mark))
+
+const COLOR_NAMES = ["green", "blue", "amber", "pink", "violet", "olive"]
+// "blue", "blue stripes": what Settings calls a mark
+export function markName(mark: number): string {
+  const { slot, texture } = markOf(mark)
+  return texture === "solid" ? COLOR_NAMES[slot] : `${COLOR_NAMES[slot]} ${texture}`
 }
 
-// By rank in the unfocused view, so hovering never repaints anything. Past
-// 24 languages the rest share the muted "other".
-export function languagePaints(rows: LangRow[]): Map<string, Paint> {
+const picked = (picks: Record<string, number> | undefined, key: string): number | undefined => {
+  const m = picks?.[key]
+  return typeof m === "number" && Number.isInteger(m) && m >= 0 && m < MARKS ? m : undefined
+}
+
+// A picked mark, else registry order, which never reorders, so a project keeps
+// its mark everywhere. -1 for a project the year doesn't list.
+export function projectMark(year: YearPayload | null, id: string): number {
+  const i = year ? year.projects.findIndex(p => p.id === id) : -1
+  if (i < 0) return -1
+  return picked(year?.colors?.projects, id) ?? i
+}
+
+export const projectPaint = (year: YearPayload | null, id: string): Paint => paintOf(projectMark(year, id))
+
+// A picked mark, else the language's rank by use over the year, so a language
+// is the same colour in every view and hovering never repaints anything.
+// Languages the year doesn't list yet (one seen for the first time since the
+// year was sent) rank after it, in the order given. Past 24, "other" (-1).
+export function languageMarks(year: YearPayload | null, rows: { name: string }[]): Map<string, number> {
+  const ranked = [...(year?.languages ?? [])]
+  for (const r of rows) if (!ranked.includes(r.name)) ranked.push(r.name)
+  const m = new Map<string, number>()
+  ranked.forEach((name, i) => m.set(name, picked(year?.colors?.languages, name) ?? (i < MARKS ? i : -1)))
+  return m
+}
+
+export function languagePaints(year: YearPayload | null, rows: LangRow[]): Map<string, Paint> {
   const m = new Map<string, Paint>()
-  rows.slice(0, MARKS).forEach((r, i) => m.set(r.name, slot(i)))
+  for (const [name, mark] of languageMarks(year, rows)) m.set(name, paintOf(mark))
   return m
 }
 

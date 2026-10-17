@@ -77,6 +77,13 @@ describe("phase 2 protocol", () => {
     assert.deepStrictEqual(types(), ["settings", "year"])
   })
 
+  it("ready marks the panel ready only after settings and the year, so a waiting export dialog has its data", () => {
+    const seen: string[] = []
+    const p: any = { postMessage: (m: any) => seen.push(m.type), markReady: () => seen.push("markReady") }
+    handleMessage({ type: "ready" } as any, store(), p)
+    assert.deepStrictEqual(seen, ["settings", "year", "markReady"])
+  })
+
   it("requestYear sends a year", () => {
     handleMessage({ type: "requestYear" } as any, store(), panel)
     assert.deepStrictEqual(types(), ["year"])
@@ -106,6 +113,38 @@ describe("CRT writes", () => {
     assert.strictEqual(cfg().get("crt.strength"), 100)
     assert.deepStrictEqual(cfg().get("crt.effects"), ["scanlines", "roll"])
     assert.ok(types().includes("settings"))
+  })
+})
+
+describe("colour picks", () => {
+  const cfg = () => v.workspace.getConfiguration("rabbithole")
+
+  it("a pick is merged into the setting, and automatic removes it", async () => {
+    handleMessage({ type: "setColor", kind: "project", id: "alpha", mark: 7 } as any, store(), panel)
+    await settle()
+    handleMessage({ type: "setColor", kind: "language", id: "go", mark: 2 } as any, store(), panel)
+    await settle()
+    assert.deepStrictEqual(cfg().get("colors"), { projects: { alpha: 7 }, languages: { go: 2 } })
+    handleMessage({ type: "setColor", kind: "project", id: "alpha", mark: null } as any, store(), panel)
+    await settle()
+    assert.deepStrictEqual(cfg().get("colors"), { projects: {}, languages: { go: 2 } })
+  })
+
+  it("a mark outside the 24, a fraction or an unknown kind is never written", async () => {
+    const before = JSON.stringify(cfg().get("colors"))
+    for (const bad of [{ kind: "project", id: "alpha", mark: 24 }, { kind: "project", id: "alpha", mark: 1.5 },
+      { kind: "file", id: "x", mark: 1 }, { kind: "language", id: "", mark: 1 }]) {
+      handleMessage({ type: "setColor", ...bad } as any, store(), panel)
+    }
+    await settle()
+    assert.strictEqual(JSON.stringify(cfg().get("colors")), before)
+  })
+
+  it("a colour change sends a fresh year carrying the picks", () => {
+    v.workspace.getConfiguration("rabbithole").update("colors", { projects: { beta: 3 }, languages: { rust: 9, bad: 99 } })
+    onConfigChanged((s: string) => s === "rabbithole" || s === "rabbithole.colors", store(), panel)
+    assert.deepStrictEqual(types(), ["settings", "year"])
+    assert.deepStrictEqual(posted[1].colors, { projects: { beta: 3 }, languages: { rust: 9 } })
   })
 })
 

@@ -11,6 +11,14 @@ const settings = {
 }
 const send = (m: unknown) => setTimeout(() => window.postMessage(m, "*"), 30)
 
+// what buildYear adds: languages ranked by time over the fixture's logs, and the picks
+const langMs = new Map<string, number>()
+for (const logs of Object.values(range.logs) as any[][]) {
+  for (const l of logs) for (const [name, s] of Object.entries(l.languages ?? {}) as [string, any][]) langMs.set(name, (langMs.get(name) ?? 0) + s.time)
+}
+year.languages = [...langMs].sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1)).map(([n]) => n)
+year.colors = { projects: {}, languages: {} }
+
 ;(window as any).acquireVsCodeApi = () => ({
   getState: () => null,
   setState: () => undefined,
@@ -18,6 +26,12 @@ const send = (m: unknown) => setTimeout(() => window.postMessage(m, "*"), 30)
     console.log("[harness] webview →", m.type, m)
     if (m.type === "ready") { send(settings); send({ type: "year", ...year }) }
     if (m.type === "requestYear") send({ type: "year", ...year })
+    if (m.type === "setColor") {
+      const key = m.kind === "project" ? "projects" : "languages"
+      if (m.mark === null) delete year.colors[key][m.id]
+      else year.colors[key][m.id] = m.mark
+      send({ type: "year", ...year })
+    }
     if (m.type === "requestDays") {
       const logs = Object.fromEntries(Object.entries(range.logs).map(([id, l]: [string, any]) => [id, l.filter((x: any) => x.date >= m.from && x.date <= m.to)]))
       send({ type: "range", from: m.from, to: m.to, logs, ...(m.for ? { for: m.for } : {}) })

@@ -70,6 +70,17 @@ body { padding: 12px 12px 18px; }
 
 .open { font: inherit; font-weight: 600; width: 100%; padding: 6px 8px; border: 0; cursor: pointer; background: var(--chrome); color: var(--chrome-ink); text-shadow: none; }
 .open:hover { filter: brightness(1.08); }
+.actions { display: grid; gap: 6px; }
+/* opens the dashboard's export dialog; outlined so "open dashboard" stays the
+   main action. The second line previews what the card will show. */
+.share { font: inherit; width: 100%; padding: 0; border: 1px solid var(--add); cursor: pointer; background: none; color: var(--ink); text-shadow: inherit;
+  display: flex; align-items: stretch; text-align: left; }
+.share .thumb { display: grid; place-items: center; padding: 4px 9px; border-right: 1px solid var(--add); color: var(--add);
+  background: color-mix(in srgb, var(--add) 10%, transparent); }
+.share .thumb svg { display: block; }
+.share .lbl { display: grid; padding: 3px 10px; line-height: 1.35; min-width: 0; }
+.share small { color: var(--ink-mute); font-size: 10.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.share:hover .thumb { background: var(--add); color: var(--bg); }
 
 /* narrow sidebars drop what stops being readable */
 @media (max-width: 230px) {

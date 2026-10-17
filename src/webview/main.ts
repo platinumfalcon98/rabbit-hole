@@ -2,6 +2,7 @@
 // nothing here computes a number.
 import type { ExtensionMessage, WebviewMessage } from "../shared/types"
 import { carrotSvg } from "./carrot"
+import { shareIconSvg } from "./shareIcon"
 import { applyCrt, initCrt } from "./crt"
 import { $ } from "./dom"
 import { Change, Store, Tab } from "./state"
@@ -21,6 +22,7 @@ import { initHeat } from "./heatmap"
 import { initCards, renderCards } from "./projectCards"
 import { initExport, onExportMessage, openExport } from "./exportDialog"
 import { initSettings, renderSettings } from "./settingsTab"
+import { initColorSettings, renderColorSettings } from "./colorSettings"
 
 declare function acquireVsCodeApi(): {
   postMessage(m: WebviewMessage): void
@@ -33,6 +35,7 @@ const post = (m: WebviewMessage): void => vscode.postMessage(m)
 const store = new Store(post)
 const TABS: Tab[] = ["overview", "activity", "projects", "settings"]
 let tab: Tab = "overview"
+const FIXED_SPAN: Record<Tab, string> = { overview: "", activity: "past 12 months", projects: "past 14 days", settings: "" }
 
 type Render = (change: Change | "tab") => void
 // Each tab registers its renderer below; the top bar renders on every change.
@@ -54,7 +57,10 @@ function showTab(next: Tab): void {
   tab = next
   document.querySelectorAll<HTMLElement>("section.tab").forEach(s => { s.hidden = s.dataset.tab !== next })
   document.querySelectorAll<HTMLButtonElement>("#tabs button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.tab === next)))
+  // the other tabs have a fixed span; the range bar says which, and keeps share in place
   $("range").hidden = next !== "overview"
+  $("r-fixed").hidden = next === "overview"
+  $("r-fixed").textContent = FIXED_SPAN[next]
   hideTip()
   try { vscode.setState({ tab: next }) } catch { /* only a convenience */ }
   render("tab")
@@ -105,7 +111,17 @@ tabs.projects = () => renderCards(store, openInOverview)
 initExport(store, post)
 extra.push(onExportMessage)
 initSettings(store, post, openExport)
-tabs.settings = c => renderSettings(store, c)
+$("share-btn").prepend(shareIconSvg(2))
+$("share-btn").addEventListener("click", openExport)
+initColorSettings(store, post)
+tabs.settings = c => {
+  renderSettings(store, c)
+  renderColorSettings(store)
+}
+$("ln-notes").addEventListener("click", () => {
+  showTab("settings")
+  $("console-box").scrollIntoView({ block: "center" })
+})
 
 // ── start ──
 initTooltip($("tip"))
@@ -118,6 +134,8 @@ store.on(change => {
 window.addEventListener("message", (e: MessageEvent<ExtensionMessage>) => {
   for (const fn of extra) fn(e.data)
   store.receive(e.data)
+  // the sidebar's share button; the year it needs arrived before it
+  if (e.data.type === "openExport") openExport()
 })
 document.querySelectorAll<HTMLButtonElement>("#tabs button").forEach(b =>
   b.addEventListener("click", () => showTab((b.dataset.tab as Tab) ?? "overview")))

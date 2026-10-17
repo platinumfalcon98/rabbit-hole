@@ -5,7 +5,10 @@
   "version": "0.6.0",
   "publisher": "rabbit-hole",
   "icon": "resources/icon.png",
-  "galleryBanner": { "color": "#06090a", "theme": "dark" },
+  "galleryBanner": {
+    "color": "#06090a",
+    "theme": "dark"
+  },
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -144,6 +147,33 @@
             "bloom"
           ],
           "description": "Extra CRT effects. Refresh roll and flicker are skipped when the OS asks for reduced motion."
+        },
+        "rabbithole.colors": {
+          "type": "object",
+          "default": {
+            "projects": {},
+            "languages": {}
+          },
+          "markdownDescription": "Colours picked for projects and languages in the dashboard (Settings → colours). Each value is a mark from 0 to 23: one of 6 palette colours (0–5) in solid, stripes (6–11), bars (12–17) or checks (18–23). Anything not listed gets an automatic colour.",
+          "properties": {
+            "projects": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 23
+              }
+            },
+            "languages": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 23
+              }
+            }
+          },
+          "additionalProperties": false
         }
       }
     }

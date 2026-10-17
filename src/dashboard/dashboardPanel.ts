@@ -7,6 +7,10 @@ export class DashboardPanel {
   private readonly panel: vscode.WebviewPanel
   private readonly extensionUri: vscode.Uri
   private disposables: vscode.Disposable[] = []
+  // A hidden webview is torn down and reloads when shown, so a message posted
+  // before its next "ready" would be lost; the export request waits for it.
+  private ready = false
+  private exportPending = false
 
   static createOrShow(context: vscode.ExtensionContext): void {
     const column = vscode.window.activeTextEditor
@@ -41,6 +45,20 @@ export class DashboardPanel {
     this.panel.webview.html = this.getHtmlContent()
 
     this.panel.onDidDispose(() => this.dispose(), null, this.disposables)
+    this.panel.onDidChangeViewState(e => { if (!e.webviewPanel.visible) this.ready = false }, null, this.disposables)
+  }
+
+  openExportWhenReady(): void {
+    if (this.ready) this.postMessage({ type: "openExport" })
+    else this.exportPending = true
+  }
+
+  // called once the webview has its settings and year
+  markReady(): void {
+    this.ready = true
+    if (!this.exportPending) return
+    this.exportPending = false
+    this.postMessage({ type: "openExport" })
   }
 
   dispose(): void {
@@ -84,30 +102,41 @@ export class DashboardPanel {
 <body>
 <div class="screen">
   <header class="bar">
-    <span class="brand" id="brand" title="Rabbit Hole"></span>
-    <div class="projpick">
-      <button class="proj" id="proj-btn" aria-haspopup="listbox" aria-expanded="false" aria-label="Project shown"><i class="key hollow" id="proj-key"></i><span id="proj-name">all projects</span><span class="caret">▾</span></button>
-      <div class="pmenu" id="pmenu" role="listbox" aria-label="Project" hidden></div>
+    <div class="bar-top">
+      <span class="brand" id="brand" title="Rabbit Hole"></span>
+      <div class="projpick">
+        <button class="proj" id="proj-btn" aria-haspopup="listbox" aria-expanded="false" aria-label="Project shown"><i class="key hollow" id="proj-key"></i><span id="proj-name">all projects</span><span class="caret">▾</span></button>
+        <div class="pmenu" id="pmenu" role="listbox" aria-label="Project" hidden></div>
+      </div>
     </div>
     <nav class="tabs" id="tabs" aria-label="Dashboard sections">
       <button data-tab="overview" aria-pressed="true">overview</button><button data-tab="activity" aria-pressed="false">activity</button><button data-tab="projects" aria-pressed="false">projects</button><button data-tab="settings" aria-pressed="false">settings</button>
     </nav>
-    <span class="spacer"></span>
-    <div class="range" id="range" role="group" aria-label="Date range">
-      <button data-range="today" aria-pressed="true">today</button><button data-range="yday" aria-pressed="false">yesterday</button><button data-range="7d" aria-pressed="false">7d</button><button data-range="30d" aria-pressed="false">30d</button><button id="r-cal" aria-haspopup="dialog" aria-expanded="false" aria-pressed="false">pick…</button>
-    </div>
-    <div class="picker" id="picker" role="dialog" aria-label="Pick a date range" hidden>
-      <div class="pk-head">
-        <button class="btn step" id="pk-prev" aria-label="Earlier months">‹</button>
-        <span class="hint">click a start day, then an end day</span>
-        <span class="spacer"></span>
-        <button class="btn step" id="pk-next" aria-label="Later months">›</button>
+    <div class="rangebar">
+      <div class="range" id="range" role="group" aria-label="Date range">
+        <span class="when">
+          <button class="step" id="r-prev" aria-label="Earlier days">‹</button><span class="date" id="r-date" aria-live="polite"></span><button class="step" id="r-next" aria-label="Later days">›</button>
+        </span>
+        <span class="presets" id="r-presets">
+          <button data-range="today" aria-pressed="true">today</button><button data-range="yday" aria-pressed="false">yesterday</button><button data-range="7d" aria-pressed="false">7d</button><button data-range="30d" aria-pressed="false">30d</button><button class="cal" id="r-cal" aria-haspopup="dialog" aria-expanded="false" aria-pressed="false">▦ custom range…</button>
+        </span>
+        <div class="picker" id="picker" role="dialog" aria-label="Pick a date range" hidden>
+          <div class="pk-head">
+            <button class="btn step" id="pk-prev" aria-label="Earlier months">‹</button>
+            <span class="hint">click a start day, then an end day</span>
+            <span class="spacer"></span>
+            <button class="btn step" id="pk-next" aria-label="Later months">›</button>
+          </div>
+          <div class="pk-months" id="pk-months"></div>
+          <div class="pk-foot">
+            <span id="pk-sel"></span><span class="spacer"></span>
+            <button class="btn" id="pk-cancel">cancel</button><button class="btn" id="pk-apply" disabled>apply</button>
+          </div>
+        </div>
       </div>
-      <div class="pk-months" id="pk-months"></div>
-      <div class="pk-foot">
-        <span id="pk-sel"></span><span class="spacer"></span>
-        <button class="btn" id="pk-cancel">cancel</button><button class="btn" id="pk-apply" disabled>apply</button>
-      </div>
+      <span class="fixed" id="r-fixed" hidden></span>
+      <span class="spacer"></span>
+      <button class="share-bar" id="share-btn" type="button">share your activity</button>
     </div>
   </header>
 
@@ -144,6 +173,7 @@ export class DashboardPanel {
           <span class="big add" id="ln-add">+0</span>
           <span class="big del" id="ln-del">−0</span>
           <span class="kv">net <b id="ln-net">+0</b></span>
+          <button class="note-mark" id="ln-notes" type="button" hidden></button>
         </div>
         <div class="week" id="week" aria-label="Lines added and removed"></div>
       </fieldset>
@@ -256,6 +286,15 @@ export class DashboardPanel {
         </div>
       </fieldset>
 
+      <fieldset class="span-12" id="set-colors">
+        <legend><b>colours</b> projects and languages</legend>
+        <div class="cl-cols">
+          <div class="cl-col"><div class="cl-h">projects</div><div class="cl-list" id="cl-projects"></div></div>
+          <div class="cl-col"><div class="cl-h">languages <span>most used first, past 12 months</span></div><div class="cl-list" id="cl-langs"></div></div>
+        </div>
+        <p class="why">Anything you haven't picked gets an automatic colour: projects in the order they were first tracked, languages by how much you used them over the past year. Two things can share a colour if you pick it twice. The share card and report use the same colours.</p>
+      </fieldset>
+
       <fieldset class="span-12">
         <legend><b>your data</b> stored on this machine only</legend>
         <div class="set">
@@ -284,6 +323,11 @@ export class DashboardPanel {
         </div>
       </fieldset>
 
+      <fieldset class="span-12" id="console-box">
+        <legend><b>output</b></legend>
+        <div class="console" id="console" aria-live="polite"></div>
+      </fieldset>
+
       <fieldset class="span-12 danger">
         <legend><b>danger</b> a backup is written before either of these runs</legend>
         <div class="set">
@@ -301,11 +345,6 @@ export class DashboardPanel {
             <button class="btn danger" id="clear-all-btn" disabled>delete all</button>
           </div>
         </div>
-      </fieldset>
-
-      <fieldset class="span-12">
-        <legend><b>output</b></legend>
-        <div class="console" id="console" aria-live="polite"></div>
       </fieldset>
     </div>
   </section>

@@ -8,13 +8,14 @@ import { setSaved, wireSteppers } from "./stepper"
 
 type Post = (m: WebviewMessage) => void
 
+// what each button is doing, in plain words; the host's actionResult says how it went
 const ACTIONS: Record<string, { cmd: string; run: (post: Post, openExport: () => void) => void }> = {
-  reveal: { cmd: "rabbithole reveal-storage", run: post => post({ type: "revealStorage" }) },
-  export: { cmd: "rabbithole export", run: (_post, open) => open() },
-  "backup-all": { cmd: "rabbithole backup --all", run: post => post({ type: "createBackup", scope: "all" }) },
-  "backup-some": { cmd: "rabbithole backup --projects", run: post => post({ type: "createBackup", scope: "projects" }) },
-  "restore-some": { cmd: "rabbithole restore --projects", run: post => post({ type: "importData", scope: "projects" }) },
-  "restore-all": { cmd: "rabbithole restore --all", run: post => post({ type: "importData", scope: "all" }) },
+  reveal: { cmd: "opening the storage folder…", run: post => post({ type: "revealStorage" }) },
+  export: { cmd: "opening export…", run: (_post, open) => open() },
+  "backup-all": { cmd: "backing up everything…", run: post => post({ type: "createBackup", scope: "all" }) },
+  "backup-some": { cmd: "backing up some projects…", run: post => post({ type: "createBackup", scope: "projects" }) },
+  "restore-some": { cmd: "restoring some projects…", run: post => post({ type: "importData", scope: "projects" }) },
+  "restore-all": { cmd: "restoring everything…", run: post => post({ type: "importData", scope: "all" }) },
 }
 
 export function initSettings(store: Store, post: Post, openExport: () => void): void {
@@ -60,13 +61,14 @@ export function initSettings(store: Store, post: Post, openExport: () => void): 
   const projConfirm = $<HTMLInputElement>("clear-proj-confirm")
   const projBtn = $<HTMLButtonElement>("clear-proj-btn")
   const projName = () => proj.selectedOptions[0]?.textContent ?? ""
-  const syncClear = () => { projBtn.disabled = !projName() || projConfirm.value.trim() !== projName() }
+  // a long name is cut off in the select, and it has to be typed exactly
+  const syncClear = () => { proj.title = projName(); projBtn.disabled = !projName() || projConfirm.value.trim() !== projName() }
   proj.addEventListener("change", syncClear)
   projConfirm.addEventListener("input", syncClear)
   projBtn.addEventListener("click", () => {
     const name = projName()
     if (!proj.value || projConfirm.value.trim() !== name) return
-    store.note("cmd", `rabbithole clear --project ${name}`)
+    store.note("cmd", `clearing ${name}'s history…`)
     post({ type: "clearProject", projectId: proj.value })
     projConfirm.value = ""
     syncClear()
@@ -76,7 +78,7 @@ export function initSettings(store: Store, post: Post, openExport: () => void): 
   allConfirm.addEventListener("input", () => { allBtn.disabled = allConfirm.value.trim() !== "DELETE" })
   allBtn.addEventListener("click", () => {
     if (allConfirm.value.trim() !== "DELETE") return
-    store.note("cmd", "rabbithole clear --all")
+    store.note("cmd", "clearing everything…")
     post({ type: "clearAll" })
     allConfirm.value = ""
     allBtn.disabled = true

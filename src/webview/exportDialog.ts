@@ -14,6 +14,7 @@ import { cardFontsReady, cardJpegBase64, drawCard } from "./shareCard"
 import type { Store } from "./state"
 
 const EXT: Record<Format, ExportExt> = { card: "jpg", report: "pdf", csv: "csv", json: "json" }
+const FORMAT_NAME: Record<Format, string> = { card: "a share card", report: "a report", csv: "CSV", json: "JSON" }
 const NAME: Record<Format, string> = { card: "share card", report: "report", csv: "csv", json: "json" }
 const WHAT: Record<Format, string> = {
   card: "a 420×620 image to post, drawn at 3×",
@@ -137,7 +138,7 @@ async function go(): Promise<void> {
   if (!s || !p || !y || busy) return
   const { from, to } = spanDates(span, y.today)
   const name = exportFileName(title(), to, SPAN_DAYS[span], EXT[format])
-  s.note("cmd", `rabbithole export --${format} --${span}${sel === "all" ? "" : ` --project ${title()}`}`)
+  s.note("cmd", `exporting ${FORMAT_NAME[format]}, ${span === "today" ? "today" : `last ${span}`}, ${sel === "all" ? "all projects" : title()}…`)
   busy = true
   status(format === "card" || format === "report" ? "drawing…" : "saving…")
   render()

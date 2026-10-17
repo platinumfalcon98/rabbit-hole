@@ -22,7 +22,7 @@ module.exports = {
     activeTextEditor: undefined,
     createWebviewPanel: () => ({
       webview: { cspSource: "", asWebviewUri: u => "/" + u.rel, set html(v) { html = v }, postMessage() {}, onDidReceiveMessage() {} },
-      onDidDispose() {}, reveal() {}, dispose() {},
+      onDidDispose() {}, onDidChangeViewState() {}, reveal() {}, dispose() {},
     }),
   },
 }`)

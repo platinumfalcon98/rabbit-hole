@@ -1,6 +1,6 @@
 // Message payloads for the TTY webviews. Pure reads over StorageService — no
 // vscode APIs — so they are unit-tested directly.
-import type { DailyLog, LivePayload, MiniPayload, ProjectYear, RangePayload, YearPayload } from "../shared/types"
+import type { ColorPicks, DailyLog, LivePayload, MiniPayload, ProjectYear, RangePayload, YearPayload } from "../shared/types"
 import { StorageService, dateKey } from "../tracker/storageService"
 
 // The calendar picker's limit. A range request is a full per-project read, so
@@ -25,14 +25,18 @@ export function yearStart(today: Date): Date {
   return d
 }
 
-export function buildYear(storage: StorageService, now: Date, globalTargetMs: number): YearPayload {
+const NO_PICKS: ColorPicks = { projects: {}, languages: {} }
+
+export function buildYear(storage: StorageService, now: Date, globalTargetMs: number, colors: ColorPicks = NO_PICKS): YearPayload {
   const today = dateKey(now)
   const start = dateKey(yearStart(now))
   const global = storage.getGlobalDays(start, today)
+  const langMs = new Map<string, number>()
   const projects: ProjectYear[] = storage.getProjects().map(p => {
     const logs = storage.getRangeByDates(start, today, p.id)
     let lastActive: number | undefined
     for (const l of logs) {
+      for (const [name, stat] of Object.entries(l.languages ?? {})) langMs.set(name, (langMs.get(name) ?? 0) + stat.time)
       for (const s of l.sessions) {
         const t = s.endTime ?? s.startTime
         if (lastActive === undefined || t > lastActive) lastActive = t
@@ -61,6 +65,9 @@ export function buildYear(storage: StorageService, now: Date, globalTargetMs: nu
       streaks: global.map(g => g.streak),
     },
     projects,
+    // a language's default colour follows this order, so it is the same in every view
+    languages: [...langMs].sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1)).map(([name]) => name),
+    colors,
   }
 }
 
@@ -100,9 +107,9 @@ export function buildLive(storage: StorageService, now: Date): LivePayload {
   }
 }
 
-export function buildMini(storage: StorageService, now: Date, globalTargetMs: number): MiniPayload {
+export function buildMini(storage: StorageService, now: Date, globalTargetMs: number, colors: ColorPicks = NO_PICKS): MiniPayload {
   const today = dateKey(now)
   const logs: Record<string, DailyLog> = {}
   for (const p of storage.getProjects()) logs[p.id] = storage.getRangeByDates(today, today, p.id)[0]
-  return { year: buildYear(storage, now, globalTargetMs), logs }
+  return { year: buildYear(storage, now, globalTargetMs, colors), logs }
 }
