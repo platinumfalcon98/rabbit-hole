@@ -2,6 +2,33 @@
 
 All notable changes to Rabbit Hole. This project follows [semantic versioning](https://semver.org/).
 
+## [0.6.1] — 2026-10-17
+
+### Added
+
+- **Pick colours for projects and languages** in Settings → colours, from the dashboard's
+  24 colours and textures. The dashboard, sidebar, share card and report all use them.
+- **Step through days and ranges** with ‹ › beside the date, which now sits in its own row
+  under the tabs, next to the presets and a custom range button.
+- **Share your activity** from any tab, or from the sidebar, whose button shows today's
+  time and streak. It opens the export dialog, which now has a project dropdown.
+
+### Changed
+
+- The tabs are a strip, so it's clearer which section you're in.
+- Languages keep one colour everywhere, ranked by use over the past year, instead of
+  changing colour with each view.
+- The share card names Rabbit Hole beside the carrot and the project on its own line, so
+  the project's name no longer reads as the app's. Removed lines are red.
+- "Best day" is now "most active".
+- The Settings output reads as plain sentences and sits under "your data", next to the
+  buttons it reports on. Line-counting notes get a marker on the overview's lines panel.
+
+### Fixed
+
+- After the dashboard was opened twice, each export or backup ran twice.
+- The danger card's text collapsed to a word per line beside a long project name.
+
 ## [0.6.0] — 2026-10-10
 
 A new dashboard and sidebar, and line counts you can check against git.
