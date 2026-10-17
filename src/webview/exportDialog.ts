@@ -68,11 +68,14 @@ function buildProjects(): void {
   const y = store?.year
   if (!y) return
   if (sel !== "all" && !y.projects.some(p => p.id === sel)) sel = "all"
-  $("xd-project").replaceChildren(...[{ id: "all", name: "all projects" }, ...y.projects].map(p => {
-    const b = el("button", null, p.name)
-    b.dataset.v = p.id
-    return b
+  // a native select: it scrolls and type-to-finds however many projects there are
+  const s = $<HTMLSelectElement>("xd-project")
+  s.replaceChildren(...[{ id: "all", name: "all projects" }, ...y.projects].map(p => {
+    const o = el("option", null, p.name)
+    o.value = p.id
+    return o
   }))
+  s.value = sel
 }
 
 function render(): void {
@@ -81,9 +84,10 @@ function render(): void {
   span = fitSpan(format, span)
   press($("xd-format"), b => b.dataset.v === format)
   press($("xd-range"), b => b.dataset.v === span)
-  press($("xd-project"), b => b.dataset.v === sel)
+  const projectSelect = $<HTMLSelectElement>("xd-project")
+  projectSelect.value = sel
+  projectSelect.disabled = busy
   $("xd-format").querySelectorAll<HTMLButtonElement>("button").forEach(b => { b.disabled = busy })
-  $("xd-project").querySelectorAll<HTMLButtonElement>("button").forEach(b => { b.disabled = busy })
   $("xd-range").querySelectorAll<HTMLButtonElement>("button").forEach(b => {
     b.disabled = busy || !SPANS[format].includes(b.dataset.v as Span)
   })
@@ -208,7 +212,12 @@ export function initExport(s: Store, p: (m: WebviewMessage) => void): void {
   })
   onPick("xd-format", v => { format = v as Format })
   onPick("xd-range", v => { span = v as Span })
-  onPick("xd-project", v => { sel = v })
+  $<HTMLSelectElement>("xd-project").addEventListener("change", e => {
+    if (busy) return
+    sel = (e.target as HTMLSelectElement).value
+    status("")
+    render()
+  })
   $("xd-cancel").addEventListener("click", closeExport)
   $("xd-go").addEventListener("click", () => { void go() })
   $("xd").addEventListener("click", e => { if (e.target === $("xd")) closeExport() })

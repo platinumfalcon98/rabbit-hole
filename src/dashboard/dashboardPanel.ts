@@ -364,8 +364,8 @@ export class DashboardPanel {
         <div class="opts" id="xd-range" role="group" aria-label="Range"><button data-v="today">today</button><button data-v="7d">7d</button><button data-v="30d">30d</button><button data-v="90d">90d</button></div>
       </div>
       <div class="xd-row">
-        <span class="k">project</span>
-        <div class="opts" id="xd-project" role="group" aria-label="Project"></div>
+        <label class="k" for="xd-project">project</label>
+        <select class="tin xd-select" id="xd-project"></select>
       </div>
       <div class="xd-row">
         <span class="k">saves as</span>
@@ -374,10 +374,11 @@ export class DashboardPanel {
       <div class="xd-foot"><button class="btn" id="xd-cancel">cancel</button><button class="btn primary" id="xd-go">export</button></div>
       <div class="xd-status" id="xd-status" aria-live="polite"></div>
     </fieldset>
-    <section class="xd-stage" aria-label="Preview">
+    <fieldset class="xd-stage">
+      <legend><b>preview</b></legend>
       <div class="xd-head" id="xd-head"></div>
       <div class="xd-canvas" id="xd-preview"></div>
-    </section>
+    </fieldset>
   </div>
 </div>
 

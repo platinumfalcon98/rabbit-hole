@@ -69,16 +69,25 @@ const langColor = (d: ExportData) => {
   return (name: string | null) => (name ? m.get(name) ?? OTHER_COLOR : CARD.add)
 }
 
+// The brand sits beside the carrot and the project gets a labelled line of its
+// own: a project's name set big beside the carrot read as the app's name.
 function header(ctx: Ctx, d: ExportData, b: CardBlock): void {
   glow(ctx, "rgba(255,139,0,.55)", 3, () => carrot(ctx, CARD_X, b.y + 1, 5))
   const tx = CARD_X + CARROT_W * 5 + 14
   const right = d.single ? "today" : `${d.days} days`
   font(ctx, 11)
-  const rw = ctx.measureText(right).width
   text(ctx, right, CARD_X + INNER, b.y + 22, CARD.dim, "right")
-  text(ctx, fit(ctx, rangeText(d), CARD_X + INNER - tx), tx, b.y + 40, CARD.dim)
+  const range = rangeText(d)
+  const rw = ctx.measureText(range).width
+  text(ctx, range, CARD_X + INNER, b.y + 40, CARD.dim, "right")
   font(ctx, 16, 700)
-  text(ctx, fit(ctx, d.title, CARD_X + INNER - rw - 14 - tx), tx, b.y + 22, CARD.ink)
+  text(ctx, "rabbit hole", tx, b.y + 22, CARD.ink)
+  const label = d.sel === "all" ? "" : "project "
+  font(ctx, 11)
+  const lw = ctx.measureText(label).width
+  if (label) text(ctx, label, tx, b.y + 40, CARD.dim)
+  font(ctx, 11, 600)
+  text(ctx, fit(ctx, d.title, CARD_X + INNER - rw - 14 - tx - lw), tx + lw, b.y + 40, CARD.amber)
 }
 
 function marks(ctx: Ctx, d: ExportData, x: number, y: number, w: number): void {
@@ -127,7 +136,7 @@ function tiles(ctx: Ctx, d: ExportData, b: CardBlock): void {
     ]
     : [
       ["per active day", fmt(d.perActiveMs), CARD.ink, `${d.activeDays} active days`],
-      ["best day", d.best ? fmt(d.best.ms) : "—", CARD.ink, d.best ? dstr(d.best.date) : "no activity"],
+      ["most active", d.best ? fmt(d.best.ms) : "—", CARD.ink, d.best ? dstr(d.best.date) : "no activity"],
     ]
   list.push(
     ["lines", `+${d.added}`, CARD.add, `−${d.deleted} removed`],

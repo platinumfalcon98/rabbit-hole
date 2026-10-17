@@ -113,7 +113,7 @@ export function renderOverview(store: Store, openDay: (date: string) => void, ba
       el("div", "big", hours(view.totalMs)),
       kv("active days", `${activeDays.length}/${n}`),
       kv("per active day", fmt(view.totalMs / Math.max(1, activeDays.length))),
-      kv("best", best.shown.activeMs ? `${weekday(best.date)} ${shortDate(best.date)}, ${fmt(best.shown.activeMs)}` : "—"),
+      kv("most active", best.shown.activeMs ? `${weekday(best.date)} ${shortDate(best.date)}, ${fmt(best.shown.activeMs)}` : "—"),
     )
     renderCols(view.days.map(d => ({
       date: d.date,

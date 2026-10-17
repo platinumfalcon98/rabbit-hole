@@ -182,7 +182,7 @@ function tiles(doc: Doc, d: ExportData, y: number, s: Section): void {
       [top ? top.name : "—", "top language", PAGE.ink],
       [`+${d.added.toLocaleString("en-US")}`, "lines added", PAGE.add],
       [`−${d.deleted.toLocaleString("en-US")}`, "lines removed", PAGE.del],
-      [d.best ? fmt(d.best.ms) : "—", d.best ? `best day, ${shortDate(d.best.date)}` : "best day", PAGE.ink],
+      [d.best ? fmt(d.best.ms) : "—", d.best ? `most active, ${shortDate(d.best.date)}` : "most active", PAGE.ink],
       last,
     ]
   const tw = (W - 24 - 3 * 8) / 4

@@ -426,6 +426,7 @@ fieldset.danger legend b { color: var(--del); }
 .xd-row { display: grid; gap: 6px; padding-block: 8px; }
 .xd-row + .xd-row { border-top: 1px dashed var(--rule); }
 .xd-row .k { color: var(--ink-dim); }
+select.xd-select { width: 100%; max-width: 100%; padding-block: 3px; }
 .xd-row .desc, .xd-row .dest { color: var(--ink-mute); overflow-wrap: anywhere; }
 .opts button:disabled { color: var(--ink-mute); opacity: .5; cursor: default; }
 .btn.primary { background: var(--chrome); color: var(--chrome-ink); padding: 3px 10px; text-shadow: none; }
