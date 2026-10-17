@@ -129,7 +129,8 @@ function hero(ctx: Ctx, d: ExportData, b: CardBlock): void {
 
 function tiles(ctx: Ctx, d: ExportData, b: CardBlock): void {
   const top = d.langs[0]
-  const list: [string, string, string, string][] = d.single
+  // title, value, value colour, the line under it, and that line's colour if not dim
+  const list: [string, string, string, string, string?][] = d.single
     ? [
       ["active", fmt(d.totalMs), CARD.ink, `of ${fmt(d.targetMs)} target`],
       ["sessions", String(d.sessions.length), CARD.ink, d.firstStart !== null && d.lastEnd !== null ? `${clock(d.firstStart)} – ${clock(d.lastEnd)}` : "none yet"],
@@ -139,12 +140,12 @@ function tiles(ctx: Ctx, d: ExportData, b: CardBlock): void {
       ["most active", d.best ? fmt(d.best.ms) : "—", CARD.ink, d.best ? dstr(d.best.date) : "no activity"],
     ]
   list.push(
-    ["lines", `+${d.added}`, CARD.add, `−${d.deleted} removed`],
+    ["lines", `+${d.added}`, CARD.add, `−${d.deleted} removed`, CARD.del],
     ["top language", top ? top.name : "—", CARD.ink, top ? hours(top.ms) : "no activity"],
   )
   const w = (INNER - 10) / 2
   const h = (b.h - 10) / 2
-  list.forEach(([title, value, color, key], i) => {
+  list.forEach(([title, value, color, key, keyColor], i) => {
     const x = CARD_X + (i % 2) * (w + 10)
     const y = b.y + Math.floor(i / 2) * (h + 10)
     panel(ctx, x, y, w, h, title)
@@ -152,7 +153,7 @@ function tiles(ctx: Ctx, d: ExportData, b: CardBlock): void {
     const v = fit(ctx, value, w - 24)
     glow(ctx, color, 5, () => text(ctx, v, x + 12, y + 34, color))
     font(ctx, 11)
-    text(ctx, fit(ctx, key, w - 24), x + 12, y + 51, CARD.dim)
+    text(ctx, fit(ctx, key, w - 24), x + 12, y + 51, keyColor ?? CARD.dim)
   })
 }
 
